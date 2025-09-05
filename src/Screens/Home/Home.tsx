@@ -11,17 +11,17 @@ import React from "react";
 import { MMKV } from "react-native-mmkv";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
+import { useQuery } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AppHeader from "../../Components/AppHeader";
+import DatePickerButton from "../../Components/DatePickerButton";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { useTheme } from "../../Context/ThemeContext";
-import AppHeader from "../../Components/AppHeader";
 import { RootStackParamList } from "../../Navigation/types";
+import { itemStockInfo, itemWiseStock } from "../../Api/OpeningStock";
 import { responsiveHeight, responsiveWidth } from "../../constants/helper";
-import DatePickerButton from "../../Components/DatePickerButton";
-import { useQuery } from "@tanstack/react-query";
 import { salesInvoice, salesOrderInvoice } from "../../Api/Sales";
 import { getPurchaseOrderEntry, getPurchaseReport } from "../../Api/Purchase";
-import { itemStockInfo, itemWiseStock } from "../../Api/OpeningStock";
 
 const Home = () => {
     const { colors, typography } = useTheme();
@@ -354,16 +354,20 @@ const Home = () => {
     ]);
 
     return (
-        <SafeAreaView style={[styles.container]} edges={["top", "bottom"]}>
+        <SafeAreaView style={[styles.container]} edges={["top"]}>
             <AppHeader
                 navigation={navigation}
                 showDrawer={true}
                 name={storage.getString("name")}
                 subtitle={storage.getString("companyName")}
+                showRightIcon={true}
+                rightIconLibrary="MaterialIcon"
+                rightIconName="compare-arrows"
+                onRightPress={() => navigation.navigate("CompanySwitch")}
             />
-
             <ScrollView
                 showsVerticalScrollIndicator={false}
+                style={{ flex: 1, backgroundColor: colors.background }}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -678,7 +682,7 @@ const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
         container: {
             flex: 1,
-            backgroundColor: colors.background,
+            backgroundColor: colors.primary,
         },
 
         // Date Picker Section

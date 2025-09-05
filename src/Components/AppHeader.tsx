@@ -1,12 +1,5 @@
 import React, { FC } from "react";
-import {
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    Platform,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import AntDesign from "react-native-vector-icons/AntDesign";
 import FeatherIcon from "react-native-vector-icons/Feather";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
@@ -14,18 +7,32 @@ import MaterialIcon from "react-native-vector-icons/MaterialIcons";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 import { useTheme } from "../Context/ThemeContext";
 import { responsiveHeight, responsiveWidth } from "../constants/helper";
+import EnhancedDropdown from "./EnhancedDropdown";
 
 const iconLibraries = {
-    MaterialIcon: MaterialIcon,
-    FontAwesome: FontAwesome,
     AntDesign: AntDesign,
-    MaterialCommunityIcons: MaterialCommunityIcons,
     FeatherIcon: FeatherIcon,
+    FontAwesome: FontAwesome,
+    MaterialIcon: MaterialIcon,
+    MaterialCommunityIcons: MaterialCommunityIcons,
 } as const;
+
+// Define interfaces for dropdown items
+interface FilterDropdownItem {
+    label: string;
+    value: string;
+}
+
+// Define navigation type interface that can handle both stack and drawer navigators
+interface NavigationProp {
+    openDrawer?: () => void;
+    goBack: () => void;
+    [key: string]: any; // Allow any other navigation methods
+}
 
 type AppHeaderProps = {
     title?: string;
-    navigation: any;
+    navigation: NavigationProp;
     showRightIcon?: boolean;
     rightIconName?: string;
     rightIconLibrary?: keyof typeof iconLibraries;
@@ -34,6 +41,11 @@ type AppHeaderProps = {
     showDrawer?: boolean;
     subtitle?: string;
     name?: string;
+    showFilterDropdown?: boolean;
+    filterTitle?: string;
+    filterDropdownData?: FilterDropdownItem[];
+    selectedFilter?: string;
+    onFilterChange?: (filter: FilterDropdownItem | null) => void;
 };
 
 const AppHeader: FC<AppHeaderProps> = ({
@@ -47,25 +59,24 @@ const AppHeader: FC<AppHeaderProps> = ({
     showDrawer = false,
     subtitle = "",
     name = "",
+    showFilterDropdown = false,
+    filterTitle = "",
+    filterDropdownData = [],
+    selectedFilter = "",
+    onFilterChange = () => {},
 }) => {
-    const { colors, typography, mode } = useTheme();
+    const { colors, typography } = useTheme();
     const styles = getStyles(typography, colors);
 
-    const RightIcon =
-        iconLibraries[rightIconLibrary as keyof typeof iconLibraries];
+    const RightIcon = rightIconLibrary ? iconLibraries[rightIconLibrary] : null;
 
     return (
         <View style={styles.headerContainer}>
-            <StatusBar
-                backgroundColor={colors.primary}
-                barStyle={mode === "light" ? "light-content" : "dark-content"}
-                translucent={false}
-            />
             <View style={styles.headerContent}>
-                {showDrawer ? (
+                {showDrawer && navigation.openDrawer ? (
                     <TouchableOpacity
                         style={styles.iconButton}
-                        onPress={() => navigation.openDrawer()}
+                        onPress={() => navigation.openDrawer?.()}
                         activeOpacity={0.7}>
                         <FontAwesome
                             name="bars"
@@ -91,7 +102,11 @@ const AppHeader: FC<AppHeaderProps> = ({
                 <View style={styles.titleContainer}>
                     {name ? (
                         <View style={styles.welcomeContainer}>
-                            <Text style={styles.welcomeText} numberOfLines={1}>
+                            <Text
+                                style={styles.welcomeText}
+                                numberOfLines={2}
+                                adjustsFontSizeToFit
+                                minimumFontScale={0.7}>
                                 Welcome,{" "}
                                 <Text style={styles.nameText}>{name}!</Text>
                             </Text>
@@ -107,10 +122,26 @@ const AppHeader: FC<AppHeaderProps> = ({
                         <Text
                             style={styles.headerText}
                             numberOfLines={1}
-                            adjustsFontSizeToFit
-                            minimumFontScale={0.8}>
+                            maxFontSizeMultiplier={1.2}>
                             {title}
                         </Text>
+                    )}
+                </View>
+
+                <View style={styles.filterContainer}>
+                    {showFilterDropdown && (
+                        <EnhancedDropdown
+                            data={filterDropdownData}
+                            labelField="label"
+                            valueField="value"
+                            placeholder={filterTitle}
+                            value={selectedFilter}
+                            onChange={onFilterChange}
+                            iconOnly
+                            iconName="filter"
+                            iconColor={colors.white}
+                            iconSize={22}
+                        />
                     )}
                 </View>
 
@@ -139,13 +170,6 @@ const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
         headerContainer: {
             backgroundColor: colors.primary,
-            shadowColor: Platform.OS === "ios" ? colors.black : colors.grey,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 8,
-            borderBottomWidth: Platform.OS === "android" ? 0.5 : 0,
-            borderBottomColor: colors.borderColor,
         },
         headerContent: {
             width: "100%",
@@ -158,19 +182,26 @@ const getStyles = (typography: any, colors: any) =>
             paddingVertical: responsiveHeight(1.5),
         },
         titleContainer: {
-            flex: 1,
-            marginHorizontal: responsiveWidth(3),
+            flex: 2,
+            marginHorizontal: responsiveWidth(2),
             justifyContent: "center",
+            minWidth: 0,
         },
         welcomeContainer: {
+            width: "100%",
             alignItems: "flex-start",
         },
         headerText: {
             ...typography.h5,
             color: colors.white,
-            textAlign: "center",
+            textAlign: "left",
             fontWeight: "600",
-            letterSpacing: 0.5,
+        },
+        filterContainer: {
+            flex: 0,
+            marginHorizontal: responsiveWidth(2),
+            justifyContent: "center",
+            minWidth: responsiveWidth(10),
         },
         welcomeText: {
             ...typography.h6,
@@ -178,6 +209,8 @@ const getStyles = (typography: any, colors: any) =>
             textAlign: "left",
             fontWeight: "500",
             lineHeight: 22,
+            flexShrink: 1,
+            flexWrap: "wrap",
         },
         nameText: {
             color: colors.secondary,

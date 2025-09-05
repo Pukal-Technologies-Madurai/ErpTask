@@ -12,6 +12,7 @@ import { useNavigation } from "@react-navigation/native";
 import { RootStackParamList } from "../../Navigation/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import AppHeader from "../../Components/AppHeader";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const SettingScreen = () => {
     const { colors, typography, mode, toggleTheme } = useTheme();
@@ -23,80 +24,82 @@ const SettingScreen = () => {
     const appVersion = pkg.version || "1.0.0";
 
     return (
-        <ScrollView style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top"]}>
             <AppHeader
                 title="Settings"
                 showDrawer={true}
                 navigation={navigation}
             />
-            {/* Header Section */}
-            <View style={styles.headerSection}>
-                <Text style={styles.subtitle}>
-                    Customize your app experience
-                </Text>
-            </View>
-
-            {/* Theme Section */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Appearance</Text>
-                <View style={styles.settingItem}>
-                    <View style={styles.settingContent}>
-                        <Text style={styles.settingLabel}>Dark Mode</Text>
-                        <Text style={styles.settingDescription}>
-                            Switch between light and dark themes
-                        </Text>
-                    </View>
-                    <Switch
-                        value={mode === "dark"}
-                        onValueChange={toggleTheme}
-                        trackColor={{
-                            false: colors.grey,
-                            true: colors.primary,
-                        }}
-                        thumbColor={
-                            mode === "dark" ? colors.accent : colors.white
-                        }
-                        ios_backgroundColor={colors.grey}
-                    />
+            <View style={styles.contentContainer}>
+                {/* Header Section */}
+                <View style={styles.headerSection}>
+                    <Text style={styles.subtitle}>
+                        Customize your app experience
+                    </Text>
                 </View>
-            </View>
 
-            {/* Profile Section */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Account</Text>
-                <TouchableOpacity
-                    style={styles.settingItem}
-                    onPress={() => navigation.navigate("profile")}>
-                    <View style={styles.settingContent}>
-                        <Text style={styles.settingLabel}>Profile</Text>
-                        <Text style={styles.settingDescription}>
-                            View your profile information
-                        </Text>
-                    </View>
-                    <Text style={styles.chevron}>›</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* About Section */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>About</Text>
-                <View style={styles.settingItem}>
-                    <View style={styles.settingContent}>
-                        <Text style={styles.settingLabel}>App Version</Text>
-                        <Text style={styles.settingDescription}>
-                            {appVersion}
-                        </Text>
+                {/* Theme Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Appearance</Text>
+                    <View style={styles.settingItem}>
+                        <View style={styles.settingContent}>
+                            <Text style={styles.settingLabel}>Dark Mode</Text>
+                            <Text style={styles.settingDescription}>
+                                Switch between light and dark themes
+                            </Text>
+                        </View>
+                        <Switch
+                            value={mode === "dark"}
+                            onValueChange={toggleTheme}
+                            trackColor={{
+                                false: colors.grey,
+                                true: colors.primary,
+                            }}
+                            thumbColor={
+                                mode === "dark" ? colors.accent : colors.white
+                            }
+                            ios_backgroundColor={colors.grey}
+                        />
                     </View>
                 </View>
-            </View>
 
-            {/* Footer */}
-            <View style={styles.footer}>
-                <Text style={styles.footerText}>
-                    Current Theme: {mode === "dark" ? "Dark" : "Light"} Mode
-                </Text>
+                {/* Profile Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Account</Text>
+                    <TouchableOpacity
+                        style={styles.settingItem}
+                        onPress={() => navigation.navigate("profile")}>
+                        <View style={styles.settingContent}>
+                            <Text style={styles.settingLabel}>Profile</Text>
+                            <Text style={styles.settingDescription}>
+                                View your profile information
+                            </Text>
+                        </View>
+                        <Text style={styles.chevron}>›</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* About Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>About</Text>
+                    <View style={styles.settingItem}>
+                        <View style={styles.settingContent}>
+                            <Text style={styles.settingLabel}>App Version</Text>
+                            <Text style={styles.settingDescription}>
+                                {appVersion}
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Footer */}
+                <View style={styles.footer}>
+                    <Text style={styles.footerText}>
+                        Current Theme: {mode === "dark" ? "Dark" : "Light"} Mode
+                    </Text>
+                </View>
             </View>
-        </ScrollView>
+        </SafeAreaView>
     );
 };
 
@@ -106,6 +109,9 @@ const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
         container: {
             flex: 1,
+            backgroundColor: colors.primary,
+        },
+        contentContainer: {
             backgroundColor: colors.background,
         },
         headerSection: {

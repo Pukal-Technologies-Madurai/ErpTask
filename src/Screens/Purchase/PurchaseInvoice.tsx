@@ -18,6 +18,7 @@ import { getPurchaseReport } from "../../Api/Purchase";
 import AppHeader from "../../Components/AppHeader";
 import DatePickerButton from "../../Components/DatePickerButton";
 import { responsiveWidth, responsiveHeight } from "../../constants/helper";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const PurchaseInvoice = () => {
     const { colors, typography } = useTheme();
@@ -563,11 +564,11 @@ const PurchaseInvoice = () => {
     );
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
             <AppHeader title="Purchase Invoice" navigation={navigation} />
 
             <ScrollView
-                style={styles.container}
+                style={styles.scrollContainer}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -730,7 +731,7 @@ const PurchaseInvoice = () => {
                         </View>
                     )}
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -740,6 +741,9 @@ const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
         container: {
             flex: 1,
+            backgroundColor: colors.primary,
+        },
+        scrollContainer: {
             backgroundColor: colors.background,
         },
 

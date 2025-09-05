@@ -18,6 +18,7 @@ import { useTheme } from "../../Context/ThemeContext";
 import { RootStackParamList } from "../../Navigation/types";
 import { godownWiseStock, itemWiseStock } from "../../Api/OpeningStock";
 import { responsiveWidth, responsiveHeight } from "../../constants/helper";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const OpeningStock = () => {
     const navigation =
@@ -424,7 +425,7 @@ const OpeningStock = () => {
     );
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top"]}>
             <AppHeader
                 title="Opening Stock"
                 showDrawer={true}
@@ -432,7 +433,7 @@ const OpeningStock = () => {
             />
 
             <ScrollView
-                style={styles.container}
+                style={styles.contentContainer}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -632,7 +633,7 @@ const OpeningStock = () => {
                     </View>
                 )}
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -642,6 +643,9 @@ const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
         container: {
             flex: 1,
+            backgroundColor: colors.primary,
+        },
+        contentContainer: {
             backgroundColor: colors.background,
         },
 

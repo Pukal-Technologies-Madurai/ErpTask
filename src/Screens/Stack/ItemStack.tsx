@@ -418,7 +418,7 @@ const ItemStack = () => {
             <AppHeader title="Stock Value" navigation={navigation} />
 
             <ScrollView
-                style={styles.container}
+                style={styles.scrollContainer}
                 showsVerticalScrollIndicator={false}>
                 {/* Date Picker Section */}
                 <View style={styles.datePickerContainer}>
@@ -608,6 +608,9 @@ const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
         container: {
             flex: 1,
+            backgroundColor: colors.primary,
+        },
+        scrollContainer: {
             backgroundColor: colors.background,
         },
 

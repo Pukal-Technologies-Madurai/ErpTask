@@ -12,6 +12,7 @@ import Icon from "react-native-vector-icons/Ionicons";
 import SaleInvoice from "../Screens/Sales/SaleInvoice";
 import AttendanceInfo from "../Screens/Home/AttendanceInfo";
 import SaleOrder from "../Screens/Sales/SaleOrder";
+import CompanySwitch from "../Screens/Login/CompanySwitch";
 
 const Drawer = createDrawerNavigator<DrawerParamList>();
 
@@ -28,11 +29,18 @@ const DrawerNavigator = () => {
                 headerShown: false,
                 drawerStyle: {
                     backgroundColor: colors.background,
-                    width: 280,
-                    marginTop: -10,
+                    width: 300,
+                    borderTopRightRadius: 20,
+                    borderBottomRightRadius: 20,
+                    elevation: 10,
+                    shadowColor: colors.black,
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 8,
                 },
                 drawerActiveTintColor: colors.primary,
                 drawerInactiveTintColor: colors.textSecondary,
+                drawerActiveBackgroundColor: colors.primary + "15",
                 headerStyle: {
                     backgroundColor: colors.primary,
                 },
@@ -40,6 +48,20 @@ const DrawerNavigator = () => {
                 drawerLabelStyle: {
                     ...typography.body1,
                     fontWeight: "500",
+                    marginLeft: -16,
+                },
+                drawerItemStyle: {
+                    borderRadius: 12,
+                    marginHorizontal: 12,
+                    marginVertical: 2,
+                    paddingHorizontal: 12,
+                },
+                drawerContentStyle: {
+                    backgroundColor: colors.background,
+                    paddingTop: 0,
+                },
+                sceneContainerStyle: {
+                    backgroundColor: colors.background,
                 },
             }}>
             <Drawer.Screen
@@ -47,8 +69,17 @@ const DrawerNavigator = () => {
                 component={BottomTabsNavigator}
                 options={{
                     headerShown: false,
-                    title: "Home",
-                    drawerLabel: "Home",
+                    title: "Dashboard",
+                    drawerLabel: "Dashboard",
+                    drawerIcon: ({
+                        color,
+                        size,
+                    }: {
+                        color: string;
+                        size: number;
+                    }) => (
+                        <Icon name="home-outline" size={size} color={color} />
+                    ),
                 }}
             />
             <Drawer.Screen
@@ -56,7 +87,7 @@ const DrawerNavigator = () => {
                 component={ProfileScreen}
                 options={{
                     title: "Profile",
-                    drawerLabel: "Profile",
+                    drawerLabel: "My Profile",
                     drawerIcon: ({
                         color,
                         size,
@@ -68,6 +99,28 @@ const DrawerNavigator = () => {
                     ),
                 }}
             />
+            <Drawer.Screen
+                name="CompanySwitch"
+                component={CompanySwitch}
+                options={{
+                    title: "Switch Company",
+                    drawerLabel: "Switch Company",
+                    drawerIcon: ({
+                        color,
+                        size,
+                    }: {
+                        color: string;
+                        size: number;
+                    }) => (
+                        <Icon
+                            name="business-outline"
+                            size={size}
+                            color={color}
+                        />
+                    ),
+                }}
+            />
+
             <Drawer.Screen
                 name="Attendance"
                 component={AttendanceInfo}
@@ -91,7 +144,7 @@ const DrawerNavigator = () => {
                 component={SaleInvoice}
                 options={{
                     title: "Sales Invoice",
-                    drawerLabel: "Invoice Sale",
+                    drawerLabel: "Sales Invoice",
                     drawerIcon: ({
                         color,
                         size,
@@ -100,7 +153,7 @@ const DrawerNavigator = () => {
                         size: number;
                     }) => (
                         <Icon
-                            name="pricetag-outline"
+                            name="receipt-outline"
                             size={size}
                             color={color}
                         />
@@ -113,7 +166,7 @@ const DrawerNavigator = () => {
                 component={SaleOrder}
                 options={{
                     title: "Sales Order",
-                    drawerLabel: "Order Invoice",
+                    drawerLabel: "Sales Order",
                     drawerIcon: ({
                         color,
                         size,
@@ -122,7 +175,7 @@ const DrawerNavigator = () => {
                         size: number;
                     }) => (
                         <Icon
-                            name="pricetags-outline"
+                            name="document-text-outline"
                             size={size}
                             color={color}
                         />

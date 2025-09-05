@@ -1,20 +1,27 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MMKV } from "react-native-mmkv";
+import { baseurl } from "./constants/api";
 import { ThemeProvider } from "./Context/ThemeContext";
 import Navigation from "./Navigation/Navigation";
-import { SafeAreaProvider } from "react-native-safe-area-context";
 
 const queryClient = new QueryClient();
 
 const App = () => {
+    useEffect(() => {
+        const storage = new MMKV();
+        const storedBaseURL = storage.getString("baseURL");
+        if (storedBaseURL) {
+            baseurl(storedBaseURL);
+        }
+    }, []);
+
     return (
-        <SafeAreaProvider>
-            <QueryClientProvider client={queryClient}>
-                <ThemeProvider>
-                    <Navigation />
-                </ThemeProvider>
-            </QueryClientProvider>
-        </SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+            <ThemeProvider>
+                <Navigation />
+            </ThemeProvider>
+        </QueryClientProvider>
     );
 };
 

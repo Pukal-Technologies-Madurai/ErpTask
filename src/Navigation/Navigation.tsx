@@ -16,6 +16,8 @@ import SaleOrder from "../Screens/Sales/SaleOrder";
 import PurchaseInvoice from "../Screens/Purchase/PurchaseInvoice";
 import PurchaseOrder from "../Screens/Purchase/PurchaseOrder";
 import ItemStack from "../Screens/Stack/ItemStack";
+import CompanySwitch from "../Screens/Login/CompanySwitch";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -23,48 +25,62 @@ const Navigation = () => {
     const { colors, mode } = useTheme();
 
     return (
-        <NavigationContainer>
-            <StatusBar
-                barStyle={mode === "light" ? "light-content" : "dark-content"}
-                backgroundColor={colors.primary}
-            />
-            <Stack.Navigator
-                initialRouteName="Splash"
-                screenOptions={{
-                    headerShown: false,
-                    gestureEnabled: true,
-                }}>
-                <Stack.Screen
-                    name="Splash"
-                    component={SplashScreen}
-                    options={{
-                        animationTypeForReplace: "push",
-                    }}
+        <SafeAreaProvider>
+            <NavigationContainer>
+                <StatusBar
+                    barStyle={
+                        mode === "light" ? "light-content" : "dark-content"
+                    }
+                    backgroundColor={colors.primary}
                 />
+                <Stack.Navigator
+                    initialRouteName="Splash"
+                    screenOptions={{
+                        headerShown: false,
+                        gestureEnabled: true,
+                    }}>
+                    <Stack.Screen
+                        name="Splash"
+                        component={SplashScreen}
+                        options={{
+                            animationTypeForReplace: "push",
+                        }}
+                    />
 
-                <Stack.Screen
-                    name="MainDrawer"
-                    component={DrawerNavigator}
-                    options={{
-                        gestureEnabled: false,
-                    }}
-                />
+                    <Stack.Screen
+                        name="MainDrawer"
+                        component={DrawerNavigator}
+                        options={{
+                            gestureEnabled: false,
+                        }}
+                    />
 
-                <Stack.Screen name="Login" component={LoginScreen} />
-                <Stack.Screen name="setting" component={SettingScreen} />
-                <Stack.Screen name="profile" component={ProfileScreen} />
+                    <Stack.Screen name="Login" component={LoginScreen} />
+                    <Stack.Screen name="setting" component={SettingScreen} />
+                    <Stack.Screen name="profile" component={ProfileScreen} />
+                    <Stack.Screen
+                        name="CompanySwitch"
+                        component={CompanySwitch}
+                    />
 
-                <Stack.Screen name="invoiceSale" component={SaleInvoice} />
-                <Stack.Screen name="saleOrderInvoice" component={SaleOrder} />
+                    <Stack.Screen name="invoiceSale" component={SaleInvoice} />
+                    <Stack.Screen
+                        name="saleOrderInvoice"
+                        component={SaleOrder}
+                    />
 
-                <Stack.Screen
-                    name="purchaseInvoice"
-                    component={PurchaseInvoice}
-                />
-                <Stack.Screen name="purchaseOrder" component={PurchaseOrder} />
-                <Stack.Screen name="ItemStack" component={ItemStack} />
-            </Stack.Navigator>
-        </NavigationContainer>
+                    <Stack.Screen
+                        name="purchaseInvoice"
+                        component={PurchaseInvoice}
+                    />
+                    <Stack.Screen
+                        name="purchaseOrder"
+                        component={PurchaseOrder}
+                    />
+                    <Stack.Screen name="ItemStack" component={ItemStack} />
+                </Stack.Navigator>
+            </NavigationContainer>
+        </SafeAreaProvider>
     );
 };
 

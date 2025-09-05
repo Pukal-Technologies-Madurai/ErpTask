@@ -1,22 +1,20 @@
-let baseURL = "https://erpsmt.in/";
+import { MMKV } from "react-native-mmkv";
+const storage = new MMKV();
+
+let baseURL = storage.getString("baseURL") || "https://erpsmt.in/";
 // const baseURL = "http://192.168.1.18:9001/api/";
 
 export const baseurl = (url: any) => {
     baseURL = url;
+    storage.set("baseURL", url);
 };
 
 export const API = {
-    getUserAuth: () => `${baseURL}api/authorization/userAuth`,
+    getUserAuthInfo: () => `${baseURL}api/authorization/userAuth`,
     userPortal: () =>
         `${baseURL}api/authorization/userPortal/accounts?username=`,
     userPortalLogin: () => `${baseURL}api/authorization/userPortal/login`,
     getUserAuthMob: () => `${baseURL}api/authorization/userAuthmobile`,
-
-    dashBoardDayBook: (from: string, to: string) =>
-        `${baseURL}api/dashboard/dayBook?Fromdate=${from}&Todate=${to}`,
-
-    dashBoardData: (from: string, companyId: number) =>
-        `${baseURL}api/dashboard/erp/dashboardData?Fromdate=${from}&Company_Id=${companyId}`,
 
     getEmpDeptWiseAttendance: (from: string, to: string) =>
         `${baseURL}api/empAttendance/departmentwise?FromDate=${from}&ToDate=${to}`,

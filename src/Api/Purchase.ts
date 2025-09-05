@@ -31,7 +31,7 @@ export const getPurchaseReport = async (
         }
         return json.data || [];
     } catch (error) {
-        console.error("Error fetching sales invoice data:", error);
+        // console.error("Error fetching sales invoice data:", error);
         throw error;
     }
 };

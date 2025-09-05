@@ -547,10 +547,11 @@ const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
         container: {
             flex: 1,
-            backgroundColor: colors.background,
+            backgroundColor: colors.primary,
         },
         content: {
             flex: 1,
+            backgroundColor: colors.background,
         },
 
         // Date Section

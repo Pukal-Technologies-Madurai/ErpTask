@@ -14,6 +14,7 @@ import Icon from "react-native-vector-icons/MaterialIcons";
 import AppHeader from "../../Components/AppHeader";
 import { useTheme } from "../../Context/ThemeContext";
 import { RootStackParamList } from "../../Navigation/types";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const ProfileScreen = () => {
     const { colors, typography } = useTheme();
@@ -72,7 +73,7 @@ const ProfileScreen = () => {
     );
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
             <AppHeader title="Profile" navigation={navigation} />
 
             <ScrollView
@@ -137,7 +138,7 @@ const ProfileScreen = () => {
                     </TouchableOpacity>
                 </View>
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -147,10 +148,11 @@ const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
         container: {
             flex: 1,
-            backgroundColor: colors.background,
+            backgroundColor: colors.primary,
         },
         scrollView: {
             flex: 1,
+            backgroundColor: colors.background,
         },
         profileHeader: {
             backgroundColor: colors.background,

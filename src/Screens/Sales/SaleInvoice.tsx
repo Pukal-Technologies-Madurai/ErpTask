@@ -20,6 +20,8 @@ import { useQuery } from "@tanstack/react-query";
 import { salesInvoice } from "../../Api/Sales";
 import DatePickerButton from "../../Components/DatePickerButton";
 import { responsiveWidth, responsiveHeight } from "../../constants/helper";
+import { SafeAreaView } from "react-native-safe-area-context";
+import FilterModal from "../../Components/FilterModal";
 
 const SaleInvoice = () => {
     const { colors, typography } = useTheme();
@@ -30,6 +32,7 @@ const SaleInvoice = () => {
     const [fromDate, setFromDate] = React.useState<Date>(new Date());
     const [toDate, setToDate] = React.useState<Date>(new Date());
     const [searchQuery, setSearchQuery] = React.useState("");
+    const [modalVisible, setModalVisible] = React.useState(false);
     const [expandedInvoices, setExpandedInvoices] = React.useState<Set<string>>(
         new Set(),
     );
@@ -660,12 +663,37 @@ const SaleInvoice = () => {
         </View>
     );
 
+    const handleCloseModal = () => {
+        setModalVisible(false);
+    };
+
     return (
-        <View style={styles.container}>
-            <AppHeader title="Sales Invoice" navigation={navigation} />
+        <SafeAreaView style={styles.container}>
+            <AppHeader
+                title="Sales Invoice"
+                navigation={navigation}
+                showRightIcon={true}
+                rightIconLibrary="MaterialIcon"
+                rightIconName="filter-list"
+                onRightPress={() => setModalVisible(true)}
+            />
+
+            <FilterModal
+                visible={modalVisible}
+                fromDate={fromDate}
+                toDate={toDate}
+                onFromDateChange={setFromDate}
+                onToDateChange={setToDate}
+                onApply={() => setModalVisible(false)}
+                onClose={handleCloseModal}
+                showToDate={true}
+                title="Filter Options"
+                fromLabel="From Date"
+                toLabel="To Date"
+            />
 
             <ScrollView
-                style={styles.container}
+                style={styles.scrollContainer}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -675,29 +703,6 @@ const SaleInvoice = () => {
                     />
                 }
                 showsVerticalScrollIndicator={false}>
-                {/* Date Picker Section */}
-                <View style={styles.datePickerContainer}>
-                    <Text style={styles.sectionTitle}>Select Date Range</Text>
-                    <View style={styles.datePickerRow}>
-                        <DatePickerButton
-                            title="From Date"
-                            date={fromDate}
-                            style={styles.datePicker}
-                            containerStyle={styles.datePickerItem}
-                            titleStyle={styles.datePickerTitle}
-                            onDateChange={setFromDate}
-                        />
-                        <DatePickerButton
-                            title="To Date"
-                            date={toDate}
-                            style={styles.datePicker}
-                            containerStyle={styles.datePickerItem}
-                            titleStyle={styles.datePickerTitle}
-                            onDateChange={setToDate}
-                        />
-                    </View>
-                </View>
-
                 {/* Loading State */}
                 {isLoading && (
                     <View style={styles.loadingContainer}>
@@ -829,7 +834,7 @@ const SaleInvoice = () => {
                         </View>
                     )}
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -839,21 +844,12 @@ const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
         container: {
             flex: 1,
+            backgroundColor: colors.primary,
+        },
+        scrollContainer: {
             backgroundColor: colors.background,
         },
 
-        // Date Picker Section
-        datePickerContainer: {
-            padding: responsiveWidth(4),
-            backgroundColor: colors.white,
-            borderRadius: 12,
-            margin: responsiveWidth(4),
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-        },
         sectionTitle: {
             ...typography.h6,
             color: colors.text,
@@ -863,20 +859,6 @@ const getStyles = (typography: any, colors: any) =>
         datePickerRow: {
             flexDirection: "row",
             gap: responsiveWidth(3),
-        },
-        datePickerItem: {
-            flex: 1,
-        },
-        datePickerTitle: {
-            ...typography.body2,
-            color: colors.text,
-            marginBottom: 8,
-        },
-        datePicker: {
-            backgroundColor: colors.primary + "20",
-            padding: responsiveWidth(3),
-            borderRadius: 8,
-            alignItems: "center",
         },
 
         // Loading & Error States
@@ -927,7 +909,7 @@ const getStyles = (typography: any, colors: any) =>
         summaryContainer: {
             flexDirection: "row",
             paddingHorizontal: responsiveWidth(4),
-            marginBottom: responsiveWidth(4),
+            marginVertical: responsiveWidth(4),
             gap: responsiveWidth(3),
         },
         summaryCard: {
