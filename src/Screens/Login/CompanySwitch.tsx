@@ -5,12 +5,16 @@ import {
     ActivityIndicator,
     Alert,
     TouchableOpacity,
+    ScrollView,
+    ToastAndroid,
 } from "react-native";
 import React from "react";
 import { MMKV } from "react-native-mmkv";
-import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
+import { SafeAreaView } from "react-native-safe-area-context";
+import CheckBox from "@react-native-community/checkbox";
 import CryptoJS from "react-native-crypto-js";
 import { RootStackParamList } from "../../Navigation/types";
 import { useTheme } from "../../Context/ThemeContext";
@@ -18,8 +22,6 @@ import { fetchCompanyInfo } from "../../Api/Login";
 import { spacing, shadows } from "../../constants/helper";
 import { API, baseurl } from "../../constants/api";
 import AppHeader from "../../Components/AppHeader";
-import EnhancedDropdown from "../../Components/EnhancedDropdown";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 interface CompanyData {
     Company_Name: string;
@@ -38,6 +40,7 @@ const CompanySwitch = () => {
 
     const userName = storage.getString("userName") || "N/A";
     const password = storage.getString("password") || "";
+    const name = storage.getString("name") || "N/A";
 
     const companyName =
         storage.getString("companyName") || "No Company Selected";
@@ -57,19 +60,13 @@ const CompanySwitch = () => {
         enabled: !!userName,
     });
 
-    const handleCompanySelection = (item: CompanyData) => {
-        setSelectedCompany(item);
-    };
+    const handleCompanySelection = async (item: CompanyData) => {
+        if (isSwitching) return; // Prevent multiple switches at once
 
-    const handleLogin = async () => {
-        if (!selectedCompany) {
-            Alert.alert("Error", "No company selected");
-            return;
-        }
+        setSelectedCompany(item);
+        setIsSwitching(true);
 
         try {
-            setIsSwitching(true);
-
             const passHash = CryptoJS.AES.encrypt(
                 password,
                 "ly4@&gr$vnh905RyB>?%#@-(KSMT",
@@ -79,27 +76,32 @@ const CompanySwitch = () => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    Global_User_ID: selectedCompany.Global_User_ID,
+                    Global_User_ID: item.Global_User_ID,
                     username: userName,
                     Password: passHash,
-                    Company_Name: selectedCompany.Company_Name,
-                    Global_Id: selectedCompany.Global_Id,
-                    Local_Id: selectedCompany.Local_Id,
-                    Web_Api: selectedCompany.Web_Api,
+                    Company_Name: item.Company_Name,
+                    Global_Id: item.Global_Id,
+                    Local_Id: item.Local_Id,
+                    Web_Api: item.Web_Api,
                 }),
             });
 
             const data = await response.json();
+            // console.log("Selected company:", selectedCompany?.Company_Name);
 
             if (data.success) {
-                baseurl(selectedCompany.Web_Api);
-                await getUserAuthToken(data.data.Autheticate_Id);
+                baseurl(item.Web_Api);
+                await getUserAuthToken(
+                    data.data.Autheticate_Id,
+                    item.Company_Name,
+                );
             } else {
                 throw new Error(data.message || "Login failed");
             }
         } catch (error: any) {
             console.error("Login Error: ", error);
             setIsSwitching(false);
+            setSelectedCompany(null);
             Alert.alert(
                 "Error",
                 `Login failed: ${error.message || "Unknown error"}`,
@@ -107,9 +109,9 @@ const CompanySwitch = () => {
         }
     };
 
-    const getUserAuthToken = async (token: any) => {
+    const getUserAuthToken = async (token: any, companyName: string) => {
         try {
-            console.log("Getting user auth token with:", token);
+            // console.log("Getting user auth token with:", token);
             const url = `${API.getUserAuthInfo()}`;
 
             const response = await fetch(url, {
@@ -125,27 +127,35 @@ const CompanySwitch = () => {
             }
 
             const data = await response.json();
-            console.log("User auth token response:", data);
+            // console.log("User auth token response:", data);
 
             if (data.success) {
                 const success = await updateStorage(data.data);
 
                 if (success) {
-                    Alert.alert(
-                        "Success",
-                        `Successfully switched to ${selectedCompany?.Company_Name}`,
-                        [
-                            {
-                                text: "OK",
-                                onPress: () => {
-                                    navigation.reset({
-                                        index: 0,
-                                        routes: [{ name: "MainDrawer" }],
-                                    });
-                                },
-                            },
-                        ],
+                    ToastAndroid.show(
+                        `Successfully switched to ${companyName}`,
+                        ToastAndroid.LONG,
                     );
+                    navigation.reset({
+                        index: 0,
+                        routes: [{ name: "MainDrawer" }],
+                    });
+                    // Alert.alert(
+                    //     "Success",
+                    //     `Successfully switched to ${companyName}`,
+                    //     [
+                    //         {
+                    //             text: "OK",
+                    //             onPress: () => {
+                    //                 navigation.reset({
+                    //                     index: 0,
+                    //                     routes: [{ name: "MainDrawer" }],
+                    //                 });
+                    //             },
+                    //         },
+                    //     ],
+                    // );
                 }
 
                 return data.data;
@@ -165,15 +175,6 @@ const CompanySwitch = () => {
             );
             throw err;
         }
-    };
-
-    const handleSubmitCompanySwitch = async () => {
-        if (!selectedCompany) {
-            Alert.alert("Error", "Please select a company first");
-            return;
-        }
-
-        await handleLogin();
     };
 
     const updateStorage = async (data: any) => {
@@ -275,7 +276,7 @@ const CompanySwitch = () => {
                 {/* Welcome Section */}
                 <View style={styles.welcomeSection}>
                     <Text style={[typography.h5, styles.welcomeText]}>
-                        Hey 👋 {userName}
+                        Hey 👋 {name}
                     </Text>
                     <Text style={[typography.body1, styles.currentCompanyText]}>
                         Currently in:{" "}
@@ -310,54 +311,63 @@ const CompanySwitch = () => {
                         renderErrorState()
                     ) : (
                         <View style={styles.dropdownContainer}>
-                            <EnhancedDropdown
-                                data={companyData}
-                                labelField="Company_Name"
-                                valueField="Global_Id"
-                                placeholder="Select a company to switch"
-                                value={selectedCompany?.Global_Id}
-                                onChange={handleCompanySelection}
-                                containerStyle={styles.dropdown}
-                                searchPlaceholder="Search companies..."
-                            />
-
-                            <TouchableOpacity
-                                style={[
-                                    styles.switchButton,
-                                    (!selectedCompany || isSwitching) &&
-                                        styles.switchButtonDisabled,
-                                ]}
-                                onPress={handleSubmitCompanySwitch}
-                                disabled={!selectedCompany || isSwitching}>
-                                {isSwitching ? (
-                                    <View style={styles.switchButtonLoading}>
-                                        <ActivityIndicator
-                                            size="small"
-                                            color={colors.white}
-                                            style={{ marginRight: spacing.xs }}
-                                        />
-                                        <Text
-                                            style={[
-                                                typography.button,
-                                                styles.switchButtonText,
-                                            ]}>
-                                            Switching...
-                                        </Text>
-                                    </View>
-                                ) : (
-                                    <Text
+                            <ScrollView style={styles.companiesList}>
+                                {companyData.map((company: CompanyData) => (
+                                    <TouchableOpacity
+                                        key={company.Global_Id}
                                         style={[
-                                            typography.button,
-                                            styles.switchButtonText,
-                                            !selectedCompany &&
-                                                styles.switchButtonTextDisabled,
-                                        ]}>
-                                        {selectedCompany
-                                            ? `Switch to ${selectedCompany.Company_Name}`
-                                            : "Select a Company"}
-                                    </Text>
-                                )}
-                            </TouchableOpacity>
+                                            styles.companyItem,
+                                            isSwitching &&
+                                                styles.companyItemDisabled,
+                                        ]}
+                                        onPress={() =>
+                                            !isSwitching &&
+                                            handleCompanySelection(company)
+                                        }
+                                        disabled={isSwitching}>
+                                        <CheckBox
+                                            value={
+                                                selectedCompany?.Global_Id ===
+                                                company.Global_Id
+                                            }
+                                            onValueChange={() =>
+                                                !isSwitching &&
+                                                handleCompanySelection(company)
+                                            }
+                                            disabled={isSwitching}
+                                            tintColors={{
+                                                true: colors.primary,
+                                                false: colors.grey400,
+                                            }}
+                                            style={styles.checkbox}
+                                        />
+                                        <View
+                                            style={styles.companyNameContainer}>
+                                            <Text
+                                                style={[
+                                                    typography.body1,
+                                                    styles.companyName,
+                                                    selectedCompany?.Global_Id ===
+                                                        company.Global_Id &&
+                                                        styles.selectedCompanyItemText,
+                                                ]}>
+                                                {company.Company_Name}
+                                            </Text>
+                                            {selectedCompany?.Global_Id ===
+                                                company.Global_Id &&
+                                                isSwitching && (
+                                                    <ActivityIndicator
+                                                        size="small"
+                                                        color={colors.primary}
+                                                        style={
+                                                            styles.loadingIndicator
+                                                        }
+                                                    />
+                                                )}
+                                        </View>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
 
                             {companyData.length === 0 && (
                                 <Text
@@ -428,8 +438,28 @@ const getStyles = (colors: any, typography: any) =>
         dropdownContainer: {
             marginTop: spacing.sm,
         },
-        dropdown: {
+        companiesList: {
+            maxHeight: 300,
             marginBottom: spacing.sm,
+        },
+        companyItem: {
+            flexDirection: "row",
+            alignItems: "center",
+            paddingVertical: spacing.sm,
+            paddingHorizontal: spacing.xs,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.grey200,
+        },
+        checkbox: {
+            marginRight: spacing.sm,
+        },
+        companyName: {
+            flex: 1,
+            color: colors.text,
+        },
+        selectedCompanyItemText: {
+            color: colors.primary,
+            fontWeight: "600",
         },
         loadingContainer: {
             alignItems: "center",
@@ -470,29 +500,16 @@ const getStyles = (colors: any, typography: any) =>
             fontStyle: "italic",
             marginTop: spacing.sm,
         },
-        switchButton: {
-            backgroundColor: colors.primary,
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.md,
-            borderRadius: 8,
-            alignItems: "center",
-            marginTop: spacing.md,
-            ...shadows.small,
-        },
-        switchButtonDisabled: {
-            backgroundColor: colors.grey400,
-            opacity: 0.6,
-        },
-        switchButtonText: {
-            color: colors.white,
-            fontWeight: "bold",
-        },
-        switchButtonTextDisabled: {
-            color: colors.grey600,
-        },
-        switchButtonLoading: {
+        companyNameContainer: {
+            flex: 1,
             flexDirection: "row",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: "space-between",
+        },
+        loadingIndicator: {
+            marginLeft: spacing.sm,
+        },
+        companyItemDisabled: {
+            opacity: 0.6,
         },
     });

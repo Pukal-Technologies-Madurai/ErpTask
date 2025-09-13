@@ -6,22 +6,20 @@ import {
     TouchableOpacity,
     RefreshControl,
     TextInput,
-    FlatList,
-    Alert,
 } from "react-native";
 import React from "react";
-import Icon from "react-native-vector-icons/MaterialIcons";
-import AppHeader from "../../Components/AppHeader";
-import { useTheme } from "../../Context/ThemeContext";
-import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../../Navigation/types";
+import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
-import { salesInvoice } from "../../Api/Sales";
-import DatePickerButton from "../../Components/DatePickerButton";
-import { responsiveWidth, responsiveHeight } from "../../constants/helper";
+import { useTheme } from "../../Context/ThemeContext";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Icon from "react-native-vector-icons/MaterialIcons";
+import { RootStackParamList } from "../../Navigation/types";
+import { salesInvoice } from "../../Api/Sales";
+import { responsiveWidth, responsiveHeight } from "../../constants/helper";
+import AppHeader from "../../Components/AppHeader";
 import FilterModal from "../../Components/FilterModal";
+import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
 
 const SaleInvoice = () => {
     const { colors, typography } = useTheme();
@@ -36,15 +34,9 @@ const SaleInvoice = () => {
     const [expandedInvoices, setExpandedInvoices] = React.useState<Set<string>>(
         new Set(),
     );
+    const [selectedBrand, setSelectedBrand] = React.useState("");
     const [currentPage, setCurrentPage] = React.useState(1);
     const [refreshing, setRefreshing] = React.useState(false);
-    const [sortBy, setSortBy] = React.useState<"date" | "amount" | "retailer">(
-        "date",
-    );
-    const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("desc");
-    const [filterStatus, setFilterStatus] = React.useState<
-        "all" | "active" | "cancelled"
-    >("all");
 
     const ITEMS_PER_PAGE = 15;
 
@@ -63,15 +55,6 @@ const SaleInvoice = () => {
     const getProcessedData = () => {
         let filtered = [...invoiceData];
 
-        // Filter by status
-        if (filterStatus !== "all") {
-            filtered = filtered.filter(invoice =>
-                filterStatus === "cancelled"
-                    ? invoice.Cancel_status !== "1"
-                    : invoice.Cancel_status === "1",
-            );
-        }
-
         // Filter by search query
         if (searchQuery.trim()) {
             filtered = filtered.filter(
@@ -88,26 +71,18 @@ const SaleInvoice = () => {
             );
         }
 
-        // Sort data
-        filtered.sort((a, b) => {
-            let comparison = 0;
-            switch (sortBy) {
-                case "date":
-                    comparison =
-                        new Date(a.Do_Date).getTime() -
-                        new Date(b.Do_Date).getTime();
-                    break;
-                case "amount":
-                    comparison = a.Total_Invoice_value - b.Total_Invoice_value;
-                    break;
-                case "retailer":
-                    comparison = (a.Retailer_Name || "").localeCompare(
-                        b.Retailer_Name || "",
-                    );
-                    break;
-            }
-            return sortOrder === "asc" ? comparison : -comparison;
-        });
+        // Filter by brand
+        if (selectedBrand) {
+            filtered = filtered.filter(invoice =>
+                invoice.Products_List?.some(
+                    (product: { BrandGet: string }) =>
+                        (selectedBrand === "No Brand" &&
+                            (!product.BrandGet ||
+                                product.BrandGet.trim() === "")) ||
+                        product.BrandGet === selectedBrand,
+                ),
+            );
+        }
 
         // Pagination
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -159,29 +134,78 @@ const SaleInvoice = () => {
     React.useEffect(() => {
         setCurrentPage(1);
         setExpandedInvoices(new Set());
-    }, [searchQuery, sortBy, sortOrder, filterStatus]);
+    }, [searchQuery]);
 
-    // Format currency
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat("en-IN", {
-            style: "currency",
-            currency: "INR",
-            maximumFractionDigits: 2,
-        }).format(amount);
-    };
+    // Get unique brands with their totals
+    const getBrandsWithTotals = () => {
+        const brandMap = new Map();
 
-    // Format date
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
+        invoiceData.forEach((invoice: any) => {
+            invoice.Products_List?.forEach((product: any) => {
+                const brand =
+                    product.BrandGet && product.BrandGet.trim() !== ""
+                        ? product.BrandGet
+                        : "No Brand";
+                if (!brandMap.has(brand)) {
+                    brandMap.set(brand, {
+                        brand,
+                        count: 0,
+                        amount: 0,
+                    });
+                }
+                const brandInfo = brandMap.get(brand);
+                brandInfo.count += product.Bill_Qty || 0;
+                brandInfo.amount += product.Final_Amo || 0;
+            });
         });
+
+        return Array.from(brandMap.values()).sort((a, b) => b.count - a.count);
     };
 
-    // Get status color
-    const getStatusColor = (status: string) => {
-        return status === "1" ? colors.success : colors.accent;
+    // Brand Filter Component
+    const BrandFilter = () => {
+        const brandsWithTotals = getBrandsWithTotals();
+
+        return (
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.brandFilterContainer}>
+                <TouchableOpacity
+                    style={[
+                        styles.brandFilterButton,
+                        !selectedBrand && styles.brandFilterButtonActive,
+                    ]}
+                    onPress={() => setSelectedBrand("")}>
+                    <Text
+                        style={[
+                            styles.brandFilterText,
+                            !selectedBrand && styles.brandFilterTextActive,
+                        ]}>
+                        All
+                    </Text>
+                </TouchableOpacity>
+                {brandsWithTotals.map(({ brand, count }) => (
+                    <TouchableOpacity
+                        key={brand}
+                        style={[
+                            styles.brandFilterButton,
+                            selectedBrand === brand &&
+                                styles.brandFilterButtonActive,
+                        ]}
+                        onPress={() => setSelectedBrand(brand)}>
+                        <Text
+                            style={[
+                                styles.brandFilterText,
+                                selectedBrand === brand &&
+                                    styles.brandFilterTextActive,
+                            ]}>
+                            {brand} ({count})
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
+        );
     };
 
     // Summary Cards Component
@@ -199,105 +223,6 @@ const SaleInvoice = () => {
                 </Text>
                 <Text style={styles.summaryLabel}>Total Amount</Text>
             </View>
-            {/* <View style={styles.summaryCard}>
-                <Icon name="trending-up" size={24} color={colors.info} />
-                <Text style={styles.summaryValue}>
-                    {totalItems > 0
-                        ? formatCurrency(totalAmount / totalItems).replace(
-                              "₹",
-                              "",
-                          )
-                        : "0"}
-                </Text>
-                <Text style={styles.summaryLabel}>Avg. Invoice</Text>
-            </View> */}
-        </View>
-    );
-
-    // Filter Controls Component
-    const FilterControls = () => (
-        <View style={styles.filterContainer}>
-            <Text style={styles.filterLabel}>Status:</Text>
-            <View style={styles.filterButtons}>
-                {[
-                    { key: "all", label: "All" },
-                    { key: "active", label: "Active" },
-                    { key: "cancelled", label: "Cancelled" },
-                ].map(option => (
-                    <TouchableOpacity
-                        key={option.key}
-                        style={[
-                            styles.filterButton,
-                            filterStatus === option.key &&
-                                styles.activeFilterButton,
-                        ]}
-                        onPress={() => setFilterStatus(option.key as any)}>
-                        <Text
-                            style={[
-                                styles.filterButtonText,
-                                filterStatus === option.key &&
-                                    styles.activeFilterButtonText,
-                            ]}>
-                            {option.label}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
-        </View>
-    );
-
-    // Sort Controls Component
-    const SortControls = () => (
-        <View style={styles.sortContainer}>
-            <Text style={styles.sortLabel}>Sort by:</Text>
-            <View style={styles.sortButtons}>
-                {[
-                    { key: "date", label: "Date", icon: "date-range" },
-                    { key: "amount", label: "Amount", icon: "attach-money" },
-                    { key: "retailer", label: "Retailer", icon: "person" },
-                ].map(option => (
-                    <TouchableOpacity
-                        key={option.key}
-                        style={[
-                            styles.sortButton,
-                            sortBy === option.key && styles.activeSortButton,
-                        ]}
-                        onPress={() => {
-                            if (sortBy === option.key) {
-                                setSortOrder(
-                                    sortOrder === "asc" ? "desc" : "asc",
-                                );
-                            } else {
-                                setSortBy(option.key as any);
-                                setSortOrder("desc");
-                            }
-                        }}>
-                        <Icon
-                            name={
-                                sortBy === option.key
-                                    ? sortOrder === "asc"
-                                        ? "arrow-upward"
-                                        : "arrow-downward"
-                                    : "sort"
-                            }
-                            size={16}
-                            color={
-                                sortBy === option.key
-                                    ? colors.white
-                                    : colors.textSecondary
-                            }
-                        />
-                        <Text
-                            style={[
-                                styles.sortButtonText,
-                                sortBy === option.key &&
-                                    styles.activeSortButtonText,
-                            ]}>
-                            {option.label}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
         </View>
     );
 
@@ -306,303 +231,191 @@ const SaleInvoice = () => {
         const isExpanded = expandedInvoices.has(invoice.Do_Id);
         const isActive = invoice.Cancel_status === "1";
 
+        const getFormattedDate = (dateString: string) => {
+            try {
+                const date = new Date(dateString);
+                return formatDate(date);
+            } catch (error) {
+                return "--";
+            }
+        };
+
         return (
-            <View style={styles.invoiceCard}>
+            <View style={styles.orderCard}>
                 <TouchableOpacity
-                    style={styles.invoiceHeader}
+                    style={styles.orderHeader}
                     onPress={() => toggleInvoice(invoice.Do_Id)}
                     activeOpacity={0.7}>
-                    <View style={styles.invoiceHeaderLeft}>
-                        <View style={styles.invoiceNumberContainer}>
-                            <Icon
-                                name="receipt"
-                                size={18}
-                                color={colors.primary}
-                            />
-                            <Text style={styles.invoiceNumber}>
-                                {invoice.Do_Inv_No}
-                            </Text>
-                            <View
-                                style={[
-                                    styles.statusBadge,
-                                    {
-                                        backgroundColor:
-                                            getStatusColor(
-                                                invoice.Cancel_status,
-                                            ) + "20",
-                                    },
-                                ]}>
-                                <Text
-                                    style={[
-                                        styles.statusText,
-                                        {
-                                            color: getStatusColor(
-                                                invoice.Cancel_status,
-                                            ),
-                                        },
-                                    ]}>
-                                    {isActive ? "Active" : "Cancelled"}
+                    <View style={styles.orderHeaderLeft}>
+                        <View style={styles.orderTopRow}>
+                            <View style={styles.orderNumberContainer}>
+                                <Text style={styles.orderNumber}>
+                                    {invoice.Do_Inv_No}
                                 </Text>
+                                <View style={styles.dateTimeContainer}>
+                                    <Icon
+                                        name="event"
+                                        size={12}
+                                        color={colors.textSecondary}
+                                        style={styles.dateTimeIcon}
+                                    />
+                                    <Text style={styles.orderDateTime}>
+                                        {invoice.Created_on
+                                            ? getFormattedDate(
+                                                  invoice.Created_on,
+                                              )
+                                            : "--"}
+                                    </Text>
+                                    <Icon
+                                        name="schedule"
+                                        size={12}
+                                        color={colors.textSecondary}
+                                        style={styles.dateTimeIcon}
+                                    />
+                                    <Text style={styles.orderDateTime}>
+                                        {invoice.Created_on
+                                            ? formatTime(invoice.Created_on)
+                                            : "--"}
+                                    </Text>
+                                </View>
                             </View>
-                        </View>
-                        <Text style={styles.retailerName} numberOfLines={1}>
-                            {invoice.Retailer_Name}
-                        </Text>
-                        <View style={styles.invoiceMeta}>
-                            <Text style={styles.invoiceDate}>
-                                {formatDate(invoice.Do_Date)}
-                            </Text>
-                            <Text style={styles.invoiceAmount}>
+                            <Text style={styles.orderAmount}>
                                 {formatCurrency(invoice.Total_Invoice_value)}
                             </Text>
                         </View>
+                        <View style={styles.orderBottomRow}>
+                            <View style={styles.retailerContainer}>
+                                <Icon
+                                    name="store"
+                                    size={14}
+                                    color={colors.primary}
+                                    style={styles.bottomRowIcon}
+                                />
+                                <Text
+                                    style={styles.retailerName}
+                                    numberOfLines={2}>
+                                    {invoice.Retailer_Name}
+                                </Text>
+                            </View>
+                            <View style={styles.salesPersonContainer}>
+                                <Icon
+                                    name="person"
+                                    size={14}
+                                    color={colors.textSecondary}
+                                    style={styles.bottomRowIcon}
+                                />
+                                <Text style={styles.salesPerson}>
+                                    {invoice.Created_BY_Name}
+                                </Text>
+                            </View>
+                        </View>
                     </View>
-                    <Icon
-                        name={isExpanded ? "expand-less" : "expand-more"}
-                        size={24}
-                        color={colors.textSecondary}
-                    />
                 </TouchableOpacity>
 
                 {isExpanded && (
-                    <View style={styles.invoiceDetails}>
-                        {/* Invoice Info */}
-                        <View style={styles.invoiceInfoSection}>
-                            <Text style={styles.sectionTitle}>
-                                Invoice Details
-                            </Text>
+                    <View style={styles.orderDetails}>
+                        {/* Essential Order Info */}
+                        <View style={styles.essentialInfo}>
                             <View style={styles.infoGrid}>
                                 <View style={styles.infoItem}>
-                                    <Text style={styles.infoLabel}>
-                                        Branch:
-                                    </Text>
-                                    <Text
-                                        style={styles.infoValue}
-                                        numberOfLines={2}>
-                                        {invoice.Branch_Name}
-                                    </Text>
+                                    <Icon
+                                        name="business"
+                                        size={16}
+                                        color={colors.primary}
+                                    />
+                                    <View style={styles.infoContent}>
+                                        <Text style={styles.infoLabel}>
+                                            Branch
+                                        </Text>
+                                        <Text
+                                            style={styles.infoValue}
+                                            numberOfLines={1}>
+                                            {invoice.Branch_Name}
+                                        </Text>
+                                    </View>
                                 </View>
                                 <View style={styles.infoItem}>
-                                    <Text style={styles.infoLabel}>
-                                        Voucher Type:
-                                    </Text>
-                                    <Text style={styles.infoValue}>
-                                        {invoice.VoucherTypeGet}
-                                    </Text>
+                                    <Icon
+                                        name="account-balance"
+                                        size={16}
+                                        color={colors.success}
+                                    />
+                                    <View style={styles.infoContent}>
+                                        <Text style={styles.infoLabel}>
+                                            Before Tax
+                                        </Text>
+                                        <Text style={styles.infoValue}>
+                                            {formatCurrency(
+                                                invoice.Total_Before_Tax,
+                                            )}
+                                        </Text>
+                                    </View>
                                 </View>
                                 <View style={styles.infoItem}>
-                                    <Text style={styles.infoLabel}>
-                                        Created By:
-                                    </Text>
-                                    <Text style={styles.infoValue}>
-                                        {invoice.Created_BY_Name}
-                                    </Text>
-                                </View>
-                                <View style={styles.infoItem}>
-                                    <Text style={styles.infoLabel}>
-                                        Created On:
-                                    </Text>
-                                    <Text style={styles.infoValue}>
-                                        {formatDate(invoice.Created_on)}
-                                    </Text>
+                                    <Icon
+                                        name="receipt"
+                                        size={16}
+                                        color={colors.warning}
+                                    />
+                                    <View style={styles.infoContent}>
+                                        <Text style={styles.infoLabel}>
+                                            Tax
+                                        </Text>
+                                        <Text style={styles.infoValue}>
+                                            {formatCurrency(invoice.Total_Tax)}
+                                        </Text>
+                                    </View>
                                 </View>
                             </View>
                         </View>
 
-                        {/* Amount Breakdown */}
-                        <View style={styles.amountSection}>
-                            <Text style={styles.sectionTitle}>
-                                Amount Breakdown
-                            </Text>
-                            <View style={styles.amountGrid}>
-                                <View style={styles.amountRow}>
-                                    <Text style={styles.amountLabel}>
-                                        Before Tax:
-                                    </Text>
-                                    <Text style={styles.amountValue}>
-                                        {formatCurrency(
-                                            invoice.Total_Before_Tax,
-                                        )}
-                                    </Text>
-                                </View>
-                                <View style={styles.amountRow}>
-                                    <Text style={styles.amountLabel}>
-                                        Tax Total:
-                                    </Text>
-                                    <Text style={styles.amountValue}>
-                                        {formatCurrency(invoice.Total_Tax)}
-                                    </Text>
-                                </View>
-                                <View style={styles.amountRow}>
-                                    <Text style={styles.amountLabel}>
-                                        Expenses:
-                                    </Text>
-                                    <Text style={styles.amountValue}>
-                                        {formatCurrency(invoice.Total_Expences)}
-                                    </Text>
-                                </View>
-                                <View style={styles.amountRow}>
-                                    <Text style={styles.amountLabel}>
-                                        Round Off:
-                                    </Text>
-                                    <Text style={styles.amountValue}>
-                                        {formatCurrency(invoice.Round_off)}
-                                    </Text>
-                                </View>
-                                <View
-                                    style={[styles.amountRow, styles.totalRow]}>
-                                    <Text style={styles.totalLabel}>
-                                        Total Amount:
-                                    </Text>
-                                    <Text style={styles.totalValue}>
-                                        {formatCurrency(
-                                            invoice.Total_Invoice_value,
-                                        )}
-                                    </Text>
-                                </View>
-                            </View>
-                        </View>
-
-                        {/* Products List */}
+                        {/* Products Table */}
                         {invoice.Products_List &&
                             invoice.Products_List.length > 0 && (
-                                <View style={styles.productsSection}>
-                                    <Text style={styles.sectionTitle}>
-                                        Products ({invoice.Products_List.length}
-                                        )
-                                    </Text>
+                                <View style={styles.productsTable}>
+                                    <View style={styles.tableHeader}>
+                                        <Text
+                                            style={[
+                                                styles.tableCell,
+                                                styles.productNameCell,
+                                            ]}>
+                                            Product
+                                        </Text>
+                                        <Text style={styles.tableCell}>
+                                            Qty
+                                        </Text>
+                                        <Text style={styles.tableCell}>
+                                            Rate
+                                        </Text>
+                                        <Text style={styles.tableCell}>
+                                            Amount
+                                        </Text>
+                                    </View>
                                     {invoice.Products_List.map(
                                         (product: any, index: number) => (
                                             <View
                                                 key={index}
-                                                style={styles.productCard}>
-                                                <View
-                                                    style={
-                                                        styles.productHeader
-                                                    }>
-                                                    <Text
-                                                        style={
-                                                            styles.productName
-                                                        }
-                                                        numberOfLines={2}>
-                                                        {product.Product_Name}
-                                                    </Text>
-                                                    <Text
-                                                        style={
-                                                            styles.productBrand
-                                                        }>
-                                                        {product.BrandGet}
-                                                    </Text>
-                                                </View>
-                                                <View
-                                                    style={
-                                                        styles.productDetails
-                                                    }>
-                                                    <View
-                                                        style={
-                                                            styles.productRow
-                                                        }>
-                                                        <Text
-                                                            style={
-                                                                styles.productLabel
-                                                            }>
-                                                            Quantity:
-                                                        </Text>
-                                                        <Text
-                                                            style={
-                                                                styles.productValue
-                                                            }>
-                                                            {product.Bill_Qty}{" "}
-                                                            {product.Unit_Name}
-                                                        </Text>
-                                                    </View>
-                                                    <View
-                                                        style={
-                                                            styles.productRow
-                                                        }>
-                                                        <Text
-                                                            style={
-                                                                styles.productLabel
-                                                            }>
-                                                            Rate:
-                                                        </Text>
-                                                        <Text
-                                                            style={
-                                                                styles.productValue
-                                                            }>
-                                                            {formatCurrency(
-                                                                product.Item_Rate,
-                                                            )}
-                                                        </Text>
-                                                    </View>
-                                                    <View
-                                                        style={
-                                                            styles.productRow
-                                                        }>
-                                                        <Text
-                                                            style={
-                                                                styles.productLabel
-                                                            }>
-                                                            Amount:
-                                                        </Text>
-                                                        <Text
-                                                            style={[
-                                                                styles.productValue,
-                                                                styles.productAmount,
-                                                            ]}>
-                                                            {formatCurrency(
-                                                                product.Final_Amo,
-                                                            )}
-                                                        </Text>
-                                                    </View>
-                                                    <View
-                                                        style={
-                                                            styles.productRow
-                                                        }>
-                                                        <Text
-                                                            style={
-                                                                styles.productLabel
-                                                            }>
-                                                            HSN Code:
-                                                        </Text>
-                                                        <Text
-                                                            style={
-                                                                styles.productValue
-                                                            }>
-                                                            {product.HSN_Code}
-                                                        </Text>
-                                                    </View>
-                                                </View>
-                                            </View>
-                                        ),
-                                    )}
-                                </View>
-                            )}
-
-                        {/* Expenses List */}
-                        {invoice.Expence_Array &&
-                            invoice.Expence_Array.length > 0 && (
-                                <View style={styles.expensesSection}>
-                                    <Text style={styles.sectionTitle}>
-                                        Expenses ({invoice.Expence_Array.length}
-                                        )
-                                    </Text>
-                                    {invoice.Expence_Array.map(
-                                        (expense: any, index: number) => (
-                                            <View
-                                                key={index}
-                                                style={styles.expenseCard}>
+                                                style={styles.tableRow}>
                                                 <Text
-                                                    style={styles.expenseName}>
-                                                    {expense.Expence_Name}
+                                                    style={[
+                                                        styles.tableCell,
+                                                        styles.productNameCell,
+                                                    ]}
+                                                    numberOfLines={4}>
+                                                    {product.Product_Name}
                                                 </Text>
-                                                <Text
-                                                    style={
-                                                        styles.expenseAmount
-                                                    }>
+                                                <Text style={styles.tableCell}>
+                                                    {product.Bill_Qty}
+                                                </Text>
+                                                <Text style={styles.tableCell}>
                                                     {formatCurrency(
-                                                        expense.Expence_Value,
-                                                    )}
+                                                        product.Item_Rate,
+                                                    ).replace("₹", "")}
+                                                </Text>
+                                                <Text style={styles.tableCell}>
+                                                    {formatCurrency(
+                                                        product.Final_Amo,
+                                                    ).replace("₹", "")}
                                                 </Text>
                                             </View>
                                         ),
@@ -745,11 +558,8 @@ const SaleInvoice = () => {
                         {/* Summary Cards */}
                         <SummaryCards />
 
-                        {/* Filter Controls */}
-                        <FilterControls />
-
-                        {/* Sort Controls */}
-                        <SortControls />
+                        {/* Brand Filter */}
+                        <BrandFilter />
 
                         {/* Search Bar */}
                         <View style={styles.searchContainer}>
@@ -905,6 +715,31 @@ const getStyles = (typography: any, colors: any) =>
             fontWeight: "600",
         },
 
+        brandFilterContainer: {
+            paddingHorizontal: 16,
+            marginBottom: 16,
+        },
+        brandFilterButton: {
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            borderRadius: 20,
+            backgroundColor: colors.background,
+            marginRight: 8,
+            borderWidth: 1,
+            borderColor: colors.borderColor,
+        },
+        brandFilterButtonActive: {
+            backgroundColor: colors.primary,
+            borderColor: colors.primary,
+        },
+        brandFilterText: {
+            ...typography.body2,
+            color: colors.textSecondary,
+        },
+        brandFilterTextActive: {
+            color: colors.white,
+        },
+
         // Summary Cards
         summaryContainer: {
             flexDirection: "row",
@@ -936,98 +771,6 @@ const getStyles = (typography: any, colors: any) =>
             color: colors.textSecondary,
             marginTop: responsiveWidth(1),
             textAlign: "center",
-        },
-
-        // Filter Controls
-        filterContainer: {
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: colors.white,
-            marginHorizontal: responsiveWidth(4),
-            marginBottom: responsiveWidth(3),
-            padding: responsiveWidth(4),
-            borderRadius: 12,
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-        },
-        filterLabel: {
-            ...typography.body2,
-            color: colors.text,
-            fontWeight: "600",
-            marginRight: responsiveWidth(3),
-        },
-        filterButtons: {
-            flexDirection: "row",
-            flex: 1,
-            gap: responsiveWidth(2),
-        },
-        filterButton: {
-            flex: 1,
-            paddingVertical: responsiveWidth(2),
-            paddingHorizontal: responsiveWidth(3),
-            borderRadius: 8,
-            backgroundColor: colors.background,
-            alignItems: "center",
-        },
-        activeFilterButton: {
-            backgroundColor: colors.primary,
-        },
-        filterButtonText: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            fontWeight: "600",
-        },
-        activeFilterButtonText: {
-            color: colors.white,
-        },
-
-        // Sort Controls
-        sortContainer: {
-            backgroundColor: colors.white,
-            marginHorizontal: responsiveWidth(4),
-            marginBottom: responsiveWidth(3),
-            padding: responsiveWidth(4),
-            borderRadius: 12,
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-        },
-        sortLabel: {
-            ...typography.body2,
-            color: colors.text,
-            fontWeight: "600",
-            marginBottom: responsiveWidth(2),
-        },
-        sortButtons: {
-            flexDirection: "row",
-            gap: responsiveWidth(2),
-        },
-        sortButton: {
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            paddingVertical: responsiveWidth(2.5),
-            paddingHorizontal: responsiveWidth(2),
-            borderRadius: 8,
-            backgroundColor: colors.background,
-            gap: responsiveWidth(1),
-        },
-        activeSortButton: {
-            backgroundColor: colors.primary,
-        },
-        sortButtonText: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            fontWeight: "600",
-        },
-        activeSortButtonText: {
-            color: colors.white,
         },
 
         // Search Container
@@ -1065,8 +808,8 @@ const getStyles = (typography: any, colors: any) =>
             textAlign: "center",
         },
 
-        // Invoice Card
-        invoiceCard: {
+        // Order Card Styles
+        orderCard: {
             backgroundColor: colors.white,
             marginHorizontal: responsiveWidth(4),
             marginBottom: responsiveWidth(3),
@@ -1078,88 +821,161 @@ const getStyles = (typography: any, colors: any) =>
             elevation: 3,
             overflow: "hidden",
         },
-        invoiceHeader: {
+        orderHeader: {
             flexDirection: "row",
-            alignItems: "center",
+            alignItems: "flex-start",
             justifyContent: "space-between",
             padding: responsiveWidth(4),
-            backgroundColor: colors.primary + "10",
         },
-        invoiceHeaderLeft: {
+        orderHeaderLeft: {
             flex: 1,
+            marginRight: responsiveWidth(3),
         },
-        invoiceNumberContainer: {
+        orderTopRow: {
             flexDirection: "row",
-            alignItems: "center",
-            gap: responsiveWidth(2),
+            justifyContent: "space-between",
+            alignItems: "flex-start",
             marginBottom: responsiveWidth(2),
         },
-        invoiceNumber: {
+        orderNumberContainer: {
+            flex: 1,
+            marginRight: responsiveWidth(3),
+        },
+        orderNumber: {
             ...typography.h6,
             color: colors.text,
             fontWeight: "700",
-            flex: 1,
+            marginBottom: responsiveWidth(1),
         },
-        statusBadge: {
-            paddingHorizontal: responsiveWidth(2),
-            paddingVertical: responsiveWidth(0.5),
-            borderRadius: 6,
+        dateTimeContainer: {
+            flexDirection: "row",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: responsiveWidth(1),
+        },
+        dateTimeIcon: {
+            marginRight: 2,
+        },
+        orderDateTime: {
+            ...typography.caption,
+            color: colors.textSecondary,
+        },
+        orderAmount: {
+            ...typography.h6,
+            color: colors.primary,
+            fontWeight: "700",
+        },
+        orderBottomRow: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+        },
+        retailerContainer: {
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "flex-start",
+            marginRight: responsiveWidth(3),
+        },
+        bottomRowIcon: {
+            marginRight: responsiveWidth(1),
+            marginTop: 2,
+        },
+        retailerName: {
+            flex: 1,
+            ...typography.body2,
+            color: colors.text,
+            fontWeight: "500",
+        },
+        salesPersonContainer: {
+            flexDirection: "row",
+            alignItems: "center",
+        },
+        salesPerson: {
+            ...typography.caption,
+            color: colors.textSecondary,
+        },
+        statusContainer: {
+            flexDirection: "row",
+            alignItems: "center",
+            marginTop: responsiveWidth(2),
+        },
+        statusDot: {
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            marginRight: responsiveWidth(1),
         },
         statusText: {
             ...typography.caption,
             fontWeight: "600",
         },
-        retailerName: {
-            ...typography.body1,
-            color: colors.text,
-            fontWeight: "600",
-            marginBottom: responsiveWidth(2),
-        },
-        invoiceMeta: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-        },
-        invoiceDate: {
-            ...typography.body2,
-            color: colors.textSecondary,
-        },
-        invoiceAmount: {
-            ...typography.h6,
-            color: colors.primary,
-            fontWeight: "700",
-        },
 
-        // Invoice Details
-        invoiceDetails: {
+        // Expanded Order Details
+        orderDetails: {
             padding: responsiveWidth(4),
-            gap: responsiveWidth(4),
         },
-        invoiceInfoSection: {
+        essentialInfo: {
             backgroundColor: colors.background,
-            padding: responsiveWidth(3),
-            borderRadius: 8,
+            padding: responsiveWidth(2),
+            borderRadius: responsiveHeight(2),
+            marginBottom: responsiveWidth(3),
         },
         infoGrid: {
-            gap: responsiveWidth(2),
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: responsiveWidth(1.5),
         },
         infoItem: {
+            flex: 1,
+            minWidth: responsiveWidth(25),
             flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
+            alignItems: "center",
+            gap: responsiveWidth(2),
+        },
+        infoContent: {
+            flex: 1,
         },
         infoLabel: {
-            ...typography.body2,
+            ...typography.caption,
             color: colors.textSecondary,
-            fontWeight: "500",
-            minWidth: responsiveWidth(25),
+            marginBottom: 2,
         },
         infoValue: {
             ...typography.body2,
             color: colors.text,
             fontWeight: "600",
+        },
+        // Products Table
+        productsTable: {
+            backgroundColor: colors.white,
+            borderRadius: 12,
+            overflow: "hidden",
+            borderWidth: 1,
+            borderColor: colors.border,
+        },
+        tableHeader: {
+            flexDirection: "row",
+            backgroundColor: colors.backgroundAlt,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+            paddingVertical: responsiveWidth(2),
+        },
+        tableRow: {
+            flexDirection: "row",
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+            paddingVertical: responsiveWidth(2),
+        },
+        tableCell: {
+            ...typography.body2,
+            color: colors.text,
+            paddingHorizontal: responsiveWidth(2),
             flex: 1,
             textAlign: "right",
+        },
+        productNameCell: {
+            flex: 2,
+            textAlign: "left",
         },
 
         // Amount Section

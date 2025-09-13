@@ -26,7 +26,7 @@ export const API = {
         `${baseURL}api/sales/saleOrder?Fromdate=${from}&Todate=${to}`,
 
     purchaseReport: (from: string, to: string) =>
-        `${baseURL}/api/reports/PurchaseOrderReportCard?Report_Type=2&Fromdate=${from}&Todate=${to}`,
+        `${baseURL}api/reports/PurchaseOrderReportCard?Report_Type=2&Fromdate=${from}&Todate=${to}`,
 
     purchaseOrderEntry: (from: string, to: string) =>
         `${baseURL}api/dataEntry/purchaseOrderEntry?Fromdate=${from}&Todate=${to}`,

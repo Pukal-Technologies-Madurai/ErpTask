@@ -1,8 +1,8 @@
-export const LocalTime = (dateObj: Date | string | number) => {
-    const receivedDate = dateObj ? new Date(dateObj) : new Date();
-    return receivedDate.toLocaleTimeString("en-IN", {
-        hour: "2-digit",
-        minute: "2-digit",
+export const formatDate = (date: Date) => {
+    return date.toLocaleDateString("en-US", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
     });
 };
 
@@ -19,6 +19,22 @@ export const formatTime = (timeString: string) => {
     return `${formattedHours}:${minutes.toString().padStart(2, "0")} ${period}`;
 };
 
+export const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 2,
+    }).format(amount);
+};
+
+export const LocalTime = (dateObj: Date | string | number) => {
+    const receivedDate = dateObj ? new Date(dateObj) : new Date();
+    return receivedDate.toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+};
+
 export const calculateDuration = (
     start: Date | string | number,
     end: Date | string | number,
@@ -30,12 +46,4 @@ export const calculateDuration = (
     const hours = Math.floor((durationMs / (1000 * 60 * 60)) % 24);
 
     return `${hours}h ${minutes}m`;
-};
-
-export const formatDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-    });
 };
