@@ -41,6 +41,7 @@ const CompanySwitch = () => {
     const userName = storage.getString("userName") || "N/A";
     const password = storage.getString("password") || "";
     const name = storage.getString("name") || "N/A";
+    const currentCompanyId = storage.getString("companyId");
 
     const companyName =
         storage.getString("companyName") || "No Company Selected";
@@ -59,6 +60,19 @@ const CompanySwitch = () => {
         queryFn: () => fetchCompanyInfo(userName),
         enabled: !!userName,
     });
+
+    // Initialize selected company when data is loaded
+    React.useEffect(() => {
+        if (companyData.length > 0 && currentCompanyId) {
+            const current = companyData.find(
+                (company: CompanyData) =>
+                    String(company.Global_Id) === currentCompanyId,
+            );
+            if (current) {
+                setSelectedCompany(current);
+            }
+        }
+    }, [companyData, currentCompanyId]);
 
     const handleCompanySelection = async (item: CompanyData) => {
         if (isSwitching) return; // Prevent multiple switches at once
@@ -328,7 +342,11 @@ const CompanySwitch = () => {
                                         <CheckBox
                                             value={
                                                 selectedCompany?.Global_Id ===
-                                                company.Global_Id
+                                                    company.Global_Id ||
+                                                (!selectedCompany &&
+                                                    String(
+                                                        company.Global_Id,
+                                                    ) === currentCompanyId)
                                             }
                                             onValueChange={() =>
                                                 !isSwitching &&
@@ -347,8 +365,13 @@ const CompanySwitch = () => {
                                                 style={[
                                                     typography.body1,
                                                     styles.companyName,
-                                                    selectedCompany?.Global_Id ===
-                                                        company.Global_Id &&
+                                                    (selectedCompany?.Global_Id ===
+                                                        company.Global_Id ||
+                                                        (!selectedCompany &&
+                                                            String(
+                                                                company.Global_Id,
+                                                            ) ===
+                                                                currentCompanyId)) &&
                                                         styles.selectedCompanyItemText,
                                                 ]}>
                                                 {company.Company_Name}

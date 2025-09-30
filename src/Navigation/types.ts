@@ -27,7 +27,7 @@ export type RootStackParamList = {
 
     invoiceSale: undefined;
     saleOrderInvoice: undefined;
-    purchaseInvoice: undefined;
+    PurchaseReportSummary: undefined;
     purchaseOrder: undefined;
     ItemStack: undefined;
 };

@@ -170,7 +170,7 @@ const getStyles = (typography: any, colors: any) =>
             fontWeight: "300",
         },
         footer: {
-            padding: 20,
+            padding: 60,
             alignItems: "center",
             marginTop: 20,
         },

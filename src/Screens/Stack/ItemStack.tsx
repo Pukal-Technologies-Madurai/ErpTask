@@ -7,18 +7,18 @@ import {
     TextInput,
     ActivityIndicator,
 } from "react-native";
+import { useTheme } from "../../Context/ThemeContext";
 import React from "react";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialIcons";
-import { RootStackParamList } from "../../Navigation/types";
-import { useTheme } from "../../Context/ThemeContext";
-import { itemStockInfo } from "../../Api/OpeningStock";
-import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 import AppHeader from "../../Components/AppHeader";
-import DatePickerButton from "../../Components/DatePickerButton";
+import FilterModal from "../../Components/FilterModal";
+import { itemStockInfo } from "../../Api/OpeningStock";
+import { RootStackParamList } from "../../Navigation/types";
+import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 
 // Interface for the stock item data
 interface StockItem {
@@ -76,6 +76,8 @@ const ItemStack = () => {
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { colors, typography } = useTheme();
     const styles = getStyles(typography, colors);
+
+    const [modalVisible, setModalVisible] = React.useState(false);
     const [reqDate, setReqDate] = React.useState<Date>(new Date());
     const [searchText, setSearchText] = React.useState<string>("");
     const [groupBy, setGroupBy] = React.useState<
@@ -84,10 +86,6 @@ const ItemStack = () => {
     const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(
         new Set(),
     );
-    const [sortBy, setSortBy] = React.useState<"value" | "quantity" | "name">(
-        "value",
-    );
-    const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("desc");
 
     const {
         data: itemStockValue = [],
@@ -140,44 +138,9 @@ const ItemStack = () => {
         const groupedArray: GroupedData[] = Object.values(grouped);
 
         return groupedArray.sort((a: GroupedData, b: GroupedData) => {
-            let aValue: number | string, bValue: number | string;
-
-            switch (sortBy) {
-                case "value":
-                    aValue = a.totalValue;
-                    bValue = b.totalValue;
-                    break;
-                case "quantity":
-                    aValue = a.totalQuantity;
-                    bValue = b.totalQuantity;
-                    break;
-                case "name":
-                    aValue = a.groupName;
-                    bValue = b.groupName;
-                    break;
-                default:
-                    aValue = a.totalValue;
-                    bValue = b.totalValue;
-            }
-
-            if (sortBy === "name") {
-                return sortOrder === "asc"
-                    ? (aValue as string).localeCompare(bValue as string)
-                    : (bValue as string).localeCompare(aValue as string);
-            } else {
-                return sortOrder === "asc"
-                    ? (aValue as number) - (bValue as number)
-                    : (bValue as number) - (aValue as number);
-            }
+            return b.totalValue - a.totalValue;
         });
-    }, [
-        itemStockValue,
-        searchText,
-        groupBy,
-        expandedGroups,
-        sortBy,
-        sortOrder,
-    ]);
+    }, [itemStockValue, searchText, groupBy, expandedGroups]);
 
     // Calculate totals
     const totalValue = React.useMemo((): number => {
@@ -246,75 +209,6 @@ const ItemStack = () => {
         </View>
     );
 
-    // Sort Controls Component
-    const SortControls = () => (
-        <View style={styles.sortControlsContainer}>
-            <Text style={styles.sortLabel}>Sort By:</Text>
-            <View style={styles.sortButtonsContainer}>
-                <TouchableOpacity
-                    style={[
-                        styles.sortButton,
-                        sortBy === "value" && styles.activeSortButton,
-                    ]}
-                    onPress={() => setSortBy("value")}>
-                    <Icon
-                        name="monetization-on"
-                        size={18}
-                        color={sortBy === "value" ? colors.white : colors.text}
-                    />
-                    <Text
-                        style={[
-                            styles.sortButtonText,
-                            sortBy === "value" && styles.activeSortButtonText,
-                        ]}>
-                        Value
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[
-                        styles.sortButton,
-                        sortBy === "quantity" && styles.activeSortButton,
-                    ]}
-                    onPress={() => setSortBy("quantity")}>
-                    <Icon
-                        name="inventory"
-                        size={18}
-                        color={
-                            sortBy === "quantity" ? colors.white : colors.text
-                        }
-                    />
-                    <Text
-                        style={[
-                            styles.sortButtonText,
-                            sortBy === "quantity" &&
-                                styles.activeSortButtonText,
-                        ]}>
-                        Quantity
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[
-                        styles.sortButton,
-                        sortBy === "name" && styles.activeSortButton,
-                    ]}
-                    onPress={() => setSortBy("name")}>
-                    <Icon
-                        name="sort-by-alpha"
-                        size={18}
-                        color={sortBy === "name" ? colors.white : colors.text}
-                    />
-                    <Text
-                        style={[
-                            styles.sortButtonText,
-                            sortBy === "name" && styles.activeSortButtonText,
-                        ]}>
-                        Name
-                    </Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
-
     // Group Card Component
     const GroupCard = ({ group }: { group: GroupedData }) => {
         const isExpanded = expandedGroups.has(group.groupName);
@@ -322,41 +216,70 @@ const ItemStack = () => {
         return (
             <View style={styles.groupCard}>
                 <TouchableOpacity
-                    style={styles.groupHeader}
+                    style={[
+                        styles.groupHeader,
+                        isExpanded && styles.groupHeaderExpanded,
+                    ]}
                     onPress={() => toggleGroup(group.groupName)}>
                     <View style={styles.groupHeaderContent}>
-                        <Icon
-                            name={isExpanded ? "expand-less" : "expand-more"}
-                            size={24}
-                            color={colors.primary}
-                        />
-                        <Text style={styles.groupTitle}>{group.groupName}</Text>
-                    </View>
-                    <View style={styles.groupStats}>
-                        <View style={styles.groupStat}>
+                        <View style={styles.groupTitleContainer}>
                             <Icon
-                                name="inventory"
-                                size={16}
-                                color={colors.textSecondary}
+                                name={
+                                    isExpanded ? "expand-less" : "expand-more"
+                                }
+                                size={24}
+                                color={colors.primary}
                             />
-                            <Text style={styles.groupStatText}>
-                                {group.items.length}
+                            <Text style={styles.groupTitle}>
+                                {group.groupName}
                             </Text>
+                            <View style={styles.groupBadge}>
+                                <Text style={styles.groupBadgeText}>
+                                    {group.items[0].Group_ST}
+                                </Text>
+                            </View>
                         </View>
-                        <View style={styles.groupStat}>
-                            <Icon
-                                name="monetization-on"
-                                size={16}
-                                color={colors.textSecondary}
-                            />
-                            <Text style={styles.groupStatText}>
-                                {formatCurrency(
-                                    group.items.reduce(
-                                        (sum, item) => sum + item.CL_Value,
-                                        0,
-                                    ),
-                                )}
-                            </Text>
+                        <View style={styles.groupMetrics}>
+                            <View style={styles.groupMetric}>
+                                <Icon
+                                    name="inventory"
+                                    size={16}
+                                    color={colors.info}
+                                />
+                                <Text style={styles.groupMetricValue}>
+                                    {group.items.length} items
+                                </Text>
+                            </View>
+                            <View style={styles.groupMetric}>
+                                <Icon
+                                    name="add-shopping-cart"
+                                    size={16}
+                                    color={colors.success}
+                                />
+                                <Text style={styles.groupMetricValue}>
+                                    {formatCurrency(
+                                        group.items.reduce(
+                                            (sum, item) => sum + item.Pur_value,
+                                            0,
+                                        ),
+                                    )}
+                                </Text>
+                            </View>
+                            <View style={styles.groupMetric}>
+                                <Icon
+                                    name="shopping-cart-checkout"
+                                    size={16}
+                                    color={colors.warning}
+                                />
+                                <Text style={styles.groupMetricValue}>
+                                    {formatCurrency(
+                                        group.items.reduce(
+                                            (sum, item) => sum + item.Sal_value,
+                                            0,
+                                        ),
+                                    )}
+                                </Text>
+                            </View>
                         </View>
                     </View>
                 </TouchableOpacity>
@@ -368,41 +291,87 @@ const ItemStack = () => {
                                 key={`${item.Stock_Group}-${item.Grade_Item_Group}-${index}`}
                                 style={styles.itemCard}>
                                 <View style={styles.itemHeader}>
-                                    <Text style={styles.itemName}>
-                                        {item.Stock_Group}
-                                    </Text>
-                                    <View style={styles.itemBadge}>
-                                        <Text style={styles.itemBadgeText}>
-                                            {item.Grade_Item_Group}
+                                    <View style={styles.itemHeaderLeft}>
+                                        <Text style={styles.itemName}>
+                                            {item.Group_Name}
                                         </Text>
+                                        <View style={styles.itemSubInfo}>
+                                            <Text
+                                                style={styles.itemSubInfoText}>
+                                                {item.S_Sub_Group_1}
+                                            </Text>
+                                            <View style={styles.divider} />
+                                            <View style={styles.itemBadge}>
+                                                <Text
+                                                    style={
+                                                        styles.itemBadgeText
+                                                    }>
+                                                    {item.Grade_Item_Group}
+                                                </Text>
+                                            </View>
+                                            {/* <Text
+                                                style={styles.itemSubInfoText}>
+                                                {item.Brand}
+                                            </Text> */}
+                                        </View>
                                     </View>
                                 </View>
-                                <View style={styles.itemContent}>
-                                    <View style={styles.itemMetric}>
-                                        <Icon
-                                            name="account-balance-wallet"
-                                            size={16}
-                                            color={colors.primary}
-                                        />
-                                        <Text style={styles.itemMetricLabel}>
-                                            Value
-                                        </Text>
-                                        <Text style={styles.itemMetricValue}>
-                                            {formatCurrency(item.CL_Value)}
-                                        </Text>
+
+                                <View style={styles.itemStats}>
+                                    <View style={styles.statsRow}>
+                                        <View style={styles.statItem}>
+                                            <Text style={styles.statLabel}>
+                                                Opening Balance
+                                            </Text>
+                                            <Text style={styles.statValue}>
+                                                {item.OB_Bal_Qty} Qty |{" "}
+                                                {formatCurrency(item.OB_Value)}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.statItem}>
+                                            <Text style={styles.statLabel}>
+                                                Current Balance
+                                            </Text>
+                                            <Text style={styles.statValue}>
+                                                {item.Bal_Qty} Qty |{" "}
+                                                {formatCurrency(item.CL_Value)}
+                                            </Text>
+                                        </View>
                                     </View>
-                                    <View style={styles.itemMetric}>
-                                        <Icon
-                                            name="speed"
-                                            size={16}
-                                            color={colors.accent}
-                                        />
-                                        <Text style={styles.itemMetricLabel}>
-                                            Rate
-                                        </Text>
-                                        <Text style={styles.itemMetricValue}>
-                                            {formatNumber(item.CL_Rate)}
-                                        </Text>
+
+                                    <View style={styles.transactionSummary}>
+                                        <View style={styles.transactionItem}>
+                                            <Icon
+                                                name="add-circle-outline"
+                                                size={16}
+                                                color={colors.success}
+                                            />
+                                            <Text
+                                                style={styles.transactionLabel}>
+                                                IN
+                                            </Text>
+                                            <Text
+                                                style={styles.transactionValue}>
+                                                {item.IN_Qty} Qty |{" "}
+                                                {formatCurrency(item.IN_Value)}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.transactionItem}>
+                                            <Icon
+                                                name="remove-circle-outline"
+                                                size={16}
+                                                color={colors.error}
+                                            />
+                                            <Text
+                                                style={styles.transactionLabel}>
+                                                OUT
+                                            </Text>
+                                            <Text
+                                                style={styles.transactionValue}>
+                                                {item.OUT_Qty} Qty |{" "}
+                                                {formatCurrency(item.Out_Value)}
+                                            </Text>
+                                        </View>
                                     </View>
                                 </View>
                             </View>
@@ -413,24 +382,35 @@ const ItemStack = () => {
         );
     };
 
+    const handleCloseModal = () => {
+        setModalVisible(false);
+    };
+
     return (
         <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-            <AppHeader title="Stock Value" navigation={navigation} />
+            <AppHeader
+                title="Item Stock Value"
+                navigation={navigation}
+                showRightIcon={true}
+                rightIconLibrary="MaterialIcon"
+                rightIconName="filter-list"
+                onRightPress={() => setModalVisible(true)}
+            />
+
+            <FilterModal
+                visible={modalVisible}
+                fromDate={reqDate}
+                onFromDateChange={setReqDate}
+                onApply={() => setModalVisible(false)}
+                onClose={handleCloseModal}
+                showToDate={false}
+                title="Filter Options"
+                fromLabel="From Date"
+            />
 
             <ScrollView
                 style={styles.scrollContainer}
                 showsVerticalScrollIndicator={false}>
-                {/* Date Picker Section */}
-                <View style={styles.datePickerContainer}>
-                    <Text style={styles.sectionTitle}>Select Date</Text>
-                    <DatePickerButton
-                        title="Select Date"
-                        date={reqDate}
-                        style={styles.datePicker}
-                        onDateChange={setReqDate}
-                    />
-                </View>
-
                 {/* Loading State */}
                 {isItemStockValueLoading && (
                     <View style={styles.loadingContainer}>
@@ -479,9 +459,6 @@ const ItemStack = () => {
                             {/* Summary Cards */}
                             <SummaryCards />
 
-                            {/* Sort Controls */}
-                            <SortControls />
-
                             {/* Search Bar */}
                             <View style={styles.searchContainer}>
                                 <Icon
@@ -510,7 +487,6 @@ const ItemStack = () => {
 
                             {/* Group Toggle */}
                             <View style={styles.groupToggleContainer}>
-                                <Text style={styles.sortLabel}>Group by:</Text>
                                 <View style={styles.groupToggleButtons}>
                                     <TouchableOpacity
                                         style={[
@@ -564,19 +540,24 @@ const ItemStack = () => {
                                                     "Grade_Item_Group" &&
                                                     styles.activeGroupToggleButtonText,
                                             ]}>
-                                            Grade Group
+                                            Grade Item Group
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
 
                             {/* Stock Groups */}
-                            {groupedData.map((group, index) => (
-                                <GroupCard
-                                    key={`${group.groupName}-${index}`}
-                                    group={group}
-                                />
-                            ))}
+                            <View
+                                style={{
+                                    paddingHorizontal: responsiveWidth(4),
+                                }}>
+                                {groupedData.map((group, index) => (
+                                    <GroupCard
+                                        key={`${group.groupName}-${index}`}
+                                        group={group}
+                                    />
+                                ))}
+                            </View>
 
                             {/* Empty State */}
                             {groupedData.length === 0 && (
@@ -660,63 +641,6 @@ const getStyles = (typography: any, colors: any) =>
 
         toggleButtonTextActive: {
             color: colors.white,
-            fontWeight: "600",
-        },
-
-        sortContainer: {
-            marginBottom: responsiveHeight(2),
-        },
-
-        sortButtonsContainer: {
-            flexDirection: "row",
-            gap: responsiveWidth(2),
-        },
-
-        sortButton: {
-            flexDirection: "row",
-            alignItems: "center",
-            paddingHorizontal: responsiveWidth(3),
-            paddingVertical: responsiveHeight(0.8),
-            borderRadius: 6,
-            backgroundColor: colors.surface,
-            gap: responsiveWidth(1),
-        },
-
-        sortButtonActive: {
-            backgroundColor: colors.primary,
-        },
-
-        sortButtonText: {
-            ...typography.caption,
-            color: colors.text,
-            fontWeight: "500",
-        },
-
-        sortButtonTextActive: {
-            color: colors.white,
-            fontWeight: "600",
-        },
-
-        expandContainer: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            gap: responsiveWidth(2),
-        },
-
-        expandButton: {
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            paddingVertical: responsiveHeight(1),
-            borderRadius: 6,
-            backgroundColor: colors.primary + "15",
-            gap: responsiveWidth(1),
-        },
-
-        expandButtonText: {
-            ...typography.caption,
-            color: colors.primary,
             fontWeight: "600",
         },
 
@@ -815,30 +739,135 @@ const getStyles = (typography: any, colors: any) =>
         },
 
         groupHeader: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
+            padding: responsiveWidth(4),
             backgroundColor: colors.white,
-            paddingHorizontal: responsiveWidth(4),
-            paddingVertical: responsiveHeight(2),
-            borderBottomWidth: 1,
-            borderBottomColor: colors.grey500,
         },
 
-        groupHeaderLeft: {
+        groupHeaderExpanded: {
+            backgroundColor: colors.primary + "08",
+            borderBottomWidth: 1,
+            borderBottomColor: colors.primary + "20",
+        },
+
+        groupTitleContainer: {
             flexDirection: "row",
             alignItems: "center",
-            flex: 1,
-        },
-
-        groupHeaderText: {
-            marginLeft: responsiveWidth(2),
-            flex: 1,
+            gap: responsiveWidth(2),
+            marginBottom: responsiveWidth(3),
         },
 
         groupTitle: {
-            ...typography.body1,
+            ...typography.h6,
             color: colors.text,
+            fontWeight: "600",
+            flex: 1,
+        },
+
+        groupBadge: {
+            backgroundColor: colors.info + "15",
+            paddingHorizontal: responsiveWidth(2),
+            paddingVertical: responsiveWidth(0.5),
+            borderRadius: 12,
+        },
+
+        groupBadgeText: {
+            ...typography.caption,
+            color: colors.info,
+            fontWeight: "600",
+        },
+
+        groupMetrics: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+        },
+
+        groupMetric: {
+            flexDirection: "row",
+            alignItems: "center",
+            gap: responsiveWidth(1),
+        },
+
+        groupMetricValue: {
+            ...typography.caption,
+            color: colors.text,
+            fontWeight: "500",
+        },
+
+        itemHeaderLeft: {
+            flexDirection: "row",
+            alignItems: "flex-start",
+            gap: responsiveWidth(3),
+        },
+
+        itemSubInfo: {
+            flexDirection: "row",
+            alignItems: "center",
+            gap: responsiveWidth(2),
+            marginTop: responsiveWidth(1),
+        },
+
+        itemSubInfoText: {
+            ...typography.caption,
+            color: colors.grey700,
+        },
+
+        divider: {
+            width: 1,
+            height: "100%",
+            backgroundColor: colors.grey300,
+        },
+
+        itemStats: {
+            padding: responsiveWidth(2),
+            backgroundColor: colors.grey50,
+            borderBottomLeftRadius: 6,
+            borderBottomRightRadius: 6,
+        },
+
+        statsRow: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            marginBottom: responsiveWidth(2),
+        },
+
+        statItem: {
+            flex: 1,
+        },
+
+        statLabel: {
+            ...typography.caption,
+            color: colors.grey700,
+            marginBottom: 2,
+        },
+
+        statValue: {
+            ...typography.subtitle1,
+            color: colors.text,
+            fontWeight: "600",
+        },
+
+        transactionSummary: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            paddingTop: responsiveWidth(3),
+            borderTopWidth: 1,
+            borderTopColor: colors.grey200,
+        },
+
+        transactionItem: {
+            alignItems: "center",
+            flex: 1,
+        },
+
+        transactionLabel: {
+            ...typography.overline,
+            color: colors.grey700,
+            marginBottom: 2,
+        },
+
+        transactionValue: {
+            ...typography.subtitle2,
             fontWeight: "600",
         },
 
@@ -917,7 +946,7 @@ const getStyles = (typography: any, colors: any) =>
             paddingVertical: responsiveHeight(2),
             backgroundColor: colors.white,
             borderBottomWidth: 1,
-            borderBottomColor: colors.grey500,
+            borderBottomColor: colors.borderColor,
             gap: responsiveWidth(2),
         },
 
@@ -936,31 +965,6 @@ const getStyles = (typography: any, colors: any) =>
             textAlign: "center",
         },
 
-        // Sort Controls Styles
-        sortControlsContainer: {
-            paddingHorizontal: responsiveWidth(4),
-            paddingVertical: responsiveHeight(2),
-            backgroundColor: colors.white,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.grey500,
-        },
-
-        sortLabel: {
-            ...typography.body2,
-            color: colors.text,
-            fontWeight: "600",
-            marginBottom: responsiveHeight(1),
-        },
-
-        activeSortButton: {
-            backgroundColor: colors.primary,
-        },
-
-        activeSortButtonText: {
-            color: colors.white,
-            fontWeight: "600",
-        },
-
         // Search Container Styles
         searchContainer: {
             flexDirection: "row",
@@ -972,7 +976,7 @@ const getStyles = (typography: any, colors: any) =>
             paddingVertical: responsiveHeight(1),
             borderRadius: 8,
             borderWidth: 1,
-            borderColor: colors.grey500,
+            borderColor: colors.borderColor,
             gap: responsiveWidth(2),
         },
 
@@ -989,7 +993,7 @@ const getStyles = (typography: any, colors: any) =>
             paddingVertical: responsiveHeight(2),
             backgroundColor: colors.white,
             borderBottomWidth: 1,
-            borderBottomColor: colors.grey500,
+            borderBottomColor: colors.borderColor,
         },
 
         groupToggleButtons: {
@@ -1027,20 +1031,18 @@ const getStyles = (typography: any, colors: any) =>
         // Group Card Styles
         groupCard: {
             backgroundColor: colors.white,
-            marginHorizontal: responsiveWidth(4),
-            marginVertical: responsiveHeight(1),
+            marginBottom: responsiveHeight(1),
             borderRadius: 8,
             elevation: 2,
-            shadowColor: colors.shadow,
+            shadowColor: colors.black,
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.1,
             shadowRadius: 4,
+            overflow: "hidden", // This will ensure content stays within borders
         },
 
         groupHeaderContent: {
-            flexDirection: "row",
-            alignItems: "center",
-            flex: 1,
+            width: "100%",
         },
 
         groupStats: {
@@ -1062,15 +1064,14 @@ const getStyles = (typography: any, colors: any) =>
         },
 
         groupContent: {
-            paddingHorizontal: responsiveWidth(4),
-            paddingBottom: responsiveHeight(2),
+            padding: responsiveWidth(2),
+            backgroundColor: colors.background,
         },
 
         // Item Card Styles
         itemCard: {
             backgroundColor: colors.surface,
-            marginVertical: responsiveHeight(0.5),
-            padding: responsiveWidth(3),
+            marginBottom: responsiveHeight(0.75),
             borderRadius: 6,
             borderLeftWidth: 3,
             borderLeftColor: colors.primary,
@@ -1080,7 +1081,8 @@ const getStyles = (typography: any, colors: any) =>
             flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: responsiveHeight(1),
+            padding: responsiveWidth(2),
+            paddingBottom: responsiveHeight(1),
         },
 
         itemName: {
@@ -1125,26 +1127,6 @@ const getStyles = (typography: any, colors: any) =>
             ...typography.caption,
             color: colors.text,
             fontWeight: "600",
-        },
-
-        // Date Picker Section
-        datePickerContainer: {
-            paddingHorizontal: responsiveWidth(4),
-            paddingVertical: responsiveHeight(2),
-            backgroundColor: colors.white,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.grey500,
-        },
-
-        sectionTitle: {
-            ...typography.body2,
-            color: colors.text,
-            fontWeight: "600",
-            marginBottom: responsiveHeight(1),
-        },
-
-        datePicker: {
-            backgroundColor: colors.surface,
         },
 
         // Error Container Updates

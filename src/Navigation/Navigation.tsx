@@ -13,7 +13,7 @@ import SettingScreen from "../Screens/Home/SettingScreen";
 import ProfileScreen from "../Screens/Home/ProfileScreen";
 import SaleInvoice from "../Screens/Sales/SaleInvoice";
 import SaleOrder from "../Screens/Sales/SaleOrder";
-import PurchaseInvoice from "../Screens/Purchase/PurchaseInvoice";
+import PurchaseReportSummary from "../Screens/Purchase/PurchaseReportSummary";
 import PurchaseOrder from "../Screens/Purchase/PurchaseOrder";
 import ItemStack from "../Screens/Stack/ItemStack";
 import CompanySwitch from "../Screens/Login/CompanySwitch";
@@ -70,8 +70,8 @@ const Navigation = () => {
                     />
 
                     <Stack.Screen
-                        name="purchaseInvoice"
-                        component={PurchaseInvoice}
+                        name="PurchaseReportSummary"
+                        component={PurchaseReportSummary}
                     />
                     <Stack.Screen
                         name="purchaseOrder"

@@ -9,23 +9,29 @@ import {
 } from "react-native";
 import React from "react";
 import Icon from "react-native-vector-icons/MaterialIcons";
-import { useTheme } from "../../Context/ThemeContext";
+import FontAwesomeIcon from "react-native-vector-icons/FontAwesome6";
 import { useNavigation } from "@react-navigation/native";
+import { MMKV } from "react-native-mmkv";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../../Navigation/types";
-import { useQuery } from "@tanstack/react-query";
-import { getPurchaseReport } from "../../Api/Purchase";
-import AppHeader from "../../Components/AppHeader";
-import DatePickerButton from "../../Components/DatePickerButton";
-import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useQuery } from "@tanstack/react-query";
+import AppHeader from "../../Components/AppHeader";
+import FilterModal from "../../Components/FilterModal";
+import { getPurchaseReport } from "../../Api/Purchase";
+import { formatCurrency } from "../../constants/utils";
+import { useTheme } from "../../Context/ThemeContext";
+import { RootStackParamList } from "../../Navigation/types";
+import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 
-const PurchaseInvoice = () => {
+const PurchaseReportSummary = () => {
+    const storage = new MMKV();
     const { colors, typography } = useTheme();
     const styles = getStyles(typography, colors);
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
+    const [companyId, setCompanyId] = React.useState("");
+    const [modalVisible, setModalVisible] = React.useState(false);
     const [fromDate, setFromDate] = React.useState<Date>(new Date());
     const [toDate, setToDate] = React.useState<Date>(new Date());
     const [searchQuery, setSearchQuery] = React.useState("");
@@ -37,12 +43,13 @@ const PurchaseInvoice = () => {
     );
     const [currentPage, setCurrentPage] = React.useState(1);
     const [refreshing, setRefreshing] = React.useState(false);
-    const [sortBy, setSortBy] = React.useState<"group" | "amount" | "quantity">(
-        "group",
-    );
-    const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("asc");
 
     const ITEMS_PER_PAGE = 10;
+
+    React.useEffect(() => {
+        const companyId = storage.getString("companyId");
+        if (companyId) setCompanyId(companyId);
+    }, []);
 
     const {
         data: purchaseData = [],
@@ -50,9 +57,9 @@ const PurchaseInvoice = () => {
         error,
         refetch,
     } = useQuery({
-        queryKey: ["purchaseReport", fromDate, toDate],
-        queryFn: () => getPurchaseReport(fromDate, toDate),
-        enabled: !!fromDate && !!toDate,
+        queryKey: ["purchaseReport", fromDate, toDate, companyId],
+        queryFn: () => getPurchaseReport(fromDate, toDate, companyId),
+        enabled: !!fromDate && !!toDate && !!companyId,
     });
 
     // Process and filter data
@@ -86,29 +93,6 @@ const PurchaseInvoice = () => {
                     ),
             );
         }
-
-        // Sort data
-        filtered.sort((a, b) => {
-            let comparison = 0;
-            switch (sortBy) {
-                case "group":
-                    comparison = (a.Stock_Group || "").localeCompare(
-                        b.Stock_Group || "",
-                    );
-                    break;
-                case "amount":
-                    const amountA = calculateGroupTotal(a);
-                    const amountB = calculateGroupTotal(b);
-                    comparison = amountA - amountB;
-                    break;
-                case "quantity":
-                    const qtyA = calculateGroupQuantity(a);
-                    const qtyB = calculateGroupQuantity(b);
-                    comparison = qtyA - qtyB;
-                    break;
-            }
-            return sortOrder === "asc" ? comparison : -comparison;
-        });
 
         // Pagination
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -227,16 +211,7 @@ const PurchaseInvoice = () => {
         setCurrentPage(1);
         setExpandedGroups(new Set());
         setExpandedItems(new Set());
-    }, [searchQuery, sortBy, sortOrder]);
-
-    // Format currency
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat("en-IN", {
-            style: "currency",
-            currency: "INR",
-            maximumFractionDigits: 0,
-        }).format(amount);
-    };
+    }, [searchQuery]);
 
     // Format number
     const formatNumber = (num: number) => {
@@ -280,74 +255,22 @@ const PurchaseInvoice = () => {
         </View>
     );
 
-    // Sort Controls Component
-    const SortControls = () => (
-        <View style={styles.sortContainer}>
-            <Text style={styles.sortLabel}>Sort by:</Text>
-            <View style={styles.sortButtons}>
-                {[
-                    { key: "group", label: "Group", icon: "category" },
-                    { key: "amount", label: "Amount", icon: "attach-money" },
-                    { key: "quantity", label: "Quantity", icon: "inventory" },
-                ].map(option => (
-                    <TouchableOpacity
-                        key={option.key}
-                        style={[
-                            styles.sortButton,
-                            sortBy === option.key && styles.activeSortButton,
-                        ]}
-                        onPress={() => {
-                            if (sortBy === option.key) {
-                                setSortOrder(
-                                    sortOrder === "asc" ? "desc" : "asc",
-                                );
-                            } else {
-                                setSortBy(option.key as any);
-                                setSortOrder("asc");
-                            }
-                        }}>
-                        <Icon
-                            name={
-                                sortBy === option.key
-                                    ? sortOrder === "asc"
-                                        ? "arrow-upward"
-                                        : "arrow-downward"
-                                    : "sort"
-                            }
-                            size={16}
-                            color={
-                                sortBy === option.key
-                                    ? colors.white
-                                    : colors.textSecondary
-                            }
-                        />
-                        <Text
-                            style={[
-                                styles.sortButtonText,
-                                sortBy === option.key &&
-                                    styles.activeSortButtonText,
-                            ]}>
-                            {option.label}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
-        </View>
-    );
-
     // Purchase Group Card Component
     const PurchaseGroupCard = ({ group }: { group: any }) => {
-        const isExpanded = expandedGroups.has(group.Stock_Group);
         const groupTotal = calculateGroupTotal(group);
         const groupQuantity = calculateGroupQuantity(group);
+        const isExpanded = expandedGroups.has(group.Stock_Group);
 
         return (
             <View style={styles.groupCard}>
                 <TouchableOpacity
-                    style={styles.groupHeader}
+                    style={[
+                        styles.groupHeader,
+                        isExpanded && styles.groupHeaderExpanded,
+                    ]}
                     onPress={() => toggleGroup(group.Stock_Group)}
                     activeOpacity={0.7}>
-                    <View style={styles.groupHeaderLeft}>
+                    <View style={styles.groupHeaderContent}>
                         <View style={styles.groupTitleContainer}>
                             <Icon
                                 name="category"
@@ -358,28 +281,38 @@ const PurchaseInvoice = () => {
                                 {group.Stock_Group}
                             </Text>
                         </View>
-                        <View style={styles.groupMeta}>
-                            <Text style={styles.groupAmount}>
-                                {formatCurrency(groupTotal)}
-                            </Text>
-                            <Text style={styles.groupQuantity}>
-                                Qty: {formatNumber(groupQuantity)}
-                            </Text>
+                        <View style={styles.groupMetaInfo}>
+                            <View style={styles.groupMetaItem}>
+                                <FontAwesomeIcon
+                                    name="weight-hanging"
+                                    size={16}
+                                    color={colors.accent}
+                                />
+                                <Text style={styles.groupMetaValue}>
+                                    {formatNumber(groupQuantity)} kg
+                                </Text>
+                            </View>
+                            <View style={styles.groupMetaItem}>
+                                <Icon
+                                    name="payments"
+                                    size={16}
+                                    color={colors.success}
+                                />
+                                <Text
+                                    style={[
+                                        styles.groupMetaValue,
+                                        { color: colors.success },
+                                    ]}>
+                                    {formatCurrency(groupTotal)}
+                                </Text>
+                            </View>
                         </View>
-                        <Text style={styles.productCount}>
-                            {group.product_details?.length || 0} Products
-                        </Text>
                     </View>
-                    <Icon
-                        name={isExpanded ? "expand-less" : "expand-more"}
-                        size={24}
-                        color={colors.textSecondary}
-                    />
                 </TouchableOpacity>
 
-                {isExpanded && group.product_details && (
+                {isExpanded && (
                     <View style={styles.productsContainer}>
-                        {group.product_details.map(
+                        {group.product_details?.map(
                             (product: any, productIndex: number) => (
                                 <ProductCard
                                     key={`${group.Stock_Group}-${productIndex}`}
@@ -420,34 +353,71 @@ const PurchaseInvoice = () => {
                 0,
             ) || 0;
 
+        const totalOrders = product.product_details_1?.length || 0;
+
         return (
-            <View style={styles.productCard}>
+            <View
+                style={[
+                    styles.productCard,
+                    isExpanded && styles.productCardExpanded,
+                ]}>
                 <TouchableOpacity
-                    style={styles.productHeader}
+                    style={[
+                        styles.productHeader,
+                        isExpanded && styles.productHeaderExpanded,
+                    ]}
                     onPress={() => toggleItem(itemKey)}
                     activeOpacity={0.7}>
-                    <View style={styles.productHeaderLeft}>
-                        <Text style={styles.productName}>
-                            {product.Item_Name_Modified}
-                        </Text>
-                        <View style={styles.productMeta}>
-                            <Text style={styles.productAmount}>
-                                {formatCurrency(productTotal)}
-                            </Text>
-                            <Text style={styles.productQuantity}>
-                                Qty: {formatNumber(productQuantity)}
-                            </Text>
+                    <View style={styles.productInfo}>
+                        <View style={styles.productMainInfo}>
+                            <View style={styles.productNameContainer}>
+                                <Icon
+                                    name="inventory"
+                                    size={18}
+                                    color={colors.info}
+                                />
+                                <Text style={styles.productName}>
+                                    {product.Item_Name_Modified}
+                                </Text>
+                            </View>
                         </View>
-                        <Text style={styles.transactionCount}>
-                            {product.product_details_1?.length || 0}{" "}
-                            Transactions
-                        </Text>
+                        <View style={styles.productStats}>
+                            <View style={styles.statItem}>
+                                <FontAwesomeIcon
+                                    name="weight-hanging"
+                                    size={14}
+                                    color={colors.info}
+                                />
+                                <Text style={styles.statValue}>
+                                    {formatNumber(productQuantity)} kg
+                                </Text>
+                            </View>
+                            <View style={styles.statItem}>
+                                <Icon
+                                    name="receipt"
+                                    size={14}
+                                    color={colors.primary}
+                                />
+                                <Text style={styles.statValue}>
+                                    {totalOrders} Orders
+                                </Text>
+                            </View>
+                            <View style={styles.statItem}>
+                                <Icon
+                                    name="payments"
+                                    size={14}
+                                    color={colors.success}
+                                />
+                                <Text
+                                    style={[
+                                        styles.statValue,
+                                        { color: colors.success },
+                                    ]}>
+                                    {formatCurrency(productTotal)}
+                                </Text>
+                            </View>
+                        </View>
                     </View>
-                    <Icon
-                        name={isExpanded ? "expand-less" : "expand-more"}
-                        size={20}
-                        color={colors.textSecondary}
-                    />
                 </TouchableOpacity>
 
                 {isExpanded && product.product_details_1 && (
@@ -469,47 +439,52 @@ const PurchaseInvoice = () => {
     // Transaction Card Component
     const TransactionCard = ({ transaction }: { transaction: any }) => (
         <View style={styles.transactionCard}>
-            <View style={styles.transactionHeader}>
-                <View style={styles.transactionTitleRow}>
-                    <Icon name="receipt" size={16} color={colors.primary} />
-                    <Text style={styles.transactionPO}>
-                        {transaction.po_no}
-                    </Text>
-                    <Text style={styles.transactionDate}>
+            <View style={styles.transactionTableHeader}>
+                <View style={styles.transactionHeaderTop}>
+                    <View style={styles.poContainer}>
+                        <Icon name="receipt" size={16} color={colors.primary} />
+                        <Text style={styles.poNumber}>{transaction.po_no}</Text>
+                    </View>
+                    <Text style={styles.poDate}>
                         {formatDate(transaction.po_date)}
                     </Text>
                 </View>
-                <Text style={styles.transactionAmount}>
-                    {formatCurrency(transaction.amount)}
+                <Text style={styles.supplierName}>
+                    {transaction.ledger_name}
                 </Text>
             </View>
 
-            <View style={styles.transactionDetails}>
-                <View style={styles.transactionRow}>
-                    <Text style={styles.transactionLabel}>Item:</Text>
-                    <Text style={styles.transactionValue} numberOfLines={2}>
-                        {transaction.stock_item_name}
-                    </Text>
-                </View>
-                <View style={styles.transactionRow}>
-                    <Text style={styles.transactionLabel}>Supplier:</Text>
-                    <Text style={styles.transactionValue}>
-                        {transaction.ledger_name}
-                    </Text>
-                </View>
-                <View style={styles.transactionRow}>
-                    <Text style={styles.transactionLabel}>Quantity:</Text>
-                    <Text style={styles.transactionValue}>
-                        {formatNumber(transaction.bill_qty)}{" "}
-                        {transaction.bill_unit}
-                    </Text>
-                </View>
-                <View style={styles.transactionRow}>
-                    <Text style={styles.transactionLabel}>Rate:</Text>
-                    <Text style={styles.transactionValue}>
-                        {formatCurrency(transaction.item_rate)} per{" "}
-                        {transaction.bill_unit}
-                    </Text>
+            <View style={styles.transactionTable}>
+                <View style={styles.tableRow}>
+                    <View style={[styles.tableCell, styles.itemNameCell]}>
+                        <Text style={styles.tableCellLabel}>Item Name</Text>
+                        <Text style={styles.tableCellValue} numberOfLines={2}>
+                            {transaction.stock_item_name}
+                        </Text>
+                    </View>
+                    <View style={styles.tableCell}>
+                        <Text style={styles.tableCellLabel}>Quantity</Text>
+                        <Text style={styles.tableCellValue}>
+                            {formatNumber(transaction.bill_qty)}{" "}
+                            {/* {transaction.bill_unit} */}
+                        </Text>
+                    </View>
+                    <View style={styles.tableCell}>
+                        <Text style={styles.tableCellLabel}>Rate</Text>
+                        <Text style={styles.tableCellValue}>
+                            {formatCurrency(transaction.item_rate)}
+                        </Text>
+                    </View>
+                    <View style={styles.tableCell}>
+                        <Text style={styles.tableCellLabel}>Amount</Text>
+                        <Text
+                            style={[
+                                styles.tableCellValue,
+                                { color: colors.success },
+                            ]}>
+                            {formatCurrency(transaction.amount)}
+                        </Text>
+                    </View>
                 </View>
             </View>
         </View>
@@ -563,9 +538,34 @@ const PurchaseInvoice = () => {
         </View>
     );
 
+    const handleCloseModal = () => {
+        setModalVisible(false);
+    };
+
     return (
         <SafeAreaView style={styles.container}>
-            <AppHeader title="Purchase Invoice" navigation={navigation} />
+            <AppHeader
+                title="Purchase Report"
+                navigation={navigation}
+                showRightIcon={true}
+                rightIconLibrary="MaterialIcon"
+                rightIconName="filter-list"
+                onRightPress={() => setModalVisible(true)}
+            />
+
+            <FilterModal
+                visible={modalVisible}
+                fromDate={fromDate}
+                toDate={toDate}
+                onFromDateChange={setFromDate}
+                onToDateChange={setToDate}
+                onApply={() => setModalVisible(false)}
+                onClose={handleCloseModal}
+                showToDate={true}
+                title="Filter Options"
+                fromLabel="From Date"
+                toLabel="To Date"
+            />
 
             <ScrollView
                 style={styles.scrollContainer}
@@ -578,29 +578,6 @@ const PurchaseInvoice = () => {
                     />
                 }
                 showsVerticalScrollIndicator={false}>
-                {/* Date Picker Section */}
-                <View style={styles.datePickerContainer}>
-                    <Text style={styles.sectionTitle}>Select Date Range</Text>
-                    <View style={styles.datePickerRow}>
-                        <DatePickerButton
-                            title="From Date"
-                            date={fromDate}
-                            style={styles.datePicker}
-                            containerStyle={styles.datePickerItem}
-                            titleStyle={styles.datePickerTitle}
-                            onDateChange={setFromDate}
-                        />
-                        <DatePickerButton
-                            title="To Date"
-                            date={toDate}
-                            style={styles.datePicker}
-                            containerStyle={styles.datePickerItem}
-                            titleStyle={styles.datePickerTitle}
-                            onDateChange={setToDate}
-                        />
-                    </View>
-                </View>
-
                 {/* Loading State */}
                 {isLoading && (
                     <View style={styles.loadingContainer}>
@@ -640,11 +617,7 @@ const PurchaseInvoice = () => {
                 {/* Data Display */}
                 {!isLoading && !error && purchaseData.length > 0 && (
                     <>
-                        {/* Summary Cards */}
                         <SummaryCards />
-
-                        {/* Sort Controls */}
-                        <SortControls />
 
                         {/* Search Bar */}
                         <View style={styles.searchContainer}>
@@ -735,7 +708,7 @@ const PurchaseInvoice = () => {
     );
 };
 
-export default PurchaseInvoice;
+export default PurchaseReportSummary;
 
 const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
@@ -745,43 +718,6 @@ const getStyles = (typography: any, colors: any) =>
         },
         scrollContainer: {
             backgroundColor: colors.background,
-        },
-
-        // Date Picker Section
-        datePickerContainer: {
-            padding: responsiveWidth(4),
-            backgroundColor: colors.white,
-            borderRadius: 12,
-            margin: responsiveWidth(4),
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-        },
-        sectionTitle: {
-            ...typography.h6,
-            color: colors.text,
-            fontWeight: "600",
-            marginBottom: responsiveHeight(2),
-        },
-        datePickerRow: {
-            flexDirection: "row",
-            gap: responsiveWidth(3),
-        },
-        datePickerItem: {
-            flex: 1,
-        },
-        datePickerTitle: {
-            ...typography.body2,
-            color: colors.text,
-            marginBottom: 8,
-        },
-        datePicker: {
-            backgroundColor: colors.primary + "20",
-            padding: responsiveWidth(3),
-            borderRadius: 8,
-            alignItems: "center",
         },
 
         // Loading & Error States
@@ -832,7 +768,7 @@ const getStyles = (typography: any, colors: any) =>
         summaryContainer: {
             flexDirection: "row",
             paddingHorizontal: responsiveWidth(4),
-            marginBottom: responsiveWidth(4),
+            marginVertical: responsiveWidth(4),
             gap: responsiveWidth(2),
         },
         summaryCard: {
@@ -853,14 +789,12 @@ const getStyles = (typography: any, colors: any) =>
             fontWeight: "700",
             marginTop: responsiveWidth(1),
             textAlign: "center",
-            fontSize: responsiveWidth(3.5),
         },
         summaryLabel: {
             ...typography.caption,
             color: colors.textSecondary,
             marginTop: responsiveWidth(0.5),
             textAlign: "center",
-            fontSize: responsiveWidth(2.5),
         },
 
         // Sort Controls
@@ -950,28 +884,24 @@ const getStyles = (typography: any, colors: any) =>
             marginHorizontal: responsiveWidth(4),
             marginBottom: responsiveWidth(3),
             borderRadius: 12,
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
             elevation: 3,
             overflow: "hidden",
         },
         groupHeader: {
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
             padding: responsiveWidth(4),
+            backgroundColor: colors.white,
+        },
+        groupHeaderExpanded: {
             backgroundColor: colors.primary + "10",
         },
-        groupHeaderLeft: {
+        groupHeaderContent: {
             flex: 1,
         },
         groupTitleContainer: {
             flexDirection: "row",
             alignItems: "center",
             gap: responsiveWidth(2),
-            marginBottom: responsiveWidth(2),
+            marginBottom: responsiveWidth(3),
         },
         groupTitle: {
             ...typography.h6,
@@ -979,25 +909,21 @@ const getStyles = (typography: any, colors: any) =>
             fontWeight: "700",
             flex: 1,
         },
-        groupMeta: {
+        groupMetaInfo: {
             flexDirection: "row",
-            justifyContent: "space-between",
+            justifyContent: "flex-end",
             alignItems: "center",
-            marginBottom: responsiveWidth(1),
+            gap: responsiveWidth(4),
         },
-        groupAmount: {
-            ...typography.h6,
-            color: colors.primary,
-            fontWeight: "700",
+        groupMetaItem: {
+            flexDirection: "row",
+            alignItems: "center",
+            gap: responsiveWidth(1),
         },
-        groupQuantity: {
-            ...typography.body2,
-            color: colors.textSecondary,
-        },
-        productCount: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            fontStyle: "italic",
+        groupMetaValue: {
+            ...typography.body1,
+            color: colors.info,
+            fontWeight: "600",
         },
 
         // Products Container
@@ -1008,47 +934,56 @@ const getStyles = (typography: any, colors: any) =>
 
         // Product Card
         productCard: {
-            backgroundColor: colors.background,
+            backgroundColor: colors.white,
             borderRadius: 8,
             overflow: "hidden",
-            borderLeftWidth: 3,
-            borderLeftColor: colors.info,
+            marginBottom: responsiveWidth(2),
+            borderWidth: 0.5,
+            borderColor: colors.borderColor,
+        },
+        productCardExpanded: {
+            borderColor: colors.primary,
+            borderWidth: 1,
         },
         productHeader: {
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: responsiveWidth(3),
             backgroundColor: colors.white,
         },
-        productHeaderLeft: {
-            flex: 1,
+        productHeaderExpanded: {
+            backgroundColor: colors.primary + "05",
+            borderBottomColor: colors.primary,
+        },
+        productInfo: {
+            padding: responsiveWidth(3),
+        },
+        productMainInfo: {
+            marginBottom: responsiveWidth(2),
+        },
+        productNameContainer: {
+            flexDirection: "row",
+            alignItems: "center",
+            gap: responsiveWidth(2),
         },
         productName: {
-            ...typography.body1,
+            ...typography.h6,
             color: colors.text,
             fontWeight: "600",
-            marginBottom: responsiveWidth(1),
+            flex: 1,
         },
-        productMeta: {
+        productStats: {
             flexDirection: "row",
-            justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: responsiveWidth(0.5),
+            justifyContent: "flex-start",
+            gap: responsiveWidth(4),
         },
-        productAmount: {
-            ...typography.body1,
-            color: colors.info,
-            fontWeight: "700",
+        statItem: {
+            flexDirection: "row",
+            alignItems: "center",
+            gap: responsiveWidth(1),
         },
-        productQuantity: {
-            ...typography.caption,
-            color: colors.textSecondary,
-        },
-        transactionCount: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            fontStyle: "italic",
+        statValue: {
+            ...typography.body2,
+            color: colors.text,
+            fontWeight: "500",
         },
 
         // Transactions Container
@@ -1060,55 +995,65 @@ const getStyles = (typography: any, colors: any) =>
         // Transaction Card
         transactionCard: {
             backgroundColor: colors.white,
-            padding: responsiveWidth(3),
             borderRadius: 8,
-            borderLeftWidth: 2,
-            borderLeftColor: colors.success,
-        },
-        transactionHeader: {
+            borderWidth: 1,
+            borderColor: colors.grey400,
             marginBottom: responsiveWidth(2),
         },
-        transactionTitleRow: {
+        transactionTableHeader: {
+            padding: responsiveWidth(3),
+            borderBottomWidth: 1,
+            borderBottomColor: colors.grey400,
+            backgroundColor: colors.backgroundAlt,
+        },
+        transactionHeaderTop: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: responsiveWidth(1),
+        },
+        poContainer: {
             flexDirection: "row",
             alignItems: "center",
             gap: responsiveWidth(2),
+        },
+        poNumber: {
+            ...typography.body1,
+            color: colors.primary,
+            fontWeight: "600",
+        },
+        poDate: {
+            ...typography.body2,
+            color: colors.textSecondary,
+        },
+        supplierName: {
+            ...typography.body2,
+            color: colors.text,
+            fontWeight: "500",
+        },
+        transactionTable: {
+            padding: responsiveWidth(3),
+        },
+        tableRow: {
+            flexDirection: "row",
+            alignItems: "flex-start",
+            gap: responsiveWidth(2),
+        },
+        tableCell: {
+            flex: 1,
+        },
+        itemNameCell: {
+            flex: 2,
+        },
+        tableCellLabel: {
+            ...typography.caption,
+            color: colors.textSecondary,
             marginBottom: responsiveWidth(1),
         },
-        transactionPO: {
+        tableCellValue: {
             ...typography.body2,
             color: colors.text,
             fontWeight: "600",
-            flex: 1,
-        },
-        transactionDate: {
-            ...typography.caption,
-            color: colors.textSecondary,
-        },
-        transactionAmount: {
-            ...typography.h6,
-            color: colors.success,
-            fontWeight: "700",
-        },
-        transactionDetails: {
-            gap: responsiveWidth(1),
-        },
-        transactionRow: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-        },
-        transactionLabel: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            fontWeight: "500",
-            minWidth: responsiveWidth(20),
-        },
-        transactionValue: {
-            ...typography.caption,
-            color: colors.text,
-            fontWeight: "600",
-            flex: 1,
-            textAlign: "right",
         },
 
         // Pagination
