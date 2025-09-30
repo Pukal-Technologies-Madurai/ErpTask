@@ -11,17 +11,17 @@ import React from "react";
 import { MMKV } from "react-native-mmkv";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
+import { useQuery } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AppHeader from "../../Components/AppHeader";
+import DatePickerButton from "../../Components/DatePickerButton";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { useTheme } from "../../Context/ThemeContext";
-import AppHeader from "../../Components/AppHeader";
 import { RootStackParamList } from "../../Navigation/types";
+import { itemStockInfo, itemWiseStock } from "../../Api/OpeningStock";
 import { responsiveHeight, responsiveWidth } from "../../constants/helper";
-import DatePickerButton from "../../Components/DatePickerButton";
-import { useQuery } from "@tanstack/react-query";
 import { salesInvoice, salesOrderInvoice } from "../../Api/Sales";
 import { getPurchaseOrderEntry, getPurchaseReport } from "../../Api/Purchase";
-import { itemStockInfo, itemWiseStock } from "../../Api/OpeningStock";
 
 const Home = () => {
     const { colors, typography } = useTheme();
@@ -30,8 +30,14 @@ const Home = () => {
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
+    const [companyId, setCompanyId] = React.useState("");
     const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
     const [refreshing, setRefreshing] = React.useState(false);
+
+    React.useEffect(() => {
+        const companyId = storage.getString("companyId");
+        if (companyId) setCompanyId(companyId);
+    }, []);
 
     const {
         data: saleOrderData = [],
@@ -51,7 +57,7 @@ const Home = () => {
 
     const { data: purchaseData = [], refetch: refetchPurchase } = useQuery({
         queryKey: ["purchaseData", selectedDate, selectedDate],
-        queryFn: () => getPurchaseReport(selectedDate, selectedDate),
+        queryFn: () => getPurchaseReport(selectedDate, selectedDate, companyId),
         enabled: !!selectedDate,
     });
 
@@ -354,16 +360,20 @@ const Home = () => {
     ]);
 
     return (
-        <SafeAreaView style={[styles.container]} edges={["top", "bottom"]}>
+        <SafeAreaView style={[styles.container]} edges={["top"]}>
             <AppHeader
                 navigation={navigation}
                 showDrawer={true}
                 name={storage.getString("name")}
                 subtitle={storage.getString("companyName")}
+                showRightIcon={true}
+                rightIconLibrary="MaterialIcon"
+                rightIconName="compare-arrows"
+                onRightPress={() => navigation.navigate("CompanySwitch")}
             />
-
             <ScrollView
                 showsVerticalScrollIndicator={false}
+                style={{ flex: 1, backgroundColor: colors.background }}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -374,7 +384,6 @@ const Home = () => {
                 }>
                 {/* Date Picker Section */}
                 <View style={styles.datePickerContainer}>
-                    <Text style={styles.sectionTitle}>Dashboard Overview</Text>
                     <View style={styles.datePickerRow}>
                         <DatePickerButton
                             title="Select Date"
@@ -500,7 +509,7 @@ const Home = () => {
                         <View style={styles.summaryRow}>
                             <Pressable
                                 onPress={() =>
-                                    navigation.navigate("purchaseInvoice")
+                                    navigation.navigate("PurchaseReportSummary")
                                 }>
                                 <View style={styles.summaryCard}>
                                     <Icon
@@ -509,7 +518,7 @@ const Home = () => {
                                         color={colors.warning}
                                     />
                                     <Text style={styles.summaryCardTitle}>
-                                        Purchase Invoices
+                                        Purchase Report
                                     </Text>
                                     <Text style={styles.summaryCardValue}>
                                         ₹{formatNumber(totalPurchase)}
@@ -678,15 +687,18 @@ const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
         container: {
             flex: 1,
-            backgroundColor: colors.background,
+            backgroundColor: colors.primary,
         },
 
         // Date Picker Section
         datePickerContainer: {
-            padding: responsiveWidth(4),
+            paddingHorizontal: responsiveWidth(4),
+            paddingVertical: responsiveWidth(2),
             backgroundColor: colors.white,
             borderRadius: 12,
-            margin: responsiveWidth(4),
+            marginHorizontal: responsiveWidth(4),
+            marginTop: responsiveWidth(4),
+            marginBottom: responsiveWidth(2),
             shadowColor: colors.black,
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.1,
@@ -697,7 +709,8 @@ const getStyles = (typography: any, colors: any) =>
             ...typography.h6,
             color: colors.text,
             fontWeight: "600",
-            marginBottom: responsiveHeight(2),
+            marginHorizontal: responsiveWidth(4),
+            marginVertical: responsiveWidth(2),
         },
         datePickerRow: {
             flexDirection: "row",
@@ -750,50 +763,51 @@ const getStyles = (typography: any, colors: any) =>
 
         // Summary Section
         summarySection: {
-            paddingHorizontal: responsiveWidth(4),
-            paddingVertical: responsiveHeight(2),
+            paddingHorizontal: responsiveWidth(2),
+            paddingVertical: responsiveWidth(1),
         },
         summaryCards: {
-            gap: responsiveWidth(4),
+            gap: responsiveWidth(2),
         },
         summaryRow: {
             flexDirection: "row",
             justifyContent: "space-between",
-            marginBottom: responsiveWidth(4),
-            gap: responsiveWidth(4),
+            marginBottom: responsiveWidth(2),
+            marginHorizontal: responsiveWidth(2),
+            gap: responsiveWidth(3),
+            paddingHorizontal: responsiveWidth(1),
         },
         summaryCard: {
-            width: (responsiveWidth(100) - responsiveWidth(12)) / 2,
+            width: (responsiveWidth(100) - responsiveWidth(15)) / 2,
             backgroundColor: colors.white,
-            borderRadius: 16,
-            padding: responsiveWidth(4),
+            borderRadius: 12,
+            paddingHorizontal: responsiveWidth(2),
+            paddingVertical: responsiveWidth(2),
             alignItems: "center",
             shadowColor: colors.black,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.12,
             shadowRadius: 8,
             elevation: 6,
-            minHeight: responsiveHeight(18),
+            minHeight: responsiveHeight(16),
             justifyContent: "space-between",
         },
         summaryCardTitle: {
             ...typography.body2,
             color: colors.textSecondary,
             textAlign: "center",
-            marginTop: responsiveWidth(2),
-            marginBottom: responsiveWidth(3),
-            fontSize: responsiveWidth(3.5),
+            marginTop: responsiveWidth(0.5),
+            marginBottom: responsiveWidth(1),
             fontWeight: "600",
-            lineHeight: responsiveWidth(4.5),
+            lineHeight: responsiveWidth(3.5),
         },
         summaryCardValue: {
             ...typography.h4,
             color: colors.text,
             fontWeight: "800",
             textAlign: "center",
-            fontSize: responsiveWidth(5.5),
-            marginBottom: responsiveWidth(2),
-            letterSpacing: 0.5,
+            marginBottom: responsiveWidth(1),
+            letterSpacing: 0.25,
         },
         changeContainer: {
             flexDirection: "row",
@@ -814,21 +828,20 @@ const getStyles = (typography: any, colors: any) =>
         changeText: {
             ...typography.body2,
             fontWeight: "700",
-            fontSize: responsiveWidth(3.2),
         },
         tonnageContainer: {
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "center",
-            marginBottom: responsiveWidth(2),
-            gap: responsiveWidth(1),
-            borderRadius: 12,
-            paddingHorizontal: responsiveWidth(2),
-            paddingVertical: responsiveWidth(1),
+            marginBottom: responsiveWidth(1),
+            gap: responsiveWidth(0.5),
+            borderRadius: 8,
+            paddingHorizontal: responsiveWidth(1.5),
+            paddingVertical: responsiveWidth(0.5),
         },
         tonnageText: {
             ...typography.caption,
-            fontWeight: "700",
-            fontSize: responsiveWidth(3),
+            fontWeight: "600",
+            fontSize: 11,
         },
     });

@@ -8,11 +8,13 @@ import AttendanceInfo from "../Screens/Home/AttendanceInfo";
 import OpeningStock from "../Screens/Home/OpeningStock";
 import { useTheme } from "../Context/ThemeContext";
 import { BottomTabParamList } from "../Navigation/types";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const BottomTab = createBottomTabNavigator<BottomTabParamList>();
 
 const BottomTabsNavigator = () => {
     const { colors, typography } = useTheme();
+    const insets = useSafeAreaInsets();
 
     return (
         <BottomTab.Navigator
@@ -25,8 +27,8 @@ const BottomTabsNavigator = () => {
                     backgroundColor: colors.background,
                     borderTopColor: colors.borderColor,
                     borderTopWidth: 1,
-                    height: Platform.OS === "ios" ? 90 : 60,
-                    paddingBottom: Platform.OS === "ios" ? 20 : 5,
+                    height: 60 + insets.bottom,
+                    paddingBottom: insets.bottom,
                     paddingTop: 5,
                 },
                 tabBarLabelStyle: {

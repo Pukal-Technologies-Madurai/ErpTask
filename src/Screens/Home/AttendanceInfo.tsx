@@ -16,12 +16,15 @@ import { RootStackParamList } from "../../Navigation/types";
 import { getEmpDeptWiseAttendance } from "../../Api/EmpAttendance";
 import DatePickerButton from "../../Components/DatePickerButton";
 import { responsiveWidth, responsiveHeight } from "../../constants/helper";
+import { SafeAreaView } from "react-native-safe-area-context";
+import FilterModal from "../../Components/FilterModal";
 
 const AttendanceInfo = () => {
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { colors, typography } = useTheme();
     const styles = getStyles(typography, colors);
+    const [modalVisible, setModalVisible] = React.useState(false);
 
     const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
     const [expandedDepartment, setExpandedDepartment] = React.useState<
@@ -203,30 +206,35 @@ const AttendanceInfo = () => {
         );
     };
 
+    const handleCloseModal = () => {
+        setModalVisible(false);
+    };
+
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top"]}>
             <AppHeader
                 title="Attendance Info"
                 showDrawer={true}
                 navigation={navigation}
+                showRightIcon={true}
+                rightIconLibrary="MaterialIcon"
+                rightIconName="filter-list"
+                onRightPress={() => setModalVisible(true)}
             />
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Date Picker Section */}
-                <View style={styles.datePickerContainer}>
-                    <Text style={styles.sectionTitle}>Select Date Range</Text>
-                    <View style={styles.datePickerRow}>
-                        <DatePickerButton
-                            title="Today's Date"
-                            date={selectedDate}
-                            style={styles.datePicker}
-                            containerStyle={styles.datePickerContainerStyle}
-                            titleStyle={styles.datePickerTitle}
-                            onDateChange={(date: Date) => setSelectedDate(date)}
-                        />
-                    </View>
-                </View>
+            <FilterModal
+                visible={modalVisible}
+                fromDate={selectedDate}
+                onFromDateChange={setSelectedDate}
+                onApply={() => setModalVisible(false)}
+                onClose={handleCloseModal}
+                title="Filter Options"
+                fromLabel="From Date"
+            />
 
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                style={styles.scrollViewContainer}>
                 {/* Loading State */}
                 {isLoading && (
                     <View style={styles.loadingContainer}>
@@ -319,7 +327,7 @@ const AttendanceInfo = () => {
                     </View>
                 )}
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -329,47 +337,18 @@ const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
         container: {
             flex: 1,
+            backgroundColor: colors.primary,
+        },
+        scrollViewContainer: {
             backgroundColor: colors.background,
         },
 
-        // Date Picker Section
-        datePickerContainer: {
-            padding: responsiveWidth(4),
-            backgroundColor: colors.white,
-            borderRadius: 12,
-            margin: responsiveWidth(4),
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-        },
         sectionTitle: {
             ...typography.h6,
             color: colors.text,
             fontWeight: "600",
             marginBottom: responsiveHeight(2),
         },
-        datePickerRow: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            gap: responsiveWidth(2),
-        },
-        datePickerContainerStyle: {
-            flex: 1,
-        },
-        datePickerTitle: {
-            ...typography.body1,
-            color: colors.text,
-            marginBottom: 8,
-        },
-        datePicker: {
-            backgroundColor: colors.primary + "30",
-            padding: responsiveWidth(3),
-            borderRadius: 8,
-            alignItems: "center",
-        },
-
         // Summary Section
         summarySection: {
             padding: responsiveWidth(4),

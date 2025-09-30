@@ -1,12 +1,13 @@
 import React from "react";
 import Icon from "react-native-vector-icons/Ionicons";
+import MaterialIcon from "react-native-vector-icons/MaterialIcons";
 import {
     View,
     Text,
-    Image,
     TouchableOpacity,
     StatusBar,
     StyleSheet,
+    Alert,
 } from "react-native";
 import {
     DrawerContentScrollView,
@@ -19,6 +20,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../Navigation/types";
 import { useTheme } from "../Context/ThemeContext";
+import { responsiveWidth, responsiveHeight } from "../constants/helper";
 
 const CustomDrawerContent: React.FC<DrawerContentComponentProps> = props => {
     const { colors, typography, mode } = useTheme();
@@ -30,63 +32,72 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = props => {
     const pkg = require("../../package.json");
     const appVersion = pkg.version || "1.0.0";
 
+    const handleLogout = () => {
+        Alert.alert("Confirm Logout", "Are you sure you want to logout?", [
+            {
+                text: "Cancel",
+                style: "cancel",
+            },
+            {
+                text: "Logout",
+                style: "destructive",
+                onPress: () => {
+                    storage.clearAll();
+                    navigation.reset({
+                        index: 0,
+                        routes: [{ name: "Login" }],
+                    });
+                },
+            },
+        ]);
+    };
+
     return (
-        <SafeAreaView
-            style={[styles.container, { backgroundColor: colors.background }]}>
+        <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
             <StatusBar
-                barStyle={mode === "light" ? "light-content" : "dark-content"}
+                barStyle="light-content"
                 backgroundColor={colors.primary}
+                translucent={false}
             />
+
+            {/* Header with App Info Only */}
+            <View style={styles.header}>
+                {/* App Info */}
+                <View style={styles.appInfo}>
+                    <View style={styles.logoContainer}>
+                        <Icon name="business" size={40} color={colors.white} />
+                    </View>
+                    <Text style={styles.appName}>Pukal Melanmai</Text>
+                    <Text style={styles.version}>v{appVersion}</Text>
+                </View>
+            </View>
+
+            {/* Navigation Menu */}
             <DrawerContentScrollView
                 {...props}
-                contentContainerStyle={styles.scrollView}>
-                <View
-                    style={[
-                        styles.header,
-                        { backgroundColor: colors.primary },
-                    ]}>
-                    <Image
-                        source={require("../../assets/images/logo.png")}
-                        style={styles.logo}
-                        resizeMode="contain"
-                    />
-                    <Text style={[styles.appName, { color: colors.white }]}>
-                        Pukal Melanmai
-                    </Text>
-                    <Text style={[styles.version, { color: colors.white }]}>
-                        Version {appVersion}
-                    </Text>
-                </View>
-
-                {/* Menu Items */}
+                contentContainerStyle={styles.scrollView}
+                showsVerticalScrollIndicator={false}
+                style={styles.scrollContainer}>
                 <View style={styles.menuContainer}>
                     <DrawerItemList {...props} />
                 </View>
             </DrawerContentScrollView>
 
             {/* Footer Section */}
-            <View
-                style={[styles.footer, { borderTopColor: colors.borderColor }]}>
+            <View style={styles.footer}>
+                <View style={styles.footerDivider} />
+
+                {/* Logout Button */}
                 <TouchableOpacity
-                    style={[
-                        styles.logoutButton,
-                        { backgroundColor: colors.accent },
-                    ]}
-                    onPress={() => {
-                        storage.clearAll();
-                        navigation.reset({
-                            index: 0,
-                            routes: [{ name: "Login" }],
-                        });
-                    }}>
+                    style={styles.logoutButton}
+                    onPress={handleLogout}
+                    activeOpacity={0.7}>
                     <Icon
                         name="log-out-outline"
                         size={20}
                         color={colors.white}
                     />
-                    <Text style={[styles.logoutText, { color: colors.white }]}>
-                        Logout
-                    </Text>
+                    <Text style={styles.logoutText}>Logout</Text>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>
@@ -97,49 +108,87 @@ const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
         container: {
             flex: 1,
+            backgroundColor: colors.primary,
+        },
+        scrollContainer: {
+            flex: 1,
         },
         scrollView: {
             flexGrow: 1,
         },
+
+        // Header Section
         header: {
-            paddingVertical: 30,
-            paddingHorizontal: 20,
+            backgroundColor: colors.primary,
             alignItems: "center",
-            marginBottom: 10,
+            justifyContent: "center",
+            paddingTop: responsiveHeight(1),
+            paddingHorizontal: responsiveWidth(1.5),
         },
-        logo: {
-            width: 60,
-            height: 60,
-            marginBottom: 10,
+        appInfo: {
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        logoContainer: {
+            width: responsiveWidth(20),
+            height: responsiveWidth(20),
+            borderRadius: responsiveWidth(10),
+            backgroundColor: colors.white + "20",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: responsiveHeight(2),
+            borderWidth: 2,
+            borderColor: colors.white + "30",
         },
         appName: {
             ...typography.h4,
-            fontWeight: "bold",
-            marginBottom: 5,
+            color: colors.white,
+            fontWeight: "700",
+            marginBottom: responsiveHeight(0.5),
+            textAlign: "center",
         },
         version: {
             ...typography.body2,
-            color: colors.textSecondary,
+            color: colors.white,
             opacity: 0.8,
+            textAlign: "center",
         },
+
+        // Menu Section
         menuContainer: {
             flex: 1,
-            paddingTop: 10,
+            paddingTop: responsiveHeight(2),
+            backgroundColor: colors.background,
         },
+
+        // Footer Section
         footer: {
-            borderTopWidth: 1,
-            padding: 20,
+            backgroundColor: colors.background,
+            paddingHorizontal: responsiveWidth(4),
+            paddingBottom: responsiveHeight(1),
+            paddingTop: responsiveHeight(2),
+        },
+        footerDivider: {
+            height: 1,
+            backgroundColor: colors.border || colors.textSecondary + "20",
+            marginBottom: responsiveHeight(2),
         },
         logoutButton: {
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "center",
-            paddingVertical: 12,
-            paddingHorizontal: 20,
-            borderRadius: 8,
+            backgroundColor: colors.accent,
+            paddingVertical: responsiveHeight(1.5),
+            paddingHorizontal: responsiveWidth(6),
+            borderRadius: 12,
+            elevation: 3,
+            shadowColor: colors.black,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.2,
+            shadowRadius: 4,
         },
         logoutText: {
-            marginLeft: 10,
+            marginLeft: responsiveWidth(2),
             ...typography.body1,
             color: colors.white,
             fontWeight: "600",

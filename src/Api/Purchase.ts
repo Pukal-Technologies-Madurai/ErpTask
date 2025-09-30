@@ -3,6 +3,7 @@ import { API } from "../constants/api";
 export const getPurchaseReport = async (
     from: Date | string,
     to: Date | string,
+    dbId: string,
 ) => {
     try {
         const fromStr =
@@ -15,7 +16,7 @@ export const getPurchaseReport = async (
             method: "GET",
             headers: {
                 "Content-Type": "application/json",
-                Db: "1",
+                Db: dbId.toString(),
             },
         });
 
@@ -31,7 +32,7 @@ export const getPurchaseReport = async (
         }
         return json.data || [];
     } catch (error) {
-        console.error("Error fetching sales invoice data:", error);
+        // console.error("Error fetching sales invoice data:", error);
         throw error;
     }
 };

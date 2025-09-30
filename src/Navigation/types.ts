@@ -8,6 +8,7 @@ export type BottomTabParamList = {
 export type DrawerParamList = {
     HomeTab: undefined;
     Profile: undefined;
+    CompanySwitch: undefined;
 
     invoiceSale: undefined;
     saleOrderInvoice: undefined;
@@ -18,6 +19,7 @@ export type RootStackParamList = {
     Splash: undefined;
     Login: undefined;
     MainDrawer: undefined;
+    CompanySwitch: undefined;
     setting: undefined;
     profile: undefined;
     Home: undefined;
@@ -25,7 +27,7 @@ export type RootStackParamList = {
 
     invoiceSale: undefined;
     saleOrderInvoice: undefined;
-    purchaseInvoice: undefined;
+    PurchaseReportSummary: undefined;
     purchaseOrder: undefined;
     ItemStack: undefined;
 };

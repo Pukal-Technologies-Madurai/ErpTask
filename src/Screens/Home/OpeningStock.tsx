@@ -11,13 +11,14 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialIcons";
-import AppHeader from "../../Components/AppHeader";
-import DatePickerButton from "../../Components/DatePickerButton";
 import { useTheme } from "../../Context/ThemeContext";
 import { RootStackParamList } from "../../Navigation/types";
 import { godownWiseStock, itemWiseStock } from "../../Api/OpeningStock";
 import { responsiveWidth, responsiveHeight } from "../../constants/helper";
+import AppHeader from "../../Components/AppHeader";
+import FilterModal from "../../Components/FilterModal";
 
 const OpeningStock = () => {
     const navigation =
@@ -26,6 +27,8 @@ const OpeningStock = () => {
     const styles = getStyles(typography, colors);
 
     const [fromDate, setFromDate] = React.useState<Date>(new Date());
+    const [modalVisible, setModalVisible] = React.useState(false);
+
     const [toDate, setToDate] = React.useState<Date>(new Date());
     const [activeTab, setActiveTab] = React.useState<"itemWise" | "godownWise">(
         "itemWise",
@@ -423,16 +426,38 @@ const OpeningStock = () => {
         </View>
     );
 
+    const handleCloseModal = () => {
+        setModalVisible(false);
+    };
+
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top"]}>
             <AppHeader
-                title="Opening Stock"
+                title="Stock in Hand"
                 showDrawer={true}
                 navigation={navigation}
+                showRightIcon={true}
+                rightIconLibrary="MaterialIcon"
+                rightIconName="filter-list"
+                onRightPress={() => setModalVisible(true)}
+            />
+
+            <FilterModal
+                visible={modalVisible}
+                fromDate={fromDate}
+                toDate={toDate}
+                onFromDateChange={setFromDate}
+                onToDateChange={setToDate}
+                onApply={() => setModalVisible(false)}
+                onClose={handleCloseModal}
+                showToDate={true}
+                title="Filter Options"
+                fromLabel="From Date"
+                toLabel="To Date"
             />
 
             <ScrollView
-                style={styles.container}
+                style={styles.contentContainer}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -442,29 +467,6 @@ const OpeningStock = () => {
                     />
                 }
                 showsVerticalScrollIndicator={false}>
-                {/* Date Picker Section */}
-                <View style={styles.datePickerContainer}>
-                    <Text style={styles.sectionTitle}>Select Date Range</Text>
-                    <View style={styles.datePickerRow}>
-                        <DatePickerButton
-                            title="From Date"
-                            date={fromDate}
-                            style={styles.datePicker}
-                            containerStyle={styles.datePickerItem}
-                            titleStyle={styles.datePickerTitle}
-                            onDateChange={setFromDate}
-                        />
-                        <DatePickerButton
-                            title="To Date"
-                            date={toDate}
-                            style={styles.datePicker}
-                            containerStyle={styles.datePickerItem}
-                            titleStyle={styles.datePickerTitle}
-                            onDateChange={setToDate}
-                        />
-                    </View>
-                </View>
-
                 {/* Tab Switcher */}
                 <View style={styles.tabContainer}>
                     <TouchableOpacity
@@ -544,6 +546,125 @@ const OpeningStock = () => {
                             />
                         </TouchableOpacity>
                     )}
+                </View>
+
+                {/* Sort Controls */}
+                <View style={styles.sortContainer}>
+                    <View style={styles.sortButtons}>
+                        <TouchableOpacity
+                            style={[
+                                styles.sortButton,
+                                sortBy === "name" && styles.sortButtonActive,
+                            ]}
+                            onPress={() => {
+                                if (sortBy === "name") {
+                                    setSortOrder(prev =>
+                                        prev === "asc" ? "desc" : "asc",
+                                    );
+                                } else {
+                                    setSortBy("name");
+                                    setSortOrder("asc");
+                                }
+                            }}>
+                            <Icon
+                                name={
+                                    sortBy === "name" && sortOrder === "desc"
+                                        ? "arrow-downward"
+                                        : "arrow-upward"
+                                }
+                                size={16}
+                                color={
+                                    sortBy === "name"
+                                        ? colors.white
+                                        : colors.text
+                                }
+                            />
+                            <Text
+                                style={[
+                                    styles.sortButtonText,
+                                    sortBy === "name" &&
+                                        styles.sortButtonTextActive,
+                                ]}>
+                                Name
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.sortButton,
+                                sortBy === "count" && styles.sortButtonActive,
+                            ]}
+                            onPress={() => {
+                                if (sortBy === "count") {
+                                    setSortOrder(prev =>
+                                        prev === "asc" ? "desc" : "asc",
+                                    );
+                                } else {
+                                    setSortBy("count");
+                                    setSortOrder("desc");
+                                }
+                            }}>
+                            <Icon
+                                name={
+                                    sortBy === "count" && sortOrder === "desc"
+                                        ? "arrow-downward"
+                                        : "arrow-upward"
+                                }
+                                size={16}
+                                color={
+                                    sortBy === "count"
+                                        ? colors.white
+                                        : colors.text
+                                }
+                            />
+                            <Text
+                                style={[
+                                    styles.sortButtonText,
+                                    sortBy === "count" &&
+                                        styles.sortButtonTextActive,
+                                ]}>
+                                Count
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.sortButton,
+                                sortBy === "balance" && styles.sortButtonActive,
+                            ]}
+                            onPress={() => {
+                                if (sortBy === "balance") {
+                                    setSortOrder(prev =>
+                                        prev === "asc" ? "desc" : "asc",
+                                    );
+                                } else {
+                                    setSortBy("balance");
+                                    setSortOrder("desc");
+                                }
+                            }}>
+                            <Icon
+                                name={
+                                    sortBy === "balance" && sortOrder === "desc"
+                                        ? "arrow-downward"
+                                        : "arrow-upward"
+                                }
+                                size={16}
+                                color={
+                                    sortBy === "balance"
+                                        ? colors.white
+                                        : colors.text
+                                }
+                            />
+                            <Text
+                                style={[
+                                    styles.sortButtonText,
+                                    sortBy === "balance" &&
+                                        styles.sortButtonTextActive,
+                                ]}>
+                                Balance
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* Loading State */}
@@ -632,7 +753,7 @@ const OpeningStock = () => {
                     </View>
                 )}
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -642,44 +763,10 @@ const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
         container: {
             flex: 1,
+            backgroundColor: colors.primary,
+        },
+        contentContainer: {
             backgroundColor: colors.background,
-        },
-
-        // Date Picker Section
-        datePickerContainer: {
-            padding: responsiveWidth(4),
-            backgroundColor: colors.white,
-            borderRadius: 12,
-            margin: responsiveWidth(4),
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-        },
-        sectionTitle: {
-            ...typography.h6,
-            color: colors.text,
-            fontWeight: "600",
-            marginBottom: responsiveHeight(2),
-        },
-        datePickerRow: {
-            flexDirection: "row",
-            gap: responsiveWidth(3),
-        },
-        datePickerItem: {
-            flex: 1,
-        },
-        datePickerTitle: {
-            ...typography.body2,
-            color: colors.text,
-            marginBottom: 8,
-        },
-        datePicker: {
-            backgroundColor: colors.primary + "20",
-            padding: responsiveWidth(3),
-            borderRadius: 8,
-            alignItems: "center",
         },
 
         // Tab Container
@@ -687,7 +774,7 @@ const getStyles = (typography: any, colors: any) =>
             flexDirection: "row",
             backgroundColor: colors.white,
             marginHorizontal: responsiveWidth(4),
-            marginBottom: responsiveWidth(4),
+            marginVertical: responsiveWidth(4),
             borderRadius: 12,
             padding: 4,
             shadowColor: colors.black,
@@ -827,13 +914,18 @@ const getStyles = (typography: any, colors: any) =>
 
         // Item Content
         itemContent: {
-            padding: responsiveWidth(3),
+            backgroundColor: colors.surface,
+            borderRadius: 8,
+            overflow: "hidden",
         },
         itemHeader: {
             flexDirection: "row",
             justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: responsiveWidth(2),
+            alignItems: "center",
+            padding: responsiveWidth(3),
+            backgroundColor: colors.white,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.grey100,
         },
         itemName: {
             ...typography.body1,
@@ -854,48 +946,55 @@ const getStyles = (typography: any, colors: any) =>
             flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: responsiveWidth(2),
-            paddingVertical: responsiveWidth(1),
-            paddingHorizontal: responsiveWidth(2),
-            backgroundColor: colors.primary + "10",
-            borderRadius: 6,
+            paddingVertical: responsiveWidth(2),
+            paddingHorizontal: responsiveWidth(3),
+            backgroundColor: colors.primary + "08",
+            borderBottomWidth: 1,
+            borderBottomColor: colors.primary + "15",
         },
         godownHeader: {
             flexDirection: "row",
             alignItems: "center",
-            gap: responsiveWidth(1),
+            gap: responsiveWidth(2),
         },
         godownName: {
-            ...typography.body2,
+            ...typography.subtitle1,
             color: colors.text,
             fontWeight: "600",
         },
         productRate: {
-            ...typography.caption,
+            ...typography.subtitle2,
             color: colors.primary,
             fontWeight: "600",
+            backgroundColor: colors.primary + "10",
+            paddingHorizontal: responsiveWidth(2),
+            paddingVertical: responsiveWidth(0.5),
+            borderRadius: 4,
         },
 
         // Item Details
         itemDetails: {
-            gap: responsiveWidth(1),
+            padding: responsiveWidth(3),
+            backgroundColor: colors.grey50,
         },
         detailRow: {
             flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "center",
+            paddingVertical: responsiveWidth(1),
         },
         detailLabel: {
-            ...typography.caption,
+            ...typography.body2,
             color: colors.textSecondary,
             fontWeight: "500",
             minWidth: responsiveWidth(20),
         },
         detailValue: {
-            ...typography.caption,
+            ...typography.body2,
             color: colors.text,
             fontWeight: "600",
             textAlign: "right",
+            flex: 1,
         },
 
         // Pagination
@@ -927,6 +1026,41 @@ const getStyles = (typography: any, colors: any) =>
             color: colors.textSecondary,
             textAlign: "center",
             flex: 1,
+        },
+
+        // Sort Controls
+        sortContainer: {
+            paddingHorizontal: responsiveWidth(4),
+            paddingVertical: responsiveWidth(2),
+            backgroundColor: colors.white,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.borderColor,
+        },
+        sortButtons: {
+            flexDirection: "row",
+            gap: responsiveWidth(2),
+        },
+        sortButton: {
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: responsiveWidth(2),
+            borderRadius: 6,
+            backgroundColor: colors.surface,
+            gap: responsiveWidth(1),
+        },
+        sortButtonActive: {
+            backgroundColor: colors.primary,
+        },
+        sortButtonText: {
+            ...typography.caption,
+            color: colors.text,
+            fontWeight: "500",
+        },
+        sortButtonTextActive: {
+            color: colors.white,
+            fontWeight: "600",
         },
 
         // No Data State

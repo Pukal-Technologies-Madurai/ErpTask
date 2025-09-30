@@ -12,14 +12,23 @@ import {
     Modal,
 } from "react-native";
 import React, { useState } from "react";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MMKV } from "react-native-mmkv";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useNavigation } from "@react-navigation/native";
 import CryptoJS from "react-native-crypto-js";
 import Icon from "react-native-vector-icons/Feather";
 import { API, baseurl } from "../../constants/api";
-import { useTheme } from "../../Context/ThemeContext";
 import { RootStackParamList } from "../../Navigation/types";
+import { useTheme } from "../../Context/ThemeContext";
+
+// Define the company data interface
+interface CompanyData {
+    Company_Name: string;
+    Local_Id: string;
+    Global_Id: number;
+    Web_Api: string;
+    Global_User_ID: string;
+}
 
 const LoginScreen = () => {
     const navigation =
@@ -28,8 +37,10 @@ const LoginScreen = () => {
     const styles = getStyles(colors, typography);
     const storage = new MMKV();
 
-    const [companies, setCompanies] = useState([]);
-    const [selectedCompany, setSelectedCompany] = useState(null);
+    const [companies, setCompanies] = useState<CompanyData[]>([]);
+    const [selectedCompany, setSelectedCompany] = useState<CompanyData | null>(
+        null,
+    );
     const [step, setStep] = useState(1);
     const [modalVisible, setModalVisible] = useState(false);
 
@@ -45,7 +56,7 @@ const LoginScreen = () => {
             const jsonData = await response.json();
 
             if (jsonData.success && jsonData.data) {
-                const companies = jsonData.data;
+                const companies: CompanyData[] = jsonData.data;
                 setCompanies(companies);
 
                 if (companies.length === 1) {
@@ -62,7 +73,7 @@ const LoginScreen = () => {
         }
     };
 
-    const handleCompanySelect = (company: any) => {
+    const handleCompanySelect = (company: CompanyData) => {
         setSelectedCompany(company);
         setModalVisible(false);
     };
@@ -85,25 +96,28 @@ const LoginScreen = () => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    Global_User_ID: selectedCompany.Global_User_ID,
+                    Global_User_ID: selectedCompany?.Global_User_ID,
                     username: username,
                     Password: passHash,
-
-                    Company_Name: selectedCompany.Company_Name,
-                    Global_Id: selectedCompany.Global_Id,
-                    Local_Id: selectedCompany.Local_Id,
-                    Web_Api: selectedCompany.Web_Api,
+                    Company_Name: selectedCompany?.Company_Name,
+                    Global_Id: selectedCompany?.Global_Id,
+                    Local_Id: selectedCompany?.Local_Id,
+                    Web_Api: selectedCompany?.Web_Api,
                 }),
             });
 
             const data = await response.json();
 
             if (data.success) {
-                getUserAuth(data.data.Autheticate_Id, selectedCompany.Web_Api);
+                getUserAuth(
+                    data.data.Autheticate_Id,
+                    selectedCompany?.Web_Api || "",
+                );
+                storage.set("password", password);
             } else {
                 ToastAndroid.show(data.message, ToastAndroid.LONG);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Login Error: ", error);
             ToastAndroid.show(error.message, ToastAndroid.LONG);
         } finally {
@@ -153,6 +167,10 @@ const LoginScreen = () => {
             storage.set("branchName", data.BranchName);
             storage.set("userType", data.UserType);
             storage.set("userTypeId", data.UserTypeId);
+            storage.set("authenticateId", data.Autheticate_Id);
+            if (selectedCompany?.Web_Api) {
+                storage.set("webApi", selectedCompany.Web_Api);
+            }
         } catch (e) {
             console.error("Error storing data: ", e);
         }
@@ -291,8 +309,10 @@ const LoginScreen = () => {
 
                         <FlatList
                             data={companies}
-                            keyExtractor={item => item.Global_Id.toString()}
-                            renderItem={({ item }) => (
+                            keyExtractor={(item: CompanyData) =>
+                                item.Global_Id.toString()
+                            }
+                            renderItem={({ item }: { item: CompanyData }) => (
                                 <TouchableOpacity
                                     onPress={() => handleCompanySelect(item)}
                                     style={styles.item}>
