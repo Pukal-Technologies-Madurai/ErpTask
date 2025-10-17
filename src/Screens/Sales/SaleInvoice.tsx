@@ -38,7 +38,7 @@ const SaleInvoice = () => {
     const [currentPage, setCurrentPage] = React.useState(1);
     const [refreshing, setRefreshing] = React.useState(false);
 
-    const ITEMS_PER_PAGE = 15;
+    const ITEMS_PER_PAGE = 30;
 
     const {
         data: invoiceData = [],
@@ -250,7 +250,7 @@ const SaleInvoice = () => {
                         <View style={styles.orderTopRow}>
                             <View style={styles.orderNumberContainer}>
                                 <Text style={styles.orderNumber}>
-                                    {invoice.Do_Inv_No}
+                                    {invoice.Retailer_Name}
                                 </Text>
                                 <View style={styles.dateTimeContainer}>
                                     <Icon
@@ -286,7 +286,7 @@ const SaleInvoice = () => {
                         <View style={styles.orderBottomRow}>
                             <View style={styles.retailerContainer}>
                                 <Icon
-                                    name="store"
+                                    name="receipt"
                                     size={14}
                                     color={colors.primary}
                                     style={styles.bottomRowIcon}
@@ -294,7 +294,7 @@ const SaleInvoice = () => {
                                 <Text
                                     style={styles.retailerName}
                                     numberOfLines={2}>
-                                    {invoice.Retailer_Name}
+                                    {invoice.Do_Inv_No}
                                 </Text>
                             </View>
                             <View style={styles.salesPersonContainer}>
@@ -842,8 +842,8 @@ const getStyles = (typography: any, colors: any) =>
             marginRight: responsiveWidth(3),
         },
         orderNumber: {
-            ...typography.h6,
-            color: colors.text,
+            ...typography.body1,
+            color: colors.primary,
             fontWeight: "700",
             marginBottom: responsiveWidth(1),
         },

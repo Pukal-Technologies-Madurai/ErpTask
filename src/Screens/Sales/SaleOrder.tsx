@@ -39,7 +39,7 @@ const SaleOrder = () => {
     const [refreshing, setRefreshing] = React.useState(false);
     const [selectedBrand, setSelectedBrand] = React.useState<string>("");
 
-    const ITEMS_PER_PAGE = 15;
+    const ITEMS_PER_PAGE = 30;
 
     const {
         data: saleOrder = [],
@@ -248,8 +248,10 @@ const SaleOrder = () => {
                     <View style={styles.orderHeaderLeft}>
                         <View style={styles.orderTopRow}>
                             <View style={styles.orderNumberContainer}>
-                                <Text style={styles.orderNumber}>
-                                    {order.So_Inv_No}
+                                <Text
+                                    style={styles.orderNumber}
+                                    numberOfLines={3}>
+                                    {order.Retailer_Name}
                                 </Text>
                                 <View style={styles.dateTimeContainer}>
                                     <Icon
@@ -283,15 +285,13 @@ const SaleOrder = () => {
                         <View style={styles.orderBottomRow}>
                             <View style={styles.retailerContainer}>
                                 <Icon
-                                    name="store"
+                                    name="receipt"
                                     size={14}
                                     color={colors.primary}
                                     style={styles.bottomRowIcon}
                                 />
-                                <Text
-                                    style={styles.retailerName}
-                                    numberOfLines={2}>
-                                    {order.Retailer_Name}
+                                <Text style={styles.retailerName}>
+                                    {order.So_Inv_No}
                                 </Text>
                             </View>
                             <View style={styles.salesPersonContainer}>
@@ -696,6 +696,8 @@ const getStyles = (typography: any, colors: any) =>
             flexDirection: "column",
         },
         orderNumber: {
+            flex: 1,
+            width: responsiveWidth(70),
             ...typography.subtitle2,
             fontWeight: "600",
             color: colors.primary,
@@ -733,7 +735,6 @@ const getStyles = (typography: any, colors: any) =>
         retailerName: {
             ...typography.body2,
             color: colors.text,
-            flex: 1,
         },
         salesPerson: {
             ...typography.caption,
