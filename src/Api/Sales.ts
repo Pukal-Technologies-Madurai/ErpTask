@@ -1,13 +1,15 @@
 import { API } from "../constants/api";
 
-export const salesInvoice = async (from: Date | string, to: Date | string) => {
+export const salesInvoice = async (from: Date | string, to: Date | string , userId: any,
+    branchId: any,) => {
     try {
         const fromStr =
             typeof from === "string" ? from : from.toISOString().split("T")[0];
         const toStr =
             typeof to === "string" ? to : to.toISOString().split("T")[0];
 
-        const url = API.salesInvoice(fromStr, toStr);
+        const url = API.salesInvoice(fromStr, toStr, userId, branchId);
+        console.log("salesInvoice url", url)
         const res = await fetch(url, {
             method: "GET",
             headers: {
@@ -35,6 +37,8 @@ export const salesInvoice = async (from: Date | string, to: Date | string) => {
 export const salesOrderInvoice = async (
     from: Date | string,
     to: Date | string,
+    userId: any,
+    branchId: any,
 ) => {
     try {
         const fromStr =
@@ -42,7 +46,8 @@ export const salesOrderInvoice = async (
         const toStr =
             typeof to === "string" ? to : to.toISOString().split("T")[0];
 
-        const url = API.salesOrderInvoice(fromStr, toStr);
+        const url = API.salesOrderInvoice(fromStr, toStr, userId, branchId);
+        // console.log(url)
         const res = await fetch(url, {
             method: "GET",
             headers: {

@@ -6,8 +6,9 @@ import {
     TouchableOpacity,
     RefreshControl,
     Pressable,
+    Modal
 } from "react-native";
-import React from "react";
+import React, { useEffect } from "react";
 import { MMKV } from "react-native-mmkv";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
@@ -19,9 +20,13 @@ import Icon from "react-native-vector-icons/MaterialIcons";
 import { useTheme } from "../../Context/ThemeContext";
 import { RootStackParamList } from "../../Navigation/types";
 import { itemStockInfo, itemWiseStock } from "../../Api/OpeningStock";
+import { fetchReceiptList } from "../../Api/receipt";
 import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 import { salesInvoice, salesOrderInvoice } from "../../Api/Sales";
-import { getPurchaseOrderEntry, getPurchaseReport } from "../../Api/Purchase";
+import { getpurchaseInvoiceEntry, getPurchaseOrderEntry, getPurchaseReport } from "../../Api/Purchase";
+import { API } from "../../constants/api";
+import PaymentList from "../Payment/PaymentList";
+import { fetchPaymentList } from "../../Api/payment";
 
 const Home = () => {
     const { colors, typography } = useTheme();
@@ -31,12 +36,30 @@ const Home = () => {
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
     const [companyId, setCompanyId] = React.useState("");
+    const [userId, setUserId] = React.useState("");
+    const [branchId, setBranchId] = React.useState<string>("");
     const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
+    const [toDate, setToDate] = React.useState<Date>(new Date());
     const [refreshing, setRefreshing] = React.useState(false);
+    const [getBranch, setGetBranch] = React.useState([])
+    const [selectedBranches, setSelectedBranches] = React.useState([]);
+    const [branchModalVisible, setBranchModalVisible] = React.useState(false);
+
+    type Branch = {
+        id: number;
+        BranchName: string;
+        HasAccess?: number;
+        Created_by?: number;
+        Created_at?: string;
+    };
 
     React.useEffect(() => {
         const companyId = storage.getString("companyId");
+        const userId = storage.getString("userId")
+        const branchId = storage.getString("branchId")
         if (companyId) setCompanyId(companyId);
+        if (userId) setUserId(userId);
+        if (branchId) setBranchId(branchId);
     }, []);
 
     const {
@@ -44,30 +67,39 @@ const Home = () => {
         isLoading,
         refetch,
     } = useQuery({
-        queryKey: ["saleOrder", selectedDate, selectedDate],
-        queryFn: () => salesOrderInvoice(selectedDate, selectedDate),
-        enabled: !!selectedDate,
+        queryKey: ["saleOrder", selectedDate, toDate],
+        queryFn: () => salesOrderInvoice(selectedDate, toDate, userId, branchId),
+        enabled: !!selectedDate && !!toDate && !!userId && !!branchId,
     });
 
-    const { data: invoiceData = [] } = useQuery({
-        queryKey: ["invoiceData", selectedDate, selectedDate],
-        queryFn: () => salesInvoice(selectedDate, selectedDate),
-        enabled: !!selectedDate,
+    const { data: invoiceData = [], } = useQuery({
+        queryKey: ["invoiceData", selectedDate, toDate],
+        queryFn: () => salesInvoice(selectedDate, toDate, userId, branchId),
+        enabled: !!selectedDate && !!toDate && !!userId && !!branchId,
     });
 
     const { data: purchaseData = [], refetch: refetchPurchase } = useQuery({
-        queryKey: ["purchaseData", selectedDate, selectedDate],
-        queryFn: () => getPurchaseReport(selectedDate, selectedDate, companyId),
-        enabled: !!selectedDate,
+        queryKey: ["purchaseData", selectedDate, toDate],
+        queryFn: () => getPurchaseReport(selectedDate, toDate, companyId),
+        enabled: !!selectedDate && !! toDate,
     });
 
     const {
         data: purchaseOrderEntryData = [],
         refetch: refetchPurchaseOrderEntry,
     } = useQuery({
-        queryKey: ["purchaseOrderEntryData", selectedDate, selectedDate],
-        queryFn: () => getPurchaseOrderEntry(selectedDate, selectedDate),
-        enabled: !!selectedDate,
+        queryKey: ["purchaseOrderEntryData", selectedDate, toDate],
+        queryFn: () => getPurchaseOrderEntry(selectedDate, toDate, userId, branchId),
+        enabled: !!selectedDate && !! toDate &&  !!userId && !!branchId,
+    });
+
+    const {
+        data: purchaseInvoiceEntryData = [],
+        refetch: refetchPurchaseInvoiceEntry,
+    } = useQuery({
+        queryKey: ["purchaseInvoiceEntryData", selectedDate, toDate],
+        queryFn: () => getpurchaseInvoiceEntry(selectedDate, toDate, userId, branchId),
+        enabled: !!selectedDate && !! toDate && !!userId && !!branchId,
     });
 
     const { data: itemStockValue = [], refetch: refetchItemStockValue } =
@@ -77,23 +109,53 @@ const Home = () => {
             enabled: !!selectedDate,
         });
 
+    const { data: receiptList = [], refetch: refetchReceiptList } = useQuery({
+        queryKey: ["receiptList", selectedDate, toDate],
+        queryFn: () => fetchReceiptList(selectedDate, toDate, userId, branchId),
+        enabled: !!selectedDate && !! toDate && !!userId && !!branchId,
+    });
+
+    const { data: paymentList = [], refetch: refetchPaymentList } = useQuery({
+        queryKey: ["paymentList", selectedDate, toDate],
+        queryFn: () => fetchPaymentList(selectedDate, toDate, userId, branchId),
+        enabled: !!selectedDate && !! toDate && !!userId && !!branchId,
+    })
+
     const { data: itemWiseStockData = [], refetch: refetchItemWise } = useQuery(
         {
-            queryKey: ["itemWiseStock", selectedDate, selectedDate],
-            queryFn: () => itemWiseStock(selectedDate, selectedDate),
-            enabled: !!selectedDate,
+            queryKey: ["itemWiseStock", selectedDate, toDate],
+            queryFn: () => itemWiseStock(selectedDate, toDate),
+            enabled: !!selectedDate && !! toDate,
         },
     );
 
     // Today's totals
     const totalSales = saleOrderData.reduce(
-        (acc: number, item: { Total_Invoice_value?: number }) =>
+        (acc: any, item: { Total_Invoice_value?: any }) =>
             acc + (item.Total_Invoice_value || 0),
         0,
     );
 
+    const totalReceipt = receiptList.reduce(
+        (acc: any, item: { credit_amount?: any }) =>
+            acc + (item.credit_amount || 0),
+        0,
+    )
+
+    const totalPayment = paymentList.reduce(
+        (acc: any, item: { credit_amount?: any }) =>
+            acc + (item.credit_amount || 0),
+        0,
+    )
+
     const totalInvoices = invoiceData.reduce(
-        (acc: number, item: { Total_Invoice_value?: number }) =>
+        (acc: any, item: { Total_Invoice_value?: any }) =>
+            acc + (item.Total_Invoice_value || 0),
+        0,
+    );
+
+    const totalPurchaseInvoice = purchaseInvoiceEntryData.reduce(
+        (acc: any, item: { Total_Invoice_value?: any }) =>
             acc + (item.Total_Invoice_value || 0),
         0,
     );
@@ -286,6 +348,7 @@ const Home = () => {
         0,
     );
 
+    //purchaseInvoiceEntryTonnage Calculation//
     const totalPurchaseOrderEntryTonnage = purchaseOrderEntryData.reduce(
         (acc: number, current: any) => {
             if (!current.ItemDetails || !Array.isArray(current.ItemDetails)) {
@@ -306,6 +369,52 @@ const Home = () => {
         },
         0,
     );
+
+    const totalPurchaseInvoiceEntryTonnage = purchaseInvoiceEntryData.reduce(
+        (
+            acc: number,
+            item: {
+                ItemDetails?: Array<{
+                    Weight?: number;
+                    Unit_Name?: string;
+                }>;
+            }
+        ) => {
+            if (!item.ItemDetails || !Array.isArray(item.ItemDetails)) {
+                return acc;
+            }
+
+            const itemsTotal = item.ItemDetails.reduce(
+                (
+                    itemAcc: number,
+                    product: { Total_Qty?: number; Unit_Name?: string }
+                ) => {
+                    const qty = product.Total_Qty || 0;
+                    const unit = product.Unit_Name?.toLowerCase() || "";
+
+                    // Convert to tons based on unit
+                    let qtyInTons = 0;
+                    if (unit.includes("kg") || unit.includes("kilogram")) {
+                        qtyInTons = qty / 1000;
+                    } else if (unit.includes("ton") || unit.includes("tonne")) {
+                        qtyInTons = qty;
+                    } else if (unit.includes("g") && !unit.includes("kg")) {
+                        qtyInTons = qty / 1000000;
+                    } else {
+                        // Default assume kg if unit unclear
+                        qtyInTons = qty / 1000;
+                    }
+
+                    return itemAcc + qtyInTons;
+                },
+                0
+            );
+
+            return acc + itemsTotal;
+        },
+        0 // initial value for outer reduce
+    );
+
 
     // Calculate total stock tonnage (assuming Bal_Qty is in kg)
     const totalStockTonnage = itemStockValue.reduce(
@@ -347,6 +456,7 @@ const Home = () => {
             refetch(),
             refetchPurchase(),
             refetchPurchaseOrderEntry(),
+            refetchPurchaseInvoiceEntry(),
             refetchItemStockValue(),
             refetchItemWise(),
         ]);
@@ -355,9 +465,40 @@ const Home = () => {
         refetch,
         refetchPurchase,
         refetchPurchaseOrderEntry,
+        refetchPurchaseInvoiceEntry,
         refetchItemStockValue,
         refetchItemWise,
     ]);
+
+    React.useEffect(() => {
+        const fetchBranches = async () => {
+            const uId = storage.getString("userId");
+            if (!uId) return;
+
+            const url = API.getUserBranch(parseInt(uId));
+            try {
+                const res = await fetch(url);
+                const json = await res.json();
+
+                if (json.success && Array.isArray(json.data)) {
+                    const accessibleBranches = json.data.filter(
+                        (branch: { HasAccess?: number }) => branch.HasAccess === 1
+                    );
+                    setGetBranch(accessibleBranches);
+                } else {
+                    setGetBranch([]);
+                }
+            } catch (error) {
+                console.error("Error fetching branches:", error);
+                setGetBranch([]);
+            }
+        };
+
+        fetchBranches();
+    }, []);
+
+
+    // console.log("getBranch", getBranch)
 
     return (
         <SafeAreaView style={[styles.container]} edges={["top"]}>
@@ -385,25 +526,122 @@ const Home = () => {
                 {/* Date Picker Section */}
                 <View style={styles.datePickerContainer}>
                     <View style={styles.datePickerRow}>
-                        <DatePickerButton
-                            title="Select Date"
-                            date={selectedDate}
-                            style={styles.datePicker}
-                            containerStyle={styles.datePickerContainerStyle}
-                            titleStyle={styles.datePickerTitle}
-                            onDateChange={(date: Date) => setSelectedDate(date)}
-                        />
-                        <TouchableOpacity
-                            style={styles.refreshButton}
-                            onPress={onRefresh}>
-                            <Icon
-                                name="refresh"
-                                size={24}
-                                color={colors.white}
+
+                        <View style={styles.dateWrapper}>
+                            <DatePickerButton
+                                title="From Date"
+                                date={selectedDate}
+                                style={styles.datePicker}
+                                containerStyle={styles.datePickerContainerStyle}
+                                titleStyle={styles.datePickerTitle}
+                                onDateChange={(date: Date) => setSelectedDate(date)}
                             />
+                        </View>
+
+                        <View style={styles.dateWrapper}>
+                            <DatePickerButton
+                                title="To Date"
+                                date={toDate}
+                                style={styles.datePicker}
+                                containerStyle={styles.datePickerContainerStyle}
+                                titleStyle={styles.datePickerTitle}
+                                onDateChange={(date: Date) => setToDate(date)}
+                            />
+                        </View>
+
+                        <TouchableOpacity
+                            style={styles.refreshButtonSmall}
+                            onPress={onRefresh}>
+                            <Icon name="refresh" size={22} color={colors.white} />
                         </TouchableOpacity>
+
                     </View>
                 </View>
+
+
+                {/* Branch Selection Section */}
+                <View style={styles.branchSection}>
+                    <Text style={styles.sectionTitle}>Branches</Text>
+
+                    {/* Full Width Branch Card */}
+                    <Pressable onPress={() => setBranchModalVisible(true)}>
+                        <View style={styles.branchCardFull}>
+                            <Icon name="store" size={36} color={colors.info} />
+                            <View style={styles.branchCardTextContainer}>
+                                <Text style={styles.branchCardTitle}>Branches</Text>
+                                <Text style={styles.branchCardValue}>
+                                    {selectedBranches.length > 0
+                                        ? (selectedBranches as Branch[]).map(b => b.BranchName).join(", ")
+                                        : "Select Branches"}
+                                </Text>
+                            </View>
+                        </View>
+                    </Pressable>
+
+                    {/* Branch Selection Modal */}
+                    <Modal
+                        visible={branchModalVisible}
+                        transparent
+                        animationType="slide"
+                        onRequestClose={() => setBranchModalVisible(false)}>
+                        <View style={styles.modalOverlay}>
+                            <View style={styles.modalContainer}>
+                                <Text style={styles.modalTitle}>Select Branches</Text>
+
+                                <ScrollView style={styles.branchList}>
+                                    {getBranch.map((branch) => {
+                                        const isSelected = selectedBranches.some(
+                                            b => b.id === branch.id
+                                        );
+                                        return (
+                                            <TouchableOpacity
+                                                key={branch.id}
+                                                style={styles.branchItem}
+                                                activeOpacity={0.8}
+                                                onPress={() => {
+                                                    setSelectedBranches(prev => {
+                                                        if (isSelected) {
+                                                            // Remove branch
+                                                            const newSelectedBranches = prev.filter(b => b.id !== branch.id);
+                                                            setBranchId(newSelectedBranches.length === 1 ? newSelectedBranches[0].id : "");
+                                                            return newSelectedBranches;
+                                                        } else {
+                                                            // Add branch
+                                                            setBranchId(prev.length === 0 ? branch.id : "");
+                                                            return [...prev, branch];
+                                                        }
+                                                    });
+                                                }}>
+                                                <View style={styles.checkboxContainer}>
+                                                    <Icon
+                                                        name={
+                                                            isSelected
+                                                                ? "check-box"
+                                                                : "check-box-outline-blank"
+                                                        }
+                                                        size={24}
+                                                        color={colors.primary}
+                                                    />
+                                                    <Text style={styles.branchName}>
+                                                        {(branch as Branch).BranchName}
+                                                    </Text>
+                                                </View>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </ScrollView>
+
+                                {/* Done Button */}
+                                <TouchableOpacity
+                                    style={styles.doneButton}
+                                    onPress={() => setBranchModalVisible(false)}>
+                                    <Text style={styles.doneButtonText}>Done</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </Modal>
+                </View>
+
 
                 {/* Loading State */}
                 {isLoading && (
@@ -422,7 +660,9 @@ const Home = () => {
                         <View style={styles.summaryRow}>
                             <Pressable
                                 onPress={() =>
-                                    navigation.navigate("saleOrderInvoice")
+                                    navigation.navigate("saleOrderInvoice", {
+                                        branchId: branchId
+                                    })
                                 }>
                                 <View style={styles.summaryCard}>
                                     <Icon
@@ -463,11 +703,13 @@ const Home = () => {
 
                             <Pressable
                                 onPress={() =>
-                                    navigation.navigate("invoiceSale")
+                                    navigation.navigate("invoiceSale", {
+                                        branchId: branchId
+                                    })
                                 }>
                                 <View style={styles.summaryCard}>
                                     <Icon
-                                        name="receipt"
+                                        name="source"
                                         size={32}
                                         color={colors.accent}
                                     />
@@ -507,7 +749,7 @@ const Home = () => {
 
                         {/* Second Row */}
                         <View style={styles.summaryRow}>
-                            <Pressable
+                            {/* <Pressable
                                 onPress={() =>
                                     navigation.navigate("PurchaseReportSummary")
                                 }>
@@ -545,11 +787,13 @@ const Home = () => {
                                         </Text>
                                     </View>
                                 </View>
-                            </Pressable>
+                            </Pressable> */}
 
                             <Pressable
                                 onPress={() =>
-                                    navigation.navigate("purchaseOrder")
+                                    navigation.navigate("purchaseOrder", {
+                                        branchId: branchId
+                                    })
                                 }>
                                 <View style={styles.summaryCard}>
                                     <Icon
@@ -583,6 +827,50 @@ const Home = () => {
                                             ]}>
                                             {formatTonnage(
                                                 totalPurchaseOrderEntryTonnage,
+                                            )}{" "}
+                                            Tons
+                                        </Text>
+                                    </View>
+                                </View>
+                            </Pressable>
+
+                            <Pressable
+                                onPress={() =>
+                                    navigation.navigate("purchaseInvoice",
+                                        { branchId: branchId })
+                                }>
+                                <View style={styles.summaryCard}>
+                                    <Icon
+                                        name="shopping-bag"
+                                        size={32}
+                                        color={colors.warning}
+                                    />
+                                    <Text style={styles.summaryCardTitle}>
+                                        Purchase Invoices
+                                    </Text>
+                                    <Text style={styles.summaryCardValue}>
+                                        ₹{formatNumber(totalPurchaseInvoice)}
+                                    </Text>
+                                    <View
+                                        style={[
+                                            styles.tonnageContainer,
+                                            {
+                                                backgroundColor:
+                                                    colors.info + "15",
+                                            },
+                                        ]}>
+                                        <Icon
+                                            name="scale"
+                                            size={16}
+                                            color={colors.info}
+                                        />
+                                        <Text
+                                            style={[
+                                                styles.tonnageText,
+                                                { color: colors.info },
+                                            ]}>
+                                            {formatTonnage(
+                                                totalPurchaseInvoiceEntryTonnage,
                                             )}{" "}
                                             Tons
                                         </Text>
@@ -674,6 +962,91 @@ const Home = () => {
                                 </View>
                             </Pressable>
                         </View>
+
+                        <View style={styles.summaryRow}>
+                            <Pressable
+                                onPress={() =>
+                                    navigation.navigate("receiptList",
+                                        { branchId: branchId })
+                                }>
+                                <View style={styles.summaryCard}>
+                                    <Icon
+                                        name="receipt"
+                                        size={32}
+                                        color={colors.rec}
+                                    />
+                                    <Text style={styles.summaryCardTitle}>
+                                        Receipt
+                                    </Text>
+                                    <Text style={styles.summaryCardValue}>
+                                        ₹{formatNumber(totalReceipt)}
+                                    </Text>
+                                    <View
+                                        style={[
+                                            styles.tonnageContainer,
+                                            {
+                                                backgroundColor:
+                                                    colors.success + "15",
+                                            },
+                                        ]}>
+                                        <Icon
+                                            name="scale"
+                                            size={16}
+                                            color={colors.success}
+                                        />
+                                        {/* <Text
+                                            style={[
+                                                styles.tonnageText,
+                                                { color: colors.success },
+                                            ]}>
+                                            {formatTonnage(totalStockTonnage)}{" "}
+                                            Tons
+                                        </Text> */}
+                                    </View>
+                                </View>
+                            </Pressable>
+
+                            <Pressable
+                                onPress={() => navigation.navigate("paymentList",
+                                    { branchId: branchId })
+                                }>
+                                <View style={styles.summaryCard}>
+                                    <Icon
+                                        name="payment"
+                                        size={32}
+                                        color={colors.pay}
+                                    />
+                                    <Text style={styles.summaryCardTitle}>
+                                        Payment
+                                    </Text>
+                                    <Text style={styles.summaryCardValue}>
+                                        ₹{formatNumber(totalPayment)}
+                                    </Text>
+                                    <View
+                                        style={[
+                                            styles.tonnageContainer,
+                                            {
+                                                backgroundColor:
+                                                    colors.success + "15",
+                                            },
+                                        ]}>
+                                        <Icon
+                                            name="scale"
+                                            size={16}
+                                            color={colors.success}
+                                        />
+                                        {/* <Text
+                                            style={[
+                                                styles.tonnageText,
+                                                { color: colors.success },
+                                            ]}>
+                                            {formatTonnage(totalStockTonnage)}{" "}
+                                            Tons
+                                        </Text> */}
+                                    </View>
+                                </View>
+                            </Pressable>
+                        </View>
                     </View>
                 </View>
             </ScrollView>
@@ -739,6 +1112,7 @@ const getStyles = (typography: any, colors: any) =>
             padding: responsiveWidth(3),
             borderRadius: 8,
             alignItems: "center",
+            flex: 1
         },
         refreshButton: {
             backgroundColor: colors.primary,
@@ -803,7 +1177,7 @@ const getStyles = (typography: any, colors: any) =>
         },
         summaryCardValue: {
             ...typography.h4,
-            color: colors.text,
+            color: colors.textDark,
             fontWeight: "800",
             textAlign: "center",
             marginBottom: responsiveWidth(1),
@@ -844,4 +1218,117 @@ const getStyles = (typography: any, colors: any) =>
             fontWeight: "600",
             fontSize: 11,
         },
+        branchSection: {
+            marginVertical: 12,
+            paddingHorizontal: 10,
+        },
+
+        branchCardFull: {
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: colors.cardBackground || "#fff",
+            borderRadius: 16,
+            padding: 16,
+            elevation: 3,
+            shadowColor: "#000",
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 2 },
+            width: "100%", // full width
+            marginBottom: 10,
+        },
+
+        branchCardTextContainer: {
+            flex: 1,
+            marginLeft: 12,
+        },
+
+        branchCardTitle: {
+            fontSize: 16,
+            color: colors.text,
+            fontWeight: "600",
+            marginBottom: 4,
+        },
+
+        branchCardValue: {
+            fontSize: 15,
+            color: colors.primary,
+            flexWrap: "wrap",
+        },
+
+        modalOverlay: {
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+        },
+
+        modalContainer: {
+            width: "90%",
+            maxHeight: "80%",
+            backgroundColor: colors.cardBackground || "#fff",
+            borderRadius: 16,
+            padding: 20,
+        },
+
+        modalTitle: {
+            fontSize: 18,
+            fontWeight: "600",
+            marginBottom: 10,
+            color: colors.text,
+        },
+
+        branchList: {
+            marginVertical: 10,
+        },
+
+        branchItem: {
+            paddingVertical: 10,
+            borderBottomWidth: 0.5,
+            borderColor: colors.border || "#ddd",
+        },
+
+        checkboxContainer: {
+            flexDirection: "row",
+            alignItems: "center",
+        },
+
+        branchName: {
+            marginLeft: 10,
+            fontSize: 16,
+            color: colors.text,
+        },
+
+        doneButton: {
+            backgroundColor: colors.primary,
+            paddingVertical: 12,
+            borderRadius: 10,
+            alignItems: "center",
+            marginTop: 12,
+        },
+
+        doneButtonText: {
+            color: colors.white,
+            fontWeight: "600",
+            fontSize: 16,
+        },
+        datePickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+},
+
+dateWrapper: {
+    flex: 1,
+    marginRight: 8,
+},
+
+refreshButtonSmall: {
+    backgroundColor: colors.primary,
+    padding: 10,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+},
+
     });

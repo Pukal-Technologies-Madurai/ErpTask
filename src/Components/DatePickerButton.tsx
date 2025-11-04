@@ -88,12 +88,12 @@ const DatePickerButton: FC<DatePickerButtonProps> = ({
                     style={[styles.button, disabled && styles.buttonDisabled]}>
                     <View style={styles.contentContainer}>
                         <View style={styles.dateContainer}>
-                            <Icon
+                            {/* <Icon
                                 name="calendar-outline"
                                 color={disabled ? colors.grey500 : colors.black}
                                 size={20}
                                 style={styles.calendarIcon}
-                            />
+                            /> */}
                             <Text
                                 style={[
                                     styles.dateText,

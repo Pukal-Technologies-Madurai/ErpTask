@@ -1,6 +1,6 @@
 {
     "name": "ErpTask",
-    "version": "1.0.6",
+    "version": "1.0.8",
     "private": true,
     "scripts": {
         "android": "react-native run-android",
@@ -23,7 +23,7 @@
         "react-native": "0.79.0",
         "react-native-crypto-js": "^1.0.0",
         "react-native-element-dropdown": "^2.10.4",
-        "react-native-gesture-handler": "^2.25.0",
+        "react-native-gesture-handler": "^2.28.0",
         "react-native-mmkv": "^3.3.0",
         "react-native-reanimated": "^3.17.5",
         "react-native-rename": "^3.2.14",

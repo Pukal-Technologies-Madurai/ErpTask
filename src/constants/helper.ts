@@ -49,6 +49,8 @@ export const customColors = {
         error: "#F44336",
         warning: "#FF9800",
         info: "#2196F3",
+        rec: "#9f18c9ff",
+        pay: "#01220fd7",
     },
     dark: {
         background: "#121212",

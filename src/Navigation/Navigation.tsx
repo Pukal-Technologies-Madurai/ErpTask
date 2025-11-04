@@ -15,9 +15,12 @@ import SaleInvoice from "../Screens/Sales/SaleInvoice";
 import SaleOrder from "../Screens/Sales/SaleOrder";
 import PurchaseReportSummary from "../Screens/Purchase/PurchaseReportSummary";
 import PurchaseOrder from "../Screens/Purchase/PurchaseOrder";
+import PurchaseInvoices from "../Screens/Purchase/PurchaseInvoices";
 import ItemStack from "../Screens/Stack/ItemStack";
 import CompanySwitch from "../Screens/Login/CompanySwitch";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import ReceiptList from "../Screens/Receipts/ReceiptList";
+import PaymentList from "../Screens/Payment/PaymentList";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -70,12 +73,25 @@ const Navigation = () => {
                     />
 
                     <Stack.Screen
+                        name="receiptList"
+                        component={ReceiptList}
+                    />
+
+                    <Stack.Screen
                         name="PurchaseReportSummary"
                         component={PurchaseReportSummary}
                     />
                     <Stack.Screen
                         name="purchaseOrder"
                         component={PurchaseOrder}
+                    />
+                    <Stack.Screen
+                        name="purchaseInvoice"  
+                        component={PurchaseInvoices}
+                    />
+                    <Stack.Screen
+                        name="paymentList"  
+                        component={PaymentList}
                     />
                     <Stack.Screen name="ItemStack" component={ItemStack} />
                 </Stack.Navigator>

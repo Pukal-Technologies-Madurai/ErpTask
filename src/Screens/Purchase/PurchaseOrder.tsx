@@ -22,15 +22,22 @@ import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 import AppHeader from "../../Components/AppHeader";
 import FilterModal from "../../Components/FilterModal";
 import { formatCurrency } from "../../constants/utils";
+import { MMKV } from "react-native-mmkv";
 
-const PurchaseOrder = () => {
+const PurchaseOrder = ({ route }: { route: any }) => {
+    const item = route.params || {};
+    const branchIdProps = item.branchId;
+
     const { colors, typography } = useTheme();
+    const storage = new MMKV();
     const styles = getStyles(typography, colors);
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
     const [fromDate, setFromDate] = React.useState<Date>(new Date());
     const [toDate, setToDate] = React.useState<Date>(new Date());
+    const [userId, setUserId] = React.useState(0);
+    const [branchId, setBranchId] = React.useState("");
     const [searchQuery, setSearchQuery] = React.useState("");
     const [expandedOrderId, setExpandedOrderId] = React.useState<number | null>(
         null,
@@ -43,6 +50,14 @@ const PurchaseOrder = () => {
     );
 
     const ITEMS_PER_PAGE = 10;
+
+     React.useEffect(() => {
+                const userId =  storage.getString("userId")
+                const branchId =  storage.getString("branchId")
+                
+                if (userId) setUserId(parseInt(userId));
+                if (branchId) setBranchId(branchId);
+            }, []);
 
     // Define types for the order and item
     type OrderItem = {
@@ -67,8 +82,8 @@ const PurchaseOrder = () => {
         refetch,
     } = useQuery({
         queryKey: ["purchaseOrderReport", fromDate, toDate],
-        queryFn: () => getPurchaseOrderEntry(fromDate, toDate),
-        enabled: !!fromDate && !!toDate,
+        queryFn: () => getPurchaseOrderEntry(fromDate, toDate, userId, branchIdProps),
+        enabled: !!fromDate && !!toDate&& !!userId && !!branchIdProps,
     });
 
     // Filter and sort data
@@ -220,7 +235,7 @@ const PurchaseOrder = () => {
                                         {
                                             color:
                                                 order.OrderStatus ===
-                                                "Completed"
+                                                    "Completed"
                                                     ? colors.success
                                                     : colors.warning,
                                         },
@@ -704,7 +719,7 @@ const PurchaseOrder = () => {
                                     style={[
                                         styles.pageButton,
                                         currentPage === 1 &&
-                                            styles.pageButtonDisabled,
+                                        styles.pageButtonDisabled,
                                     ]}
                                     onPress={() =>
                                         setCurrentPage(
@@ -732,7 +747,7 @@ const PurchaseOrder = () => {
                                     style={[
                                         styles.pageButton,
                                         currentPage === totalPages &&
-                                            styles.pageButtonDisabled,
+                                        styles.pageButtonDisabled,
                                     ]}
                                     onPress={() =>
                                         setCurrentPage(

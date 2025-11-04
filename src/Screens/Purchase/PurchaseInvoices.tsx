@@ -15,17 +15,16 @@ import { useTheme } from "../../Context/ThemeContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { RootStackParamList } from "../../Navigation/types";
-import { salesInvoice } from "../../Api/Sales";
+import { getpurchaseInvoiceEntry } from "../../Api/Purchase";
 import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 import AppHeader from "../../Components/AppHeader";
 import FilterModal from "../../Components/FilterModal";
 import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
 import { MMKV } from "react-native-mmkv";
 
-const SaleInvoice = ({ route }: { route: any }) => {
+const PurchaseInvoice = ({ route }: { route: any }) => {
     const item = route.params || {};
     const branchIdProps = item.branchId;
-    console.log("branchIdProps", branchIdProps)
 
     const { colors, typography } = useTheme();
     const styles = getStyles(typography, colors);
@@ -39,9 +38,7 @@ const SaleInvoice = ({ route }: { route: any }) => {
     const [branchId, setBranchId] = React.useState("");
     const [searchQuery, setSearchQuery] = React.useState("");
     const [modalVisible, setModalVisible] = React.useState(false);
-    const [expandedInvoices, setExpandedInvoices] = React.useState<Set<string>>(
-        new Set(),
-    );
+    const [expandedInvoices, setExpandedInvoices] = React.useState<Set<string>>(new Set());
     const [selectedBrand, setSelectedBrand] = React.useState("");
     const [currentPage, setCurrentPage] = React.useState(1);
     const [refreshing, setRefreshing] = React.useState(false);
@@ -49,8 +46,8 @@ const SaleInvoice = ({ route }: { route: any }) => {
     const ITEMS_PER_PAGE = 15;
 
     React.useEffect(() => {
-        const userId = storage.getString("userId")
-        const branchId = storage.getString("branchId")
+        const userId = storage.getString("userId");
+        const branchId = storage.getString("branchId");
         if (userId) setUserId(userId);
         if (branchId) setBranchId(branchId);
     }, []);
@@ -61,49 +58,39 @@ const SaleInvoice = ({ route }: { route: any }) => {
         error,
         refetch,
     } = useQuery({
-        queryKey: ["salesInvoice", fromDate, toDate],
-        queryFn: () => salesInvoice(fromDate, toDate, userId, branchIdProps),
+        queryKey: ["purchaseInvoice", fromDate, toDate],
+        queryFn: () => getpurchaseInvoiceEntry(fromDate, toDate, userId, branchIdProps),
         enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
-    // Filter and sort data
+    // Filter, search & paginate
     const getProcessedData = () => {
         let filtered = [...invoiceData];
 
-        // --- Branch filter (show only selected branch(es)) ---
         if (branchIdProps) {
-            // Handle single or multiple branch selection gracefully
-            const branchIds = Array.isArray(branchIdProps)
-                ? branchIdProps.map(id => Number(id))
-                : [Number(branchIdProps)];
-
-            // Keep only invoices belonging to selected branches
+            const branchIds = Array.isArray(branchIdProps) ? branchIdProps.map(id => Number(id)) : [Number(branchIdProps)];
             filtered = filtered.filter(invoice => branchIds.includes(invoice.Branch_Id));
         }
 
-        // --- Search filter ---
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
-            filtered = filtered.filter(
-                invoice =>
-                    invoice.Do_Inv_No?.toLowerCase().includes(query) ||
-                    invoice.Retailer_Name?.toLowerCase().includes(query) ||
-                    invoice.Branch_Name?.toLowerCase().includes(query)
-            );
-        }
-
-        // --- Brand filter ---
-        if (selectedBrand) {
             filtered = filtered.filter(invoice =>
-                invoice.Products_List?.some((product: { BrandGet: string }) =>
-                    selectedBrand === "No Brand"
-                        ? !product.BrandGet || product.BrandGet.trim() === ""
-                        : product.BrandGet === selectedBrand
-                )
+                invoice.Po_Inv_No?.toLowerCase().includes(query) ||
+                invoice.Retailer_Name?.toLowerCase().includes(query) ||
+                invoice.Branch_Name?.toLowerCase().includes(query)
             );
         }
 
-        // --- Pagination ---
+        // if (selectedBrand) {
+        //     filtered = filtered.filter(invoice =>
+        //         invoice.Products_List?.some((product: { BrandGet: string }) =>
+        //             selectedBrand === "No Brand"
+        //                 ? !product.BrandGet || product.BrandGet.trim() === ""
+        //                 : product.BrandGet === selectedBrand
+        //         )
+        //     );
+        // }
+
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
         const paginatedData = filtered.slice(startIndex, endIndex);
@@ -113,12 +100,9 @@ const SaleInvoice = ({ route }: { route: any }) => {
             totalPages: Math.ceil(filtered.length / ITEMS_PER_PAGE),
             totalItems: filtered.length,
             totalRecords: invoiceData.length,
-            totalAmount: filtered.reduce(
-                (sum, invoice) => sum + (invoice.Total_Invoice_value || 0),
-                0
-            ),
+            totalAmount: filtered.reduce((sum, invoice) => sum + (invoice.Total_Invoice_value || 0), 0),
         };
-    }; 
+    };
 
     const {
         data: displayData,
@@ -128,7 +112,6 @@ const SaleInvoice = ({ route }: { route: any }) => {
         totalAmount,
     } = getProcessedData();
 
-    // Toggle invoice expansion
     const toggleInvoice = (invoiceId: string) => {
         const newExpanded = new Set(expandedInvoices);
         if (newExpanded.has(invoiceId)) {
@@ -139,7 +122,6 @@ const SaleInvoice = ({ route }: { route: any }) => {
         setExpandedInvoices(newExpanded);
     };
 
-    // Handle refresh
     const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
         try {
@@ -149,85 +131,48 @@ const SaleInvoice = ({ route }: { route: any }) => {
         }
     }, [refetch]);
 
-    // Reset pagination when filters change
     React.useEffect(() => {
         setCurrentPage(1);
         setExpandedInvoices(new Set());
     }, [searchQuery]);
 
-    // Get unique brands with their totals
     const getBrandsWithTotals = () => {
         const brandMap = new Map();
-
         invoiceData.forEach((invoice: any) => {
             invoice.Products_List?.forEach((product: any) => {
-                const brand =
-                    product.BrandGet && product.BrandGet.trim() !== ""
-                        ? product.BrandGet
-                        : "No Brand";
-                if (!brandMap.has(brand)) {
-                    brandMap.set(brand, {
-                        brand,
-                        count: 0,
-                        amount: 0,
-                    });
-                }
+                const brand = product.BrandGet && product.BrandGet.trim() !== "" ? product.BrandGet : "No Brand";
+                if (!brandMap.has(brand)) brandMap.set(brand, { brand, count: 0, amount: 0 });
                 const brandInfo = brandMap.get(brand);
                 brandInfo.count += product.Bill_Qty || 0;
                 brandInfo.amount += product.Final_Amo || 0;
             });
         });
-
         return Array.from(brandMap.values()).sort((a, b) => b.count - a.count);
     };
 
-    // Brand Filter Component
     const BrandFilter = () => {
         const brandsWithTotals = getBrandsWithTotals();
-
-        return (
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.brandFilterContainer}>
-                <TouchableOpacity
-                    style={[
-                        styles.brandFilterButton,
-                        !selectedBrand && styles.brandFilterButtonActive,
-                    ]}
-                    onPress={() => setSelectedBrand("")}>
-                    <Text
-                        style={[
-                            styles.brandFilterText,
-                            !selectedBrand && styles.brandFilterTextActive,
-                        ]}>
-                        All
-                    </Text>
-                </TouchableOpacity>
-                {brandsWithTotals.map(({ brand, count }) => (
-                    <TouchableOpacity
-                        key={brand}
-                        style={[
-                            styles.brandFilterButton,
-                            selectedBrand === brand &&
-                            styles.brandFilterButtonActive,
-                        ]}
-                        onPress={() => setSelectedBrand(brand)}>
-                        <Text
-                            style={[
-                                styles.brandFilterText,
-                                selectedBrand === brand &&
-                                styles.brandFilterTextActive,
-                            ]}>
-                            {brand} ({count})
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
-        );
+        // return (
+        //     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.brandFilterContainer}>
+        //         <TouchableOpacity
+        //             style={[styles.brandFilterButton, !selectedBrand && styles.brandFilterButtonActive]}
+        //             onPress={() => setSelectedBrand("")}>
+        //             <Text style={[styles.brandFilterText, !selectedBrand && styles.brandFilterTextActive]}>All</Text>
+        //         </TouchableOpacity>
+        //         {brandsWithTotals.map(({ brand, count }) => (
+        //             <TouchableOpacity
+        //                 key={brand}
+        //                 style={[styles.brandFilterButton, selectedBrand === brand && styles.brandFilterButtonActive]}
+        //                 onPress={() => setSelectedBrand(brand)}>
+        //                 <Text style={[styles.brandFilterText, selectedBrand === brand && styles.brandFilterTextActive]}>
+        //                     {brand} ({count})
+        //                 </Text>
+        //             </TouchableOpacity>
+        //         ))}
+        //     </ScrollView>
+        // );
     };
 
-    // Summary Cards Component
     const SummaryCards = () => (
         <View style={styles.summaryContainer}>
             <View style={styles.summaryCard}>
@@ -237,95 +182,46 @@ const SaleInvoice = ({ route }: { route: any }) => {
             </View>
             <View style={styles.summaryCard}>
                 <Icon name="currency-rupee" size={24} color={colors.success} />
-                <Text style={styles.summaryValue}>
-                    {formatCurrency(totalAmount).replace("₹", "")}
-                </Text>
+                <Text style={styles.summaryValue}>{formatCurrency(totalAmount).replace("₹", "")}</Text>
                 <Text style={styles.summaryLabel}>Total Amount</Text>
             </View>
         </View>
     );
 
-    // Invoice Card Component
     const InvoiceCard = ({ invoice }: { invoice: any }) => {
-        const isExpanded = expandedInvoices.has(invoice.Do_Id);
-        const isActive = invoice.Cancel_status === "1";
-
-        const getFormattedDate = (dateString: string) => {
-            try {
-                const date = new Date(dateString);
-                return formatDate(date);
-            } catch (error) {
-                return "--";
-            }
-        };
+        const isExpanded = expandedInvoices.has(invoice.PIN_Id);
 
         return (
             <View style={styles.orderCard}>
                 <TouchableOpacity
                     style={styles.orderHeader}
-                    onPress={() => toggleInvoice(invoice.Do_Id)}
+                    onPress={() => toggleInvoice(invoice.PIN_Id)}
                     activeOpacity={0.7}>
                     <View style={styles.orderHeaderLeft}>
                         <View style={styles.orderTopRow}>
                             <View style={styles.orderNumberContainer}>
-                                <Text style={styles.orderNumber}>
-                                    {invoice.Do_Inv_No}
-                                </Text>
+                                <Text style={styles.orderNumber}>{invoice.Po_Inv_No}</Text>
                                 <View style={styles.dateTimeContainer}>
-                                    <Icon
-                                        name="event"
-                                        size={12}
-                                        color={colors.textSecondary}
-                                        style={styles.dateTimeIcon}
-                                    />
+                                    <Icon name="event" size={12} color={colors.textSecondary} style={styles.dateTimeIcon} />
                                     <Text style={styles.orderDateTime}>
-                                        {invoice.Created_on
-                                            ? getFormattedDate(
-                                                invoice.Created_on,
-                                            )
-                                            : "--"}
+                                        {invoice.Po_Inv_Date ? formatDate(new Date(invoice.Po_Inv_Date)) : "--"}
                                     </Text>
-                                    <Icon
-                                        name="schedule"
-                                        size={12}
-                                        color={colors.textSecondary}
-                                        style={styles.dateTimeIcon}
-                                    />
+                                    <Icon name="schedule" size={12} color={colors.textSecondary} style={styles.dateTimeIcon} />
                                     <Text style={styles.orderDateTime}>
-                                        {invoice.Created_on
-                                            ? formatTime(invoice.Created_on)
-                                            : "--"}
+                                        {invoice.Po_Inv_Date ? formatTime((invoice.Po_Inv_Date)) : "--"}
                                     </Text>
                                 </View>
                             </View>
-                            <Text style={styles.orderAmount}>
-                                {formatCurrency(invoice.Total_Invoice_value)}
-                            </Text>
+                            <Text style={styles.orderAmount}>{formatCurrency(invoice.Total_Invoice_value)}</Text>
                         </View>
                         <View style={styles.orderBottomRow}>
                             <View style={styles.retailerContainer}>
-                                <Icon
-                                    name="store"
-                                    size={14}
-                                    color={colors.primary}
-                                    style={styles.bottomRowIcon}
-                                />
-                                <Text
-                                    style={styles.retailerName}
-                                    numberOfLines={2}>
-                                    {invoice.Retailer_Name}
-                                </Text>
+                                <Icon name="store" size={14} color={colors.primary} style={styles.bottomRowIcon} />
+                                <Text style={styles.retailerName} numberOfLines={2}>{invoice.Retailer_Name}</Text>
                             </View>
                             <View style={styles.salesPersonContainer}>
-                                <Icon
-                                    name="person"
-                                    size={14}
-                                    color={colors.textSecondary}
-                                    style={styles.bottomRowIcon}
-                                />
-                                <Text style={styles.salesPerson}>
-                                    {invoice.Created_BY_Name}
-                                </Text>
+                                <Icon name="person" size={14} color={colors.textSecondary} style={styles.bottomRowIcon} />
+                                <Text style={styles.salesPerson}>{invoice.Created_BY_Name}</Text>
                             </View>
                         </View>
                     </View>
@@ -333,176 +229,84 @@ const SaleInvoice = ({ route }: { route: any }) => {
 
                 {isExpanded && (
                     <View style={styles.orderDetails}>
-                        {/* Essential Order Info */}
                         <View style={styles.essentialInfo}>
                             <View style={styles.infoGrid}>
                                 <View style={styles.infoItem}>
-                                    <Icon
-                                        name="business"
-                                        size={16}
-                                        color={colors.primary}
-                                    />
+                                    <Icon name="business" size={16} color={colors.primary} />
                                     <View style={styles.infoContent}>
-                                        <Text style={styles.infoLabel}>
-                                            Branch
-                                        </Text>
-                                        <Text
-                                            style={styles.infoValue}
-                                            numberOfLines={1}>
-                                            {invoice.Branch_Name}
-                                        </Text>
+                                        <Text style={styles.infoLabel}>Branch</Text>
+                                        <Text style={styles.infoValue}>{invoice.Branch_Name}</Text>
                                     </View>
                                 </View>
                                 <View style={styles.infoItem}>
-                                    <Icon
-                                        name="account-balance"
-                                        size={16}
-                                        color={colors.success}
-                                    />
+                                    <Icon name="account-balance" size={16} color={colors.success} />
                                     <View style={styles.infoContent}>
-                                        <Text style={styles.infoLabel}>
-                                            Before Tax
-                                        </Text>
-                                        <Text style={styles.infoValue}>
-                                            {formatCurrency(
-                                                invoice.Total_Before_Tax,
-                                            )}
-                                        </Text>
+                                        <Text style={styles.infoLabel}>Before Tax</Text>
+                                        <Text style={styles.infoValue}>{formatCurrency(invoice.Total_Before_Tax)}</Text>
                                     </View>
                                 </View>
                                 <View style={styles.infoItem}>
-                                    <Icon
-                                        name="receipt"
-                                        size={16}
-                                        color={colors.warning}
-                                    />
+                                    <Icon name="receipt" size={16} color={colors.warning} />
                                     <View style={styles.infoContent}>
-                                        <Text style={styles.infoLabel}>
-                                            Tax
-                                        </Text>
-                                        <Text style={styles.infoValue}>
-                                            {formatCurrency(invoice.Total_Tax)}
-                                        </Text>
+                                        <Text style={styles.infoLabel}>Tax</Text>
+                                        <Text style={styles.infoValue}>{formatCurrency(invoice.Total_Tax)}</Text>
                                     </View>
                                 </View>
                             </View>
                         </View>
 
-                        {/* Products Table */}
-                        {invoice.Products_List &&
-                            invoice.Products_List.length > 0 && (
-                                <View style={styles.productsTable}>
-                                    <View style={styles.tableHeader}>
-                                        <Text
-                                            style={[
-                                                styles.tableCell,
-                                                styles.productNameCell,
-                                            ]}>
-                                            Product
-                                        </Text>
-                                        <Text style={styles.tableCell}>
-                                            Qty
-                                        </Text>
-                                        <Text style={styles.tableCell}>
-                                            Rate
-                                        </Text>
-                                        <Text style={styles.tableCell}>
-                                            Amount
-                                        </Text>
-                                    </View>
-                                    {invoice.Products_List.map(
-                                        (product: any, index: number) => (
-                                            <View
-                                                key={index}
-                                                style={styles.tableRow}>
-                                                <Text
-                                                    style={[
-                                                        styles.tableCell,
-                                                        styles.productNameCell,
-                                                    ]}
-                                                    numberOfLines={4}>
-                                                    {product.Product_Name}
-                                                </Text>
-                                                <Text style={styles.tableCell}>
-                                                    {product.Bill_Qty}
-                                                </Text>
-                                                <Text style={styles.tableCell}>
-                                                    {formatCurrency(
-                                                        product.Item_Rate,
-                                                    ).replace("₹", "")}
-                                                </Text>
-                                                <Text style={styles.tableCell}>
-                                                    {formatCurrency(
-                                                        product.Final_Amo,
-                                                    ).replace("₹", "")}
-                                                </Text>
-                                            </View>
-                                        ),
-                                    )}
+                        {invoice.Products_List && invoice.Products_List.length > 0 && (
+                            <View style={styles.productsTable}>
+                                <View style={styles.tableHeader}>
+                                    <Text style={[styles.tableCell, styles.productNameCell]}>Product</Text>
+                                    <Text style={styles.tableCell}>Qty</Text>
+                                    <Text style={styles.tableCell}>Rate</Text>
+                                    <Text style={styles.tableCell}>Amount</Text>
                                 </View>
-                            )}
+                                {invoice.Products_List.map((product: any, index: number) => (
+                                    <View key={index} style={styles.tableRow}>
+                                        <Text style={[styles.tableCell, styles.productNameCell]} numberOfLines={4}>{product.Product_Name}</Text>
+                                        <Text style={styles.tableCell}>{product.Bill_Qty}</Text>
+                                        <Text style={styles.tableCell}>{formatCurrency(product.Item_Rate).replace("₹", "")}</Text>
+                                        <Text style={styles.tableCell}>{formatCurrency(product.Final_Amo).replace("₹", "")}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
                     </View>
                 )}
             </View>
         );
     };
 
-    // Pagination Component
     const PaginationControls = () => (
         <View style={styles.paginationContainer}>
             <TouchableOpacity
-                style={[
-                    styles.pageButton,
-                    currentPage === 1 && styles.pageButtonDisabled,
-                ]}
+                style={[styles.pageButton, currentPage === 1 && styles.pageButtonDisabled]}
                 onPress={() => setCurrentPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}>
-                <Icon
-                    name="chevron-left"
-                    size={20}
-                    color={
-                        currentPage === 1
-                            ? colors.textSecondary
-                            : colors.primary
-                    }
-                />
+                <Icon name="chevron-left" size={20} color={currentPage === 1 ? colors.textSecondary : colors.primary} />
             </TouchableOpacity>
 
             <Text style={styles.pageInfo}>
-                Page {currentPage} of {totalPages} ({totalItems} invoices,{" "}
-                {totalRecords} total records)
+                Page {currentPage} of {totalPages} ({totalItems} invoices, {totalRecords} total records)
             </Text>
 
             <TouchableOpacity
-                style={[
-                    styles.pageButton,
-                    currentPage === totalPages && styles.pageButtonDisabled,
-                ]}
-                onPress={() =>
-                    setCurrentPage(Math.min(totalPages, currentPage + 1))
-                }
+                style={[styles.pageButton, currentPage === totalPages && styles.pageButtonDisabled]}
+                onPress={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}>
-                <Icon
-                    name="chevron-right"
-                    size={20}
-                    color={
-                        currentPage === totalPages
-                            ? colors.textSecondary
-                            : colors.primary
-                    }
-                />
+                <Icon name="chevron-right" size={20} color={currentPage === totalPages ? colors.textSecondary : colors.primary} />
             </TouchableOpacity>
         </View>
     );
 
-    const handleCloseModal = () => {
-        setModalVisible(false);
-    };
+    const handleCloseModal = () => setModalVisible(false);
 
     return (
         <SafeAreaView style={styles.container}>
             <AppHeader
-                title="Sales Invoice"
+                title="Purchase Invoice"
                 navigation={navigation}
                 showRightIcon={true}
                 rightIconLibrary="MaterialIcon"
@@ -527,66 +331,35 @@ const SaleInvoice = ({ route }: { route: any }) => {
             <ScrollView
                 style={styles.scrollContainer}
                 refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        colors={[colors.primary]}
-                        tintColor={colors.primary}
-                    />
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
                 }
-                showsVerticalScrollIndicator={false}>
-                {/* Loading State */}
+                showsVerticalScrollIndicator={false}
+            >
                 {isLoading && (
                     <View style={styles.loadingContainer}>
-                        <Text style={styles.loadingText}>
-                            Loading invoices...
-                        </Text>
+                        <Text style={styles.loadingText}>Loading invoices...</Text>
                     </View>
                 )}
 
-                {/* Error State */}
                 {!isLoading && error && (
                     <View style={styles.errorContainer}>
-                        <Icon
-                            name="error-outline"
-                            size={48}
-                            color={colors.accent}
-                        />
-                        <Text style={styles.errorText}>
-                            Error loading invoices
-                        </Text>
-                        <Text style={styles.errorSubtext}>
-                            {error.message || "Please try again later"}
-                        </Text>
-                        <TouchableOpacity
-                            style={styles.retryButton}
-                            onPress={onRefresh}>
-                            <Icon
-                                name="refresh"
-                                size={20}
-                                color={colors.white}
-                            />
+                        <Icon name="error-outline" size={48} color={colors.accent} />
+                        <Text style={styles.errorText}>Error loading invoices</Text>
+                        <Text style={styles.errorSubtext}>{error.message || "Please try again later"}</Text>
+                        <TouchableOpacity style={styles.retryButton} onPress={onRefresh}>
+                            <Icon name="refresh" size={20} color={colors.white} />
                             <Text style={styles.retryButtonText}>Retry</Text>
                         </TouchableOpacity>
                     </View>
                 )}
 
-                {/* Data Display */}
                 {!isLoading && !error && invoiceData.length > 0 && (
                     <>
-                        {/* Summary Cards */}
                         <SummaryCards />
+                        {/* <BrandFilter /> */}
 
-                        {/* Brand Filter */}
-                        <BrandFilter />
-
-                        {/* Search Bar */}
                         <View style={styles.searchContainer}>
-                            <Icon
-                                name="search"
-                                size={20}
-                                color={colors.textSecondary}
-                            />
+                            <Icon name="search" size={20} color={colors.textSecondary} />
                             <TextInput
                                 style={styles.searchInput}
                                 placeholder="Search by invoice number, retailer, or branch..."
@@ -595,79 +368,38 @@ const SaleInvoice = ({ route }: { route: any }) => {
                                 onChangeText={setSearchQuery}
                             />
                             {searchQuery.length > 0 && (
-                                <TouchableOpacity
-                                    onPress={() => setSearchQuery("")}>
-                                    <Icon
-                                        name="clear"
-                                        size={20}
-                                        color={colors.textSecondary}
-                                    />
+                                <TouchableOpacity onPress={() => setSearchQuery("")}>
+                                    <Icon name="clear" size={20} color={colors.textSecondary} />
                                 </TouchableOpacity>
                             )}
                         </View>
 
-                        {/* Results Info */}
-                        <View style={styles.resultsContainer}>
-                            <Text style={styles.resultsText}>
-                                {/* Showing {displayData.length} invoices (
-                                {totalItems} filtered, {totalRecords} total
-                                records) */}
-                            </Text>
-                        </View>
-
-                        {/* Invoices List */}
-                        {displayData.map((invoice, index) => (
-                            <InvoiceCard
-                                key={invoice.Do_Id}
-                                invoice={invoice}
-                            />
-                        ))}
-
-                        {/* Pagination */}
+                        {displayData.map((invoice, index) => <InvoiceCard key={invoice.PIN_Id} invoice={invoice} />)}
                         {totalPages > 1 && <PaginationControls />}
                     </>
                 )}
 
-                {/* No Data State */}
                 {!isLoading && !error && invoiceData.length === 0 && (
                     <View style={styles.noDataContainer}>
-                        <Icon
-                            name="receipt"
-                            size={48}
-                            color={colors.textSecondary}
-                        />
+                        <Icon name="receipt" size={48} color={colors.textSecondary} />
                         <Text style={styles.noDataText}>No invoices found</Text>
-                        <Text style={styles.noDataSubtext}>
-                            Please select a date range to view invoices
-                        </Text>
+                        <Text style={styles.noDataSubtext}>Please select a date range to view invoices</Text>
                     </View>
                 )}
 
-                {/* No Results State */}
-                {!isLoading &&
-                    !error &&
-                    invoiceData.length > 0 &&
-                    displayData.length === 0 && (
-                        <View style={styles.noDataContainer}>
-                            <Icon
-                                name="search-off"
-                                size={48}
-                                color={colors.textSecondary}
-                            />
-                            <Text style={styles.noDataText}>
-                                No results found
-                            </Text>
-                            <Text style={styles.noDataSubtext}>
-                                Try adjusting your search or filter criteria
-                            </Text>
-                        </View>
-                    )}
+                {!isLoading && !error && invoiceData.length > 0 && displayData.length === 0 && (
+                    <View style={styles.noDataContainer}>
+                        <Icon name="search-off" size={48} color={colors.textSecondary} />
+                        <Text style={styles.noDataText}>No results found</Text>
+                        <Text style={styles.noDataSubtext}>Try adjusting your search or filter criteria</Text>
+                    </View>
+                )}
             </ScrollView>
         </SafeAreaView>
     );
 };
 
-export default SaleInvoice;
+export default PurchaseInvoice;
 
 const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
@@ -1166,3 +898,4 @@ const getStyles = (typography: any, colors: any) =>
             textAlign: "center",
         },
     });
+

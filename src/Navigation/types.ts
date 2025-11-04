@@ -1,3 +1,27 @@
+interface SaleOrderInvoiceParams {
+    branchId: any;
+}
+
+interface SaleInvoiceParams {
+    branchId: any;
+}
+
+interface purchaseInvoiceParams {
+    branchId: any;
+}
+
+interface PurchaseOrderParams {
+    branchId: any;
+}
+
+interface paymentListParams {
+    branchId: any;
+}
+
+interface receiptListParams  {
+    branchId: any;
+}
+
 export type BottomTabParamList = {
     Home: undefined;
     Attendance: undefined;
@@ -10,7 +34,8 @@ export type DrawerParamList = {
     Profile: undefined;
     CompanySwitch: undefined;
 
-    invoiceSale: undefined;
+    invoiceSale: SaleInvoiceParams;
+    purchaseInvoice: purchaseInvoiceParams;
     saleOrderInvoice: undefined;
     Attendance: undefined;
 };
@@ -24,10 +49,13 @@ export type RootStackParamList = {
     profile: undefined;
     Home: undefined;
     Stock: undefined;
+    receiptList: receiptListParams;
 
-    invoiceSale: undefined;
-    saleOrderInvoice: undefined;
+    invoiceSale: SaleInvoiceParams;
+    saleOrderInvoice: SaleOrderInvoiceParams;
     PurchaseReportSummary: undefined;
-    purchaseOrder: undefined;
+    purchaseOrder: PurchaseOrderParams;
+    purchaseInvoice : purchaseInvoiceParams;
     ItemStack: undefined;
+    paymentList: paymentListParams;
 };

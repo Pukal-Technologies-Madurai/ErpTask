@@ -22,15 +22,23 @@ import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
 import { usePagination } from "../../hooks/usePagination";
 import PaginationControls from "../../Components/PaginationControls";
+import { MMKV } from "react-native-mmkv";
 
-const SaleOrder = () => {
+const SaleOrder = ({ route }: { route: any }) => {
+    const item = route.params || {};
+    const branchIdProps = item.branchId;
+//   console.log("branchId", branchIdProps);
+    
     const { typography, colors } = useTheme();
+     const storage = new MMKV();
     const styles = getStyles(typography, colors);
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
     const [fromDate, setFromDate] = React.useState<Date>(new Date());
     const [toDate, setToDate] = React.useState<Date>(new Date());
+    const [userId, setUserId] = React.useState("");
+    const [branchId, setBranchId] = React.useState("");
     const [searchQuery, setSearchQuery] = React.useState("");
     const [expandedOrders, setExpandedOrders] = React.useState<Set<string>>(
         new Set(),
@@ -41,6 +49,13 @@ const SaleOrder = () => {
 
     const ITEMS_PER_PAGE = 15;
 
+    React.useEffect(() => {
+            const userId =  storage.getString("userId")
+            const branchId =  storage.getString("branchId")
+            if (userId) setUserId(userId);
+            if (branchId) setBranchId(branchId);
+        }, []);
+
     const {
         data: saleOrder = [],
         isLoading,
@@ -48,8 +63,8 @@ const SaleOrder = () => {
         refetch,
     } = useQuery({
         queryKey: ["saleOrder", fromDate, toDate],
-        queryFn: () => salesOrderInvoice(fromDate, toDate),
-        enabled: !!fromDate && !!toDate,
+        queryFn: () => salesOrderInvoice(fromDate, toDate, userId, branchIdProps),
+        enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
     // Get unique brands and their totals from products

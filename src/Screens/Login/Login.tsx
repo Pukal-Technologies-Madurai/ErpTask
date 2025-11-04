@@ -52,6 +52,7 @@ const LoginScreen = () => {
 
     const handleContinue = async () => {
         try {
+            console.log("login", `${API.userPortal()}${form.username}`)
             const response = await fetch(`${API.userPortal()}${form.username}`);
             const jsonData = await response.json();
 
