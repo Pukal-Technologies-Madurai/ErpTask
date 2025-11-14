@@ -13,9 +13,9 @@ const App = () => {
     useEffect(() => {
         const storage = new MMKV();
         const storedBaseURL = storage.getString("baseURL");
-        if (storedBaseURL) {
-            baseurl(storedBaseURL);
-        }
+        // if (storedBaseURL) {
+        //     baseurl(storedBaseURL);
+        // }
     }, []);
 
     return (

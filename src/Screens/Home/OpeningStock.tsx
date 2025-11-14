@@ -261,18 +261,30 @@ const OpeningStock = () => {
                 </TouchableOpacity>
 
                 {isExpanded && (
-                    <View style={styles.itemsList}>
-                        {group.items.map((item: any, index: number) => (
-                            <View
-                                key={`${item.Product_Id}-${index}`}
-                                style={styles.itemCard}>
+                    <View style={{ marginTop: 5 }}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                            <View>
+
+                                {/* ✅ Show table header based on active tab */}
                                 {activeTab === "itemWise" ? (
-                                    <ItemWiseRow item={item} />
+                                    <ItemWiseHeader />
                                 ) : (
-                                    <GodownWiseRow item={item} />
+                                    <GodownWiseHeader />
                                 )}
+
+                                {/* ✅ List rows */}
+                                {group.items.map((item: any, index: number) => (
+                                    <View key={`${item.Product_Id}-${index}`} style={styles.itemCard}>
+                                        {activeTab === "itemWise" ? (
+                                            <ItemWiseRow item={item} />
+                                        ) : (
+                                            <GodownWiseRow item={item} />
+                                        )}
+                                    </View>
+                                ))}
+
                             </View>
-                        ))}
+                        </ScrollView>
                     </View>
                 )}
             </View>
@@ -280,102 +292,116 @@ const OpeningStock = () => {
     };
 
     // Item Wise Row Component
-    const ItemWiseRow = ({ item }: { item: any }) => (
-        <View style={styles.itemContent}>
-            <View style={styles.itemHeader}>
-                <Text style={styles.itemName} numberOfLines={2}>
+    const ItemWiseHeader = () => {
+        const COL_WIDTH = 90;
+        return (
+            <View style={[styles.tableRow, { backgroundColor: "#eee", paddingVertical: 6 }]}>
+                <Text style={[styles.rowCell, { width: COL_WIDTH * 2, fontWeight: "bold" }]}>Name</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH, fontWeight: "bold" }]}>OB</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH, fontWeight: "bold" }]}>Cls</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH, fontWeight: "bold" }]}>In</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH, fontWeight: "bold" }]}>Out</Text>
+            </View>
+        );
+    };
+
+    const ItemWiseRow = ({ item }: { item: any }) => {
+        const COL_WIDTH = 90;
+
+        return (
+            <View style={styles.tableRow}>
+                <Text
+                    style={[styles.rowCell, { width: COL_WIDTH * 2 }]}
+                    numberOfLines={2}
+                >
                     {item.stock_item_name}
                 </Text>
+
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+                    {item.OB_Act_Qty}
+                </Text>
+
                 <Text
                     style={[
-                        styles.balanceQty,
+                        styles.rowCell,
                         {
-                            color:
-                                item.Bal_Qty >= 0
-                                    ? colors.primary
-                                    : colors.accent,
-                        },
-                    ]}>
-                    {formatNumber(item.Bal_Qty)}
+                            width: COL_WIDTH,
+                            color: item.Bal_Act_Qty >= 0 ? colors.primary : colors.accent
+                        }
+                    ]}
+                >
+                    {item.Bal_Act_Qty}
+                </Text>
+
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+                    {item.Pur_Qty}
+                </Text>
+
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+                    {item.Sal_Qty}
                 </Text>
             </View>
+        );
+    };
 
-            <View style={styles.itemDetails}>
-                <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Group:</Text>
-                    <Text
-                        style={[styles.detailValue, { flex: 1 }]}
-                        numberOfLines={2}>
-                        {item.Group_Name}
-                    </Text>
-                </View>
-                <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Opening:</Text>
-                    <Text style={styles.detailValue}>{item.OB_Bal_Qty}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Purchase:</Text>
-                    <Text style={styles.detailValue}>{item.Pur_Qty}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Sales:</Text>
-                    <Text style={styles.detailValue}>{item.Sal_Qty}</Text>
-                </View>
-            </View>
-        </View>
-    );
 
     // Godown Wise Row Component
-    const GodownWiseRow = ({ item }: { item: any }) => (
-        <View style={styles.itemContent}>
-            <View style={styles.itemHeader}>
-                <Text style={styles.itemName} numberOfLines={2}>
+    const GodownWiseHeader = () => {
+        const COL_WIDTH = 90;
+        return (
+            <View style={[styles.tableRow, { backgroundColor: "#eee", paddingVertical: 6 }]}>
+                <Text style={[styles.rowCell, { width: COL_WIDTH * 2, fontWeight: "bold" }]}>Name</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH, fontWeight: "bold" }]}>OB</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH, fontWeight: "bold" }]}>Cls</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH, fontWeight: "bold" }]}>In</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH, fontWeight: "bold" }]}>Out</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH, fontWeight: "bold" }]}>Unit</Text>
+            </View>
+        );
+    };
+
+    const GodownWiseRow = ({ item }: { item: any }) => {
+        const COL_WIDTH = 90;
+
+        return (
+            <View style={styles.tableRow}>
+                <Text
+                    style={[styles.rowCell, { width: COL_WIDTH * 2 }]}
+                    numberOfLines={2}
+                >
                     {item.stock_item_name}
                 </Text>
+
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+                    {item.OB_Bal_Qty}
+                </Text>
+
                 <Text
                     style={[
-                        styles.balanceQty,
+                        styles.rowCell,
                         {
-                            color:
-                                item.Bal_Qty >= 0
-                                    ? colors.primary
-                                    : colors.accent,
+                            width: COL_WIDTH,
+                            color: item.Act_Bal_Qty >= 0 ? colors.primary : colors.accent,
                         },
-                    ]}>
-                    {formatNumber(item.Bal_Qty)}
+                    ]}
+                >
+                    {item.Act_Bal_Qty}
+                </Text>
+
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+                    {item.Pur_Qty}
+                </Text>
+
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+                    {item.Sal_Qty}
+                </Text>
+
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+                    {item.Bag}
                 </Text>
             </View>
-
-            <View style={styles.godownInfo}>
-                <View style={styles.godownHeader}>
-                    <Icon name="store" size={16} color={colors.primary} />
-                    <Text style={styles.godownName}>{item.Godown_Name}</Text>
-                </View>
-                <Text style={styles.productRate}>
-                    Rate: ₹{item.Product_Rate}
-                </Text>
-            </View>
-
-            <View style={styles.itemDetails}>
-                <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Opening:</Text>
-                    <Text style={styles.detailValue}>{item.OB_Bal_Qty}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Purchase:</Text>
-                    <Text style={styles.detailValue}>{item.Pur_Qty}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Sales:</Text>
-                    <Text style={styles.detailValue}>{item.Sal_Qty}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Unit:</Text>
-                    <Text style={styles.detailValue}>{item.Bag}</Text>
-                </View>
-            </View>
-        </View>
-    );
+        );
+    };
 
     // Pagination Component
     const PaginationControls = () => (
@@ -454,6 +480,7 @@ const OpeningStock = () => {
                 title="Filter Options"
                 fromLabel="From Date"
                 toLabel="To Date"
+                brand={true}
             />
 
             <ScrollView
@@ -488,7 +515,7 @@ const OpeningStock = () => {
                             style={[
                                 styles.tabText,
                                 activeTab === "itemWise" &&
-                                    styles.activeTabText,
+                                styles.activeTabText,
                             ]}>
                             Item Wise
                         </Text>
@@ -512,7 +539,7 @@ const OpeningStock = () => {
                             style={[
                                 styles.tabText,
                                 activeTab === "godownWise" &&
-                                    styles.activeTabText,
+                                styles.activeTabText,
                             ]}>
                             Godown Wise
                         </Text>
@@ -583,7 +610,7 @@ const OpeningStock = () => {
                                 style={[
                                     styles.sortButtonText,
                                     sortBy === "name" &&
-                                        styles.sortButtonTextActive,
+                                    styles.sortButtonTextActive,
                                 ]}>
                                 Name
                             </Text>
@@ -621,7 +648,7 @@ const OpeningStock = () => {
                                 style={[
                                     styles.sortButtonText,
                                     sortBy === "count" &&
-                                        styles.sortButtonTextActive,
+                                    styles.sortButtonTextActive,
                                 ]}>
                                 Count
                             </Text>
@@ -659,7 +686,7 @@ const OpeningStock = () => {
                                 style={[
                                     styles.sortButtonText,
                                     sortBy === "balance" &&
-                                        styles.sortButtonTextActive,
+                                    styles.sortButtonTextActive,
                                 ]}>
                                 Balance
                             </Text>
@@ -908,8 +935,10 @@ const getStyles = (typography: any, colors: any) =>
             marginHorizontal: responsiveWidth(2),
             marginVertical: responsiveWidth(1),
             borderRadius: 8,
-            borderLeftWidth: 3,
+            borderLeftWidth: 1,
+            borderRightWidth:1,
             borderLeftColor: colors.primary,
+            borderRightColor: colors.primary,
         },
 
         // Item Content
@@ -961,6 +990,8 @@ const getStyles = (typography: any, colors: any) =>
             ...typography.subtitle1,
             color: colors.text,
             fontWeight: "600",
+            marginLeft: 6,
+            fontSize: 14,
         },
         productRate: {
             ...typography.subtitle2,
@@ -1114,5 +1145,83 @@ const getStyles = (typography: any, colors: any) =>
             ...typography.body1,
             color: colors.white,
             fontWeight: "600",
+        },
+        tableHeader: {
+            flexDirection: "row",
+            paddingVertical: 6,
+            borderBottomWidth: 1,
+            borderColor: "#ddd",
+            backgroundColor: "#f1f1f1",
+        },
+
+        tableRow: {
+            flexDirection: "row",
+            paddingVertical: 8,
+            alignItems: "center",
+            borderBottomWidth: 0.7,
+            borderColor: "#e2e2e2",
+        },
+
+        headerText: {
+            flex: 1,
+            fontSize: 13,
+            fontWeight: "700",
+            textAlign: "center",
+            color: "#444",
+        },
+
+        rowText: {
+            flex: 1,
+            fontSize: 13,
+            fontWeight: "600",
+            textAlign: "center",
+            color: "#000",
+        },
+        tableWrapper: {
+            marginBottom: 8,
+            borderWidth: 1,
+            borderColor: "#ccc",
+            borderRadius: 6,
+            overflow: "hidden"
+        },
+
+        headerCell: {
+            flex: 1,
+            paddingVertical: 8,
+            paddingHorizontal: 6,
+            borderRightWidth: 1,
+            borderColor: "#ccc",
+            textAlign: "center",
+            fontWeight: "700",
+            fontSize: 13,
+            color: "#333",
+        },
+
+        rowCell: {
+            flex: 1,
+            paddingVertical: 8,
+            paddingHorizontal: 6,
+            borderRightWidth: 1,
+            borderColor: "#ddd",
+            textAlign: "center",
+            fontSize: 13,
+            fontWeight: "600",
+            color: "#000"
+        },
+        godownHeaderContainer: {
+            padding: 6,
+            backgroundColor: "#eef7ff",
+            borderBottomWidth: 1,
+            borderColor: "#d0dce7",
+        },
+
+        godownTitleRow: {
+            flexDirection: "row",
+            alignItems: "center",
+        },
+        godownRate: {
+            fontSize: 13,
+            fontWeight: "600",
+            marginTop: 2,
         },
     });

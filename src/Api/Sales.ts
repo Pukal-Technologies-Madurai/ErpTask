@@ -1,15 +1,39 @@
 import { API } from "../constants/api";
 
-export const salesInvoice = async (from: Date | string, to: Date | string , userId: any,
-    branchId: any,) => {
+/**
+ * Fetch Sales Invoice data with optional filters
+ */
+export const salesInvoice = async (
+    from: Date | string,
+    to: Date | string,
+    userId: any,
+    branchId: any,
+    filters: Record<string, any> = {},
+    // filter1: any,
+    // filter2: any,
+    // filter3: any
+) => {
     try {
         const fromStr =
             typeof from === "string" ? from : from.toISOString().split("T")[0];
         const toStr =
             typeof to === "string" ? to : to.toISOString().split("T")[0];
 
-        const url = API.salesInvoice(fromStr, toStr, userId, branchId);
-        console.log("salesInvoice url", url)
+        // Base URL from API config
+        let url = API.salesInvoice(fromStr, toStr, userId, branchId);
+
+        // ✅ Append dynamic filters (if provided)
+        const filterParams = Object.entries(filters)
+            .filter(([_, v]) => v !== "" && v !== null && v !== undefined)
+            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+            .join("&");
+
+        if (filterParams) {
+            url += (url.includes("?") ? "&" : "?") + filterParams;
+        }
+
+        console.log("salesInvoice url", url);
+
         const res = await fetch(url, {
             method: "GET",
             headers: {
@@ -24,9 +48,10 @@ export const salesInvoice = async (from: Date | string, to: Date | string , user
 
         if (!json.success) {
             throw new Error(
-                json.message || "Failed to fetch sales invoice data",
+                json.message || "Failed to fetch sales invoice data"
             );
         }
+
         return json.data || [];
     } catch (error) {
         console.error("Error fetching sales invoice data:", error);
@@ -34,11 +59,14 @@ export const salesInvoice = async (from: Date | string, to: Date | string , user
     }
 };
 
+/**
+ * Fetch Sales Order Invoice data (unchanged, no filters)
+ */
 export const salesOrderInvoice = async (
     from: Date | string,
     to: Date | string,
     userId: any,
-    branchId: any,
+    branchId: any
 ) => {
     try {
         const fromStr =
@@ -62,12 +90,33 @@ export const salesOrderInvoice = async (
 
         if (!json.success) {
             throw new Error(
-                json.message || "Failed to fetch sales invoice data",
+                json.message || "Failed to fetch sales invoice data"
             );
         }
         return json.data || [];
     } catch (error) {
-        console.error("Error fetching sales invoice data:", error);
+        console.error("Error fetching sales order invoice data:", error);
         throw error;
+    }
+};
+export const fetchSalesInvoiceFilters = async () => {
+    try {
+        const url = API.salesinvoiceFilter();
+        console.log("Fetching filters from:", url);
+
+        const res = await fetch(url);
+        const text = await res.text();
+        // console.log("Raw response:", text);
+
+        if (text.startsWith("<")) {
+            throw new Error("Received HTML instead of JSON");
+        }
+
+        const json = JSON.parse(text);
+        if (!json.success) throw new Error("Failed to fetch filters");
+        return json.data || [];
+    } catch (err) {
+        console.error("Error fetching filters:", err);
+        throw err;
     }
 };

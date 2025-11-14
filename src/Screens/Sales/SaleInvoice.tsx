@@ -45,6 +45,9 @@ const SaleInvoice = ({ route }: { route: any }) => {
     const [selectedBrand, setSelectedBrand] = React.useState("");
     const [currentPage, setCurrentPage] = React.useState(1);
     const [refreshing, setRefreshing] = React.useState(false);
+    const [selectedItem, setSelectedItem] = React.useState("");
+    const [itemsList, setItemsList] = React.useState<string[]>([]);
+    const [selectedFilters, setSelectedFilters] = React.useState<Record<string, string>>({});
 
     const ITEMS_PER_PAGE = 15;
 
@@ -61,10 +64,13 @@ const SaleInvoice = ({ route }: { route: any }) => {
         error,
         refetch,
     } = useQuery({
-        queryKey: ["salesInvoice", fromDate, toDate],
-        queryFn: () => salesInvoice(fromDate, toDate, userId, branchIdProps),
+        // include selectedFilters in the key; stringify to ensure deep changes trigger refetch
+        queryKey: ["salesInvoice", fromDate, toDate, userId, branchIdProps, JSON.stringify(selectedFilters)],
+        queryFn: () => salesInvoice(fromDate, toDate, userId, branchIdProps, selectedFilters),
         enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
+
+    console.log("selectedfilters",selectedFilters.Party_Mailing_Name)
 
     // Filter and sort data
     const getProcessedData = () => {
@@ -78,14 +84,14 @@ const SaleInvoice = ({ route }: { route: any }) => {
                 : [Number(branchIdProps)];
 
             // Keep only invoices belonging to selected branches
-            filtered = filtered.filter(invoice => branchIds.includes(invoice.Branch_Id));
+            filtered = filtered.filter((invoice: any) => branchIds.includes(invoice.Branch_Id));
         }
 
         // --- Search filter ---
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
             filtered = filtered.filter(
-                invoice =>
+                (invoice: any) =>
                     invoice.Do_Inv_No?.toLowerCase().includes(query) ||
                     invoice.Retailer_Name?.toLowerCase().includes(query) ||
                     invoice.Branch_Name?.toLowerCase().includes(query)
@@ -94,7 +100,7 @@ const SaleInvoice = ({ route }: { route: any }) => {
 
         // --- Brand filter ---
         if (selectedBrand) {
-            filtered = filtered.filter(invoice =>
+            filtered = filtered.filter((invoice: any) =>
                 invoice.Products_List?.some((product: { BrandGet: string }) =>
                     selectedBrand === "No Brand"
                         ? !product.BrandGet || product.BrandGet.trim() === ""
@@ -103,6 +109,18 @@ const SaleInvoice = ({ route }: { route: any }) => {
             );
         }
 
+        // --- Item filter ---
+        if (selectedItem) {
+            filtered = filtered.filter((invoice: any) =>
+                invoice.Products_List?.some(
+                    (product: any) =>
+                        product.Item_Name === selectedItem &&
+                        (selectedBrand ? product.BrandGet === selectedBrand : true)
+                )
+            );
+        }
+
+
         // --- Pagination ---
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
@@ -110,15 +128,15 @@ const SaleInvoice = ({ route }: { route: any }) => {
 
         return {
             data: paginatedData,
-            totalPages: Math.ceil(filtered.length / ITEMS_PER_PAGE),
+            totalPages: Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE)),
             totalItems: filtered.length,
             totalRecords: invoiceData.length,
             totalAmount: filtered.reduce(
-                (sum, invoice) => sum + (invoice.Total_Invoice_value || 0),
+                (sum: number, invoice: any) => sum + (invoice.Total_Invoice_value || 0),
                 0
             ),
         };
-    }; 
+    };
 
     const {
         data: displayData,
@@ -149,11 +167,23 @@ const SaleInvoice = ({ route }: { route: any }) => {
         }
     }, [refetch]);
 
-    // Reset pagination when filters change
+    // Reset pagination when filters change (searchQuery or selectedFilters)
     React.useEffect(() => {
         setCurrentPage(1);
         setExpandedInvoices(new Set());
-    }, [searchQuery]);
+    }, [searchQuery, selectedFilters]);
+
+    React.useEffect(() => {
+        if (selectedBrand) {
+            const iList = getItemsByBrand(selectedBrand) as string[];
+            setItemsList(iList);
+            setSelectedItem("");
+        } else {
+            setItemsList([]);
+            setSelectedItem("");
+        }
+    }, [selectedBrand]);
+
 
     // Get unique brands with their totals
     const getBrandsWithTotals = () => {
@@ -181,6 +211,24 @@ const SaleInvoice = ({ route }: { route: any }) => {
         return Array.from(brandMap.values()).sort((a, b) => b.count - a.count);
     };
 
+    const getItemsByBrand = (brand: any) => {
+        if (!brand) return [];
+
+        const items = new Set();
+
+        invoiceData.forEach((invoice: any) => {
+            invoice.Products_List?.forEach((product: any) => {
+                const b = product.BrandGet?.trim() || "No Brand";
+
+                if (b === brand) {
+                    if (product.Item_Name) items.add(product.Item_Name);
+                }
+            });
+        });
+
+        return Array.from(items);
+    };
+
     // Brand Filter Component
     const BrandFilter = () => {
         const brandsWithTotals = getBrandsWithTotals();
@@ -204,7 +252,7 @@ const SaleInvoice = ({ route }: { route: any }) => {
                         All
                     </Text>
                 </TouchableOpacity>
-                {brandsWithTotals.map(({ brand, count }) => (
+                {brandsWithTotals.map(({ brand, count }: any) => (
                     <TouchableOpacity
                         key={brand}
                         style={[
@@ -226,6 +274,58 @@ const SaleInvoice = ({ route }: { route: any }) => {
             </ScrollView>
         );
     };
+
+    const ItemFilter = () => {
+        if (!selectedBrand) return null;
+
+        return (
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.brandFilterContainer}
+            >
+                <TouchableOpacity
+                    style={[
+                        styles.brandFilterButton,
+                        !selectedItem && styles.brandFilterButtonActive,
+                    ]}
+                    onPress={() => setSelectedItem("")}
+                >
+                    <Text
+                        style={[
+                            styles.brandFilterText,
+                            !selectedItem && styles.brandFilterTextActive,
+                        ]}
+                    >
+                        All Items
+                    </Text>
+                </TouchableOpacity>
+
+                {itemsList.map((itemName) => (
+                    <TouchableOpacity
+                        key={itemName}
+                        style={[
+                            styles.brandFilterButton,
+                            selectedItem === itemName &&
+                            styles.brandFilterButtonActive,
+                        ]}
+                        onPress={() => setSelectedItem(itemName)}
+                    >
+                        <Text
+                            style={[
+                                styles.brandFilterText,
+                                selectedItem === itemName &&
+                                styles.brandFilterTextActive,
+                            ]}
+                        >
+                            {itemName}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
+        );
+    };
+
 
     // Summary Cards Component
     const SummaryCards = () => (
@@ -514,9 +614,15 @@ const SaleInvoice = ({ route }: { route: any }) => {
                 visible={modalVisible}
                 fromDate={fromDate}
                 toDate={toDate}
+                enableDynamicFilter = {true}
                 onFromDateChange={setFromDate}
                 onToDateChange={setToDate}
-                onApply={() => setModalVisible(false)}
+                onApply={(filters) => {
+                    console.log("filter", filters)
+                    setSelectedFilters(filters);
+                    setModalVisible(false);
+                    refetch();
+                }}
                 onClose={handleCloseModal}
                 showToDate={true}
                 title="Filter Options"
@@ -579,6 +685,9 @@ const SaleInvoice = ({ route }: { route: any }) => {
 
                         {/* Brand Filter */}
                         <BrandFilter />
+
+                        {/*Item Filter*/}
+                        <ItemFilter />
 
                         {/* Search Bar */}
                         <View style={styles.searchContainer}>
