@@ -27,6 +27,7 @@ import { getpurchaseInvoiceEntry, getPurchaseOrderEntry, getPurchaseReport } fro
 import { API } from "../../constants/api";
 import PaymentList from "../Payment/PaymentList";
 import { fetchPaymentList } from "../../Api/payment";
+import { saleorderPendingList } from "../../Api/Sales";
 
 const Home = () => {
     const { colors, typography } = useTheme();
@@ -81,7 +82,7 @@ const Home = () => {
     const { data: purchaseData = [], refetch: refetchPurchase } = useQuery({
         queryKey: ["purchaseData", selectedDate, toDate],
         queryFn: () => getPurchaseReport(selectedDate, toDate, companyId),
-        enabled: !!selectedDate && !! toDate,
+        enabled: !!selectedDate && !!toDate,
     });
 
     const {
@@ -90,7 +91,7 @@ const Home = () => {
     } = useQuery({
         queryKey: ["purchaseOrderEntryData", selectedDate, toDate],
         queryFn: () => getPurchaseOrderEntry(selectedDate, toDate, userId, branchId),
-        enabled: !!selectedDate && !! toDate &&  !!userId && !!branchId,
+        enabled: !!selectedDate && !!toDate && !!userId && !!branchId,
     });
 
     const {
@@ -99,7 +100,7 @@ const Home = () => {
     } = useQuery({
         queryKey: ["purchaseInvoiceEntryData", selectedDate, toDate],
         queryFn: () => getpurchaseInvoiceEntry(selectedDate, toDate, userId, branchId),
-        enabled: !!selectedDate && !! toDate && !!userId && !!branchId,
+        enabled: !!selectedDate && !!toDate && !!userId && !!branchId,
     });
 
     const { data: itemStockValue = [], refetch: refetchItemStockValue } =
@@ -112,20 +113,27 @@ const Home = () => {
     const { data: receiptList = [], refetch: refetchReceiptList } = useQuery({
         queryKey: ["receiptList", selectedDate, toDate],
         queryFn: () => fetchReceiptList(selectedDate, toDate, userId, branchId),
-        enabled: !!selectedDate && !! toDate && !!userId && !!branchId,
+        enabled: !!selectedDate && !!toDate && !!userId && !!branchId,
     });
 
     const { data: paymentList = [], refetch: refetchPaymentList } = useQuery({
         queryKey: ["paymentList", selectedDate, toDate],
         queryFn: () => fetchPaymentList(selectedDate, toDate, userId, branchId),
-        enabled: !!selectedDate && !! toDate && !!userId && !!branchId,
-    })
+        enabled: !!selectedDate && !!toDate && !!userId && !!branchId,
+    });
+
+    const {
+        data: saleorderPendingData = [],refetch: refetchSaleorderPendingList,} = useQuery({
+        queryKey: ["saleorderPendingList",selectedDate,toDate,userId,branchId],
+        queryFn: () =>saleorderPendingList(selectedDate, toDate, userId, branchId),
+        enabled:!!selectedDate &&!!toDate &&!!userId &&!!branchId,
+    });
 
     const { data: itemWiseStockData = [], refetch: refetchItemWise } = useQuery(
         {
             queryKey: ["itemWiseStock", selectedDate, toDate],
             queryFn: () => itemWiseStock(selectedDate, toDate),
-            enabled: !!selectedDate && !! toDate,
+            enabled: !!selectedDate && !!toDate,
         },
     );
 
@@ -136,11 +144,17 @@ const Home = () => {
         0,
     );
 
+    const totalSalesPend = saleorderPendingData.reduce(
+        (acc: any, item: { Total_Invoice_value?: any }) =>
+            acc + (item.Total_Invoice_value || 0),
+        0,
+    );
+
     const totalReceipt = receiptList.reduce(
         (acc: any, item: { credit_amount?: any }) =>
             acc + (item.credit_amount || 0),
         0,
-    )
+    );
 
     const totalPayment = paymentList.reduce(
         (acc: any, item: { credit_amount?: any }) =>
@@ -213,6 +227,51 @@ const Home = () => {
     );
 
     const totalSalesTonnage = saleOrderData.reduce(
+        (
+            acc: number,
+            item: {
+                Products_List?: Array<{
+                    Total_Qty?: number;
+                    Unit_Name?: string;
+                }>;
+            },
+        ) => {
+            if (!item.Products_List || !Array.isArray(item.Products_List)) {
+                return acc;
+            }
+
+            const productsTotal = item.Products_List.reduce(
+                (
+                    productAcc: number,
+                    product: { Total_Qty?: number; Unit_Name?: string },
+                ) => {
+                    const qty = product.Total_Qty || 0;
+                    const unit = product.Unit_Name?.toLowerCase() || "";
+
+                    // Convert to tons based on unit
+                    let qtyInTons = 0;
+                    if (unit.includes("kg") || unit.includes("kilogram")) {
+                        qtyInTons = qty / 1000; // Convert kg to tons
+                    } else if (unit.includes("ton") || unit.includes("tonne")) {
+                        qtyInTons = qty; // Already in tons
+                    } else if (unit.includes("g") && !unit.includes("kg")) {
+                        qtyInTons = qty / 1000000; // Convert grams to tons
+                    } else {
+                        // Assume kg if unit is unclear
+                        qtyInTons = qty / 1000;
+                    }
+
+                    return productAcc + qtyInTons;
+                },
+                0,
+            );
+
+            return acc + productsTotal;
+        },
+        0,
+    );
+
+    const totalSalesPendingTonnage = saleorderPendingData.reduce(
         (
             acc: number,
             item: {
@@ -1047,6 +1106,91 @@ const Home = () => {
                                 </View>
                             </Pressable>
                         </View>
+
+                        <View style={styles.summaryRow}>
+                            <Pressable
+                                onPress={() =>
+                                    navigation.navigate("saleorderpend",
+                                        { branchId: branchId })
+                                }>
+                                <View style={styles.summaryCard}>
+                                    <Icon
+                                        name="shopping-cart"
+                                        size={32}
+                                        color={colors.pen}
+                                    />
+                                    <Text style={styles.summaryCardTitle}>
+                                        Pending Sale Order
+                                    </Text>
+                                    <Text style={styles.summaryCardValue}>
+                                        ₹{formatNumber(totalSalesPend)}
+                                    </Text>
+                                    <View
+                                        style={[
+                                            styles.tonnageContainer,
+                                            {
+                                                backgroundColor:
+                                                    colors.success + "15",
+                                            },
+                                        ]}>
+                                        <Icon
+                                            name="scale"
+                                            size={16}
+                                            color={colors.success}
+                                        />
+                                        <Text
+                                            style={[
+                                                styles.tonnageText,
+                                                { color: colors.success },
+                                            ]}>
+                                            {formatTonnage(totalSalesPendingTonnage)}{" "}
+                                            Tons
+                                        </Text>
+                                    </View>
+                                </View>
+                            </Pressable>
+
+                            {/* <Pressable
+                                onPress={() => navigation.navigate("paymentList",
+                                    { branchId: branchId })
+                                }>
+                                <View style={styles.summaryCard}>
+                                    <Icon
+                                        name="payment"
+                                        size={32}
+                                        color={colors.pay}
+                                    />
+                                    <Text style={styles.summaryCardTitle}>
+                                        Payment
+                                    </Text>
+                                    <Text style={styles.summaryCardValue}>
+                                        ₹{formatNumber(totalPayment)}
+                                    </Text>
+                                    <View
+                                        style={[
+                                            styles.tonnageContainer,
+                                            {
+                                                backgroundColor:
+                                                    colors.success + "15",
+                                            },
+                                        ]}>
+                                        <Icon
+                                            name="scale"
+                                            size={16}
+                                            color={colors.success}
+                                        />
+                                        {/* <Text
+                                            style={[
+                                                styles.tonnageText,
+                                                { color: colors.success },
+                                            ]}>
+                                            {formatTonnage(totalStockTonnage)}{" "}
+                                            Tons
+                                        </Text> */}
+                            {/* </View>
+                                </View>
+                            </Pressable> */}
+                        </View>
                     </View>
                 </View>
             </ScrollView>
@@ -1313,22 +1457,22 @@ const getStyles = (typography: any, colors: any) =>
             fontSize: 16,
         },
         datePickerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-},
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+        },
 
-dateWrapper: {
-    flex: 1,
-    marginRight: 8,
-},
+        dateWrapper: {
+            flex: 1,
+            marginRight: 8,
+        },
 
-refreshButtonSmall: {
-    backgroundColor: colors.primary,
-    padding: 10,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-},
+        refreshButtonSmall: {
+            backgroundColor: colors.primary,
+            padding: 10,
+            borderRadius: 8,
+            justifyContent: "center",
+            alignItems: "center",
+        },
 
     });

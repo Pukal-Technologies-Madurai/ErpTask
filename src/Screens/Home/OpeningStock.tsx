@@ -15,283 +15,230 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { useTheme } from "../../Context/ThemeContext";
 import { RootStackParamList } from "../../Navigation/types";
-import { godownWiseStock, itemWiseStock } from "../../Api/OpeningStock";
 import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 import AppHeader from "../../Components/AppHeader";
 import FilterModal from "../../Components/FilterModal";
+import PaginationControls from "../../Components/PaginationControls";
+import { API } from "../../constants/api";
+
+// Helper to build url with dynamic filterN params
+const buildUrlWithFilters = (baseUrl: string, from: string, to: string | null, filters: Record<string, string>) => {
+    const params = new URLSearchParams();
+    if (from) params.append("Fromdate", from);
+    if (to) params.append("Todate", to || "");
+    Object.keys(filters || {}).forEach((k) => {
+        const v = filters[k];
+        if (v !== undefined && v !== null && String(v).trim() !== "") {
+            params.append(k, String(v));
+        } else {
+            params.append(k, "");
+        }
+    });
+    return `${baseUrl}?${params.toString()}`;
+};
 
 const OpeningStock = () => {
-    const navigation =
-        useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { colors, typography } = useTheme();
     const styles = getStyles(typography, colors);
 
     const [fromDate, setFromDate] = React.useState<Date>(new Date());
+    const [toDate, setToDate] = React.useState<Date>(new Date());
     const [modalVisible, setModalVisible] = React.useState(false);
 
-    const [toDate, setToDate] = React.useState<Date>(new Date());
-    const [activeTab, setActiveTab] = React.useState<"itemWise" | "godownWise">(
-        "itemWise",
-    );
+    const [activeTab, setActiveTab] = React.useState<"itemWise" | "godownWise">("itemWise");
     const [searchQuery, setSearchQuery] = React.useState("");
-    const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(
-        new Set(),
-    );
+    const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
     const [currentPage, setCurrentPage] = React.useState(1);
     const [refreshing, setRefreshing] = React.useState(false);
-    const [sortBy, setSortBy] = React.useState<"name" | "count" | "balance">(
-        "name",
-    );
+    const [sortBy, setSortBy] = React.useState<"name" | "count" | "balance">("name");
     const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("asc");
+    const [dynamicFilters, setDynamicFilters] = React.useState<Record<string, string>>({});
+    const [externalFilterTemplate, setExternalFilterTemplate] = React.useState<any[] | null>(null);
 
     const ITEMS_PER_PAGE = 20;
 
+    const formatApiDate = (d: Date) => {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const fromStr = React.useMemo(() => formatApiDate(fromDate), [fromDate]);
+    const toStr = React.useMemo(() => formatApiDate(toDate), [toDate]);
+
+    // Fetch ItemWise stock 
     const {
         data: itemWiseStockData = [],
         isLoading: isItemWiseLoading,
         error: itemWiseError,
         refetch: refetchItemWise,
     } = useQuery({
-        queryKey: ["itemWiseStock", fromDate, toDate],
-        queryFn: () => itemWiseStock(fromDate, toDate),
-        enabled: !!fromDate && !!toDate,
+        queryKey: ["itemWiseStock", fromStr, toStr, dynamicFilters],
+        queryFn: async () => {
+            const base = API.itemWiseStock(fromStr, toStr); 
+            const url = buildUrlWithFilters(base.split("?")[0], fromStr, toStr, dynamicFilters);
+            const resp = await fetch(url);
+            const json = await resp.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        enabled: !!fromStr && !!toStr,
     });
 
+    // Fetch GodownWise stock
     const {
         data: goDownWiseStockData = [],
         isLoading: isGodownWiseLoading,
         error: godownWiseError,
         refetch: refetchGodownWise,
     } = useQuery({
-        queryKey: ["godownWiseStock", fromDate, toDate],
-        queryFn: () => godownWiseStock(fromDate, toDate),
-        enabled: !!fromDate && !!toDate,
+        queryKey: ["godownWiseStock", fromStr, toStr, dynamicFilters],
+        queryFn: async () => {
+            const base = API.godownWiseStock(fromStr, toStr);
+            const url = buildUrlWithFilters(base.split("?")[0], fromStr, toStr, dynamicFilters);
+            const resp = await fetch(url);
+            const json = await resp.json();
+            return Array.isArray(json) ? json : (json.data || []);
+        },
+        enabled: !!fromStr && !!toStr,
     });
 
-    const isLoading =
-        activeTab === "itemWise" ? isItemWiseLoading : isGodownWiseLoading;
-    const currentError =
-        activeTab === "itemWise" ? itemWiseError : godownWiseError;
+    const isLoading = activeTab === "itemWise" ? isItemWiseLoading : isGodownWiseLoading;
+    const currentError = activeTab === "itemWise" ? itemWiseError : godownWiseError;
 
-    // Group data by Stock_Group or Godown_Name based on active tab
+    const loadExternalFilters = React.useCallback(async () => {
+        try {
+            const url = API.getReportFilters("StockInHand"); 
+            const res = await fetch(url);
+            const txt = await res.text();
+
+            if (txt.startsWith("<")) {
+                console.warn("Filter template returned HTML", txt.slice(0, 200));
+                setExternalFilterTemplate([]);
+                return;
+            }
+
+            const json = JSON.parse(txt);
+            const data = json?.data || [];
+            setExternalFilterTemplate(Array.isArray(data) ? data : []);
+        } catch (err) {
+            console.error("Failed to load report filters:", err);
+            setExternalFilterTemplate([]);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        if (modalVisible) {
+            loadExternalFilters();
+        }
+    }, [modalVisible, loadExternalFilters]);
+
+    // Grouping function 
     const groupDataByStockGroup = (data: any[]) => {
         const grouped = data.reduce((acc: any, item: any) => {
-            // For godown-wise view, group by Godown_Name, otherwise by Stock_Group
-            const group =
-                activeTab === "godownWise"
-                    ? item.Godown_Name || "Unknown Godown"
-                    : item.Stock_Group || "Others";
-            if (!acc[group]) {
-                acc[group] = [];
-            }
+            const group = activeTab === "godownWise" ? item.Godown_Name || "Unknown Godown" : item.Stock_Group || "Others";
+            if (!acc[group]) acc[group] = [];
             acc[group].push(item);
             return acc;
         }, {});
 
-        // Convert to array and sort based on selected criteria
         const groupArray = Object.keys(grouped).map(group => ({
             groupName: group,
             items: grouped[group],
             count: grouped[group].length,
-            totalBalance: grouped[group].reduce(
-                (sum: number, item: any) => sum + (item.Bal_Qty || 0),
-                0,
-            ),
+            totalBalance: grouped[group].reduce((sum: number, it: any) => sum + (it.Bal_Qty || 0), 0),
         }));
 
-        // Sort groups
         return groupArray.sort((a, b) => {
             let comparison = 0;
             switch (sortBy) {
-                case "name":
-                    comparison = a.groupName.localeCompare(b.groupName);
-                    break;
-                case "count":
-                    comparison = a.count - b.count;
-                    break;
-                case "balance":
-                    comparison = a.totalBalance - b.totalBalance;
-                    break;
+                case "name": comparison = a.groupName.localeCompare(b.groupName); break;
+                case "count": comparison = a.count - b.count; break;
+                case "balance": comparison = a.totalBalance - b.totalBalance; break;
             }
             return sortOrder === "asc" ? comparison : -comparison;
         });
     };
 
-    // Filter data based on search query
+    // Filter based on search query
     const filterData = (data: any[]) => {
-        if (!searchQuery.trim()) return data;
-
-        return data.filter(
-            group =>
-                group.groupName
-                    .toLowerCase()
-                    .includes(searchQuery.toLowerCase()) ||
-                group.items.some(
-                    (item: any) =>
-                        item.stock_item_name
-                            ?.toLowerCase()
-                            .includes(searchQuery.toLowerCase()) ||
-                        (activeTab === "godownWise" &&
-                            item.Godown_Name?.toLowerCase().includes(
-                                searchQuery.toLowerCase(),
-                            )) ||
-                        (activeTab === "itemWise" &&
-                            item.Group_Name?.toLowerCase().includes(
-                                searchQuery.toLowerCase(),
-                            )),
-                ),
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return data;
+        return data.filter(group =>
+            group.groupName.toLowerCase().includes(q) ||
+            group.items.some((item: any) =>
+                (item.stock_item_name && String(item.stock_item_name).toLowerCase().includes(q)) ||
+                (activeTab === "godownWise" && item.Godown_Name && String(item.Godown_Name).toLowerCase().includes(q)) ||
+                (activeTab === "itemWise" && item.Group_Name && String(item.Group_Name).toLowerCase().includes(q))
+            )
         );
     };
 
-    // Get current data based on active tab
+    // Compose display data 
     const getCurrentData = () => {
-        const rawData =
-            activeTab === "itemWise" ? itemWiseStockData : goDownWiseStockData;
-        const groupedData = groupDataByStockGroup(rawData);
-        const filteredData = filterData(groupedData);
-
-        // Pagination
+        const rawData = activeTab === "itemWise" ? itemWiseStockData : goDownWiseStockData;
+        const grouped = groupDataByStockGroup(Array.isArray(rawData) ? rawData : []);
+        const filtered = filterData(grouped);
+        const totalItems = filtered.length;
+        const totalRecords = Array.isArray(rawData) ? rawData.length : 0;
+        const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const endIndex = startIndex + ITEMS_PER_PAGE;
-        const paginatedData = filteredData.slice(startIndex, endIndex);
-
-        return {
-            data: paginatedData,
-            totalPages: Math.ceil(filteredData.length / ITEMS_PER_PAGE),
-            totalItems: filteredData.length,
-            totalRecords: rawData.length,
-        };
+        const paginated = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+        return { data: paginated, totalPages, totalItems, totalRecords };
     };
 
-    const {
-        data: displayData,
-        totalPages,
-        totalItems,
-        totalRecords,
-    } = getCurrentData();
+    const { data: displayData = [], totalPages, totalItems, totalRecords } = getCurrentData();
 
-    // Toggle group expansion
+    // Toggle group
     const toggleGroup = (groupName: string) => {
-        const newExpanded = new Set(expandedGroups);
-        if (newExpanded.has(groupName)) {
-            newExpanded.delete(groupName);
-        } else {
-            newExpanded.add(groupName);
-        }
-        setExpandedGroups(newExpanded);
+        const s = new Set(expandedGroups);
+        if (s.has(groupName)) s.delete(groupName);
+        else s.add(groupName);
+        setExpandedGroups(s);
     };
 
-    // Handle refresh
     const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
         try {
-            if (activeTab === "itemWise") {
-                await refetchItemWise();
-            } else {
-                await refetchGodownWise();
-            }
+            await Promise.all([refetchItemWise(), refetchGodownWise()]);
         } finally {
             setRefreshing(false);
         }
-    }, [activeTab, refetchItemWise, refetchGodownWise]);
+    }, [refetchItemWise, refetchGodownWise]);
 
-    // Reset pagination when changing tabs, search, or sort
     React.useEffect(() => {
         setCurrentPage(1);
         setExpandedGroups(new Set());
-    }, [activeTab, searchQuery, sortBy, sortOrder]);
+    }, [activeTab, searchQuery, sortBy, sortOrder, dynamicFilters]);
 
-    // Format number for display
     const formatNumber = (num: number) => {
-        if (Math.abs(num) >= 10000000)
-            return `${(num / 10000000).toFixed(1)}Cr`;
+        if (Math.abs(num) >= 10000000) return `${(num / 10000000).toFixed(1)}Cr`;
         if (Math.abs(num) >= 100000) return `${(num / 100000).toFixed(1)}L`;
         if (Math.abs(num) >= 1000) return `${(num / 1000).toFixed(1)}K`;
-        return num.toString();
+        return String(num);
     };
 
-    // Stock Group Card Component
-    const StockGroupCard = ({ group }: { group: any }) => {
-        const isExpanded = expandedGroups.has(group.groupName);
+  const handleApplyFiltersFromModal = (selected: Record<string, string>) => {
+    const mapped: Record<string, string> = {};
 
-        return (
-            <View style={styles.groupCard}>
-                <TouchableOpacity
-                    style={styles.groupHeader}
-                    onPress={() => toggleGroup(group.groupName)}
-                    activeOpacity={0.7}>
-                    <View style={styles.groupHeaderLeft}>
-                        <View style={styles.groupNameContainer}>
-                            <Icon
-                                name={
-                                    activeTab === "godownWise"
-                                        ? "store"
-                                        : "category"
-                                }
-                                size={18}
-                                color={colors.primary}
-                            />
-                            <Text style={styles.groupName}>
-                                {group.groupName}
-                            </Text>
-                        </View>
-                        <View style={styles.groupStats}>
-                            <Text style={styles.groupCount}>
-                                Items: {group.count}
-                            </Text>
-                            <Text
-                                style={[
-                                    styles.groupBalance,
-                                    {
-                                        color:
-                                            group.totalBalance >= 0
-                                                ? colors.primary
-                                                : colors.accent,
-                                    },
-                                ]}>
-                                Balance: {formatNumber(group.totalBalance)}
-                            </Text>
-                        </View>
-                    </View>
-                    <Icon
-                        name={isExpanded ? "expand-less" : "expand-more"}
-                        size={24}
-                        color={colors.textSecondary}
-                    />
-                </TouchableOpacity>
+    let index = 1;
+    Object.keys(selected || {}).forEach((key) => {
+        let value = selected[key];
 
-                {isExpanded && (
-                    <View style={{ marginTop: 5 }}>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                            <View>
+        if (value === "All" || value === null || value === undefined) {
+            value = "";
+        }
 
-                                {/* ✅ Show table header based on active tab */}
-                                {activeTab === "itemWise" ? (
-                                    <ItemWiseHeader />
-                                ) : (
-                                    <GodownWiseHeader />
-                                )}
+        mapped[`filter${index}`] = value;
+        index++;
+    });
 
-                                {/* ✅ List rows */}
-                                {group.items.map((item: any, index: number) => (
-                                    <View key={`${item.Product_Id}-${index}`} style={styles.itemCard}>
-                                        {activeTab === "itemWise" ? (
-                                            <ItemWiseRow item={item} />
-                                        ) : (
-                                            <GodownWiseRow item={item} />
-                                        )}
-                                    </View>
-                                ))}
+    setDynamicFilters(mapped);
+    setModalVisible(false);
+};
 
-                            </View>
-                        </ScrollView>
-                    </View>
-                )}
-            </View>
-        );
-    };
-
-    // Item Wise Row Component
+    // Components for table rows 
     const ItemWiseHeader = () => {
         const COL_WIDTH = 90;
         return (
@@ -307,45 +254,19 @@ const OpeningStock = () => {
 
     const ItemWiseRow = ({ item }: { item: any }) => {
         const COL_WIDTH = 90;
-
         return (
             <View style={styles.tableRow}>
-                <Text
-                    style={[styles.rowCell, { width: COL_WIDTH * 2 }]}
-                    numberOfLines={2}
-                >
-                    {item.stock_item_name}
+                <Text style={[styles.rowCell, { width: COL_WIDTH * 2 }]} numberOfLines={2}>{item.stock_item_name || item.stock_item_name}</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.OB_Bal_Qty ?? item.OB_Act_Qty}</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH, color: (item.Bal_Act_Qty ?? item.Act_Bal_Qty) >= 0 ? colors.primary : colors.accent }]}>
+                    {item.Bal_Act_Qty ?? item.Act_Bal_Qty}
                 </Text>
-
-                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
-                    {item.OB_Act_Qty}
-                </Text>
-
-                <Text
-                    style={[
-                        styles.rowCell,
-                        {
-                            width: COL_WIDTH,
-                            color: item.Bal_Act_Qty >= 0 ? colors.primary : colors.accent
-                        }
-                    ]}
-                >
-                    {item.Bal_Act_Qty}
-                </Text>
-
-                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
-                    {item.Pur_Qty}
-                </Text>
-
-                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
-                    {item.Sal_Qty}
-                </Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.Pur_Qty}</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.Sal_Qty}</Text>
             </View>
         );
     };
 
-
-    // Godown Wise Row Component
     const GodownWiseHeader = () => {
         const COL_WIDTH = 90;
         return (
@@ -362,98 +283,16 @@ const OpeningStock = () => {
 
     const GodownWiseRow = ({ item }: { item: any }) => {
         const COL_WIDTH = 90;
-
         return (
             <View style={styles.tableRow}>
-                <Text
-                    style={[styles.rowCell, { width: COL_WIDTH * 2 }]}
-                    numberOfLines={2}
-                >
-                    {item.stock_item_name}
-                </Text>
-
-                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
-                    {item.OB_Bal_Qty}
-                </Text>
-
-                <Text
-                    style={[
-                        styles.rowCell,
-                        {
-                            width: COL_WIDTH,
-                            color: item.Act_Bal_Qty >= 0 ? colors.primary : colors.accent,
-                        },
-                    ]}
-                >
-                    {item.Act_Bal_Qty}
-                </Text>
-
-                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
-                    {item.Pur_Qty}
-                </Text>
-
-                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
-                    {item.Sal_Qty}
-                </Text>
-
-                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
-                    {item.Bag}
-                </Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH * 2 }]} numberOfLines={2}>{item.Group_Name || item.stock_item_name}</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.OB_Bal_Qty}</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH, color: (item.Act_Bal_Qty) >= 0 ? colors.primary : colors.accent }]}>{item.Act_Bal_Qty}</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.Pur_Qty}</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.Sal_Qty}</Text>
+                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.Bag}</Text>
             </View>
         );
-    };
-
-    // Pagination Component
-    const PaginationControls = () => (
-        <View style={styles.paginationContainer}>
-            <TouchableOpacity
-                style={[
-                    styles.pageButton,
-                    currentPage === 1 && styles.pageButtonDisabled,
-                ]}
-                onPress={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}>
-                <Icon
-                    name="chevron-left"
-                    size={20}
-                    color={
-                        currentPage === 1
-                            ? colors.textSecondary
-                            : colors.primary
-                    }
-                />
-            </TouchableOpacity>
-
-            <Text style={styles.pageInfo}>
-                Page {currentPage} of {totalPages} ({totalItems}{" "}
-                {activeTab === "godownWise" ? "godowns" : "groups"},{" "}
-                {totalRecords} total records)
-            </Text>
-
-            <TouchableOpacity
-                style={[
-                    styles.pageButton,
-                    currentPage === totalPages && styles.pageButtonDisabled,
-                ]}
-                onPress={() =>
-                    setCurrentPage(Math.min(totalPages, currentPage + 1))
-                }
-                disabled={currentPage === totalPages}>
-                <Icon
-                    name="chevron-right"
-                    size={20}
-                    color={
-                        currentPage === totalPages
-                            ? colors.textSecondary
-                            : colors.primary
-                    }
-                />
-            </TouchableOpacity>
-        </View>
-    );
-
-    const handleCloseModal = () => {
-        setModalVisible(false);
     };
 
     return (
@@ -474,309 +313,142 @@ const OpeningStock = () => {
                 toDate={toDate}
                 onFromDateChange={setFromDate}
                 onToDateChange={setToDate}
-                onApply={() => setModalVisible(false)}
-                onClose={handleCloseModal}
+                onApply={handleApplyFiltersFromModal}
+                onClose={() => setModalVisible(false)}
                 showToDate={true}
                 title="Filter Options"
                 fromLabel="From Date"
                 toLabel="To Date"
-                brand={true}
+                enableDynamicFilter={true}
+                externalFilters={externalFilterTemplate || undefined}
             />
 
             <ScrollView
                 style={styles.contentContainer}
                 refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        colors={[colors.primary]}
-                        tintColor={colors.primary}
-                    />
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
                 }
-                showsVerticalScrollIndicator={false}>
-                {/* Tab Switcher */}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Tabs */}
                 <View style={styles.tabContainer}>
-                    <TouchableOpacity
-                        style={[
-                            styles.tab,
-                            activeTab === "itemWise" && styles.activeTab,
-                        ]}
-                        onPress={() => setActiveTab("itemWise")}>
-                        <Icon
-                            name="inventory"
-                            size={20}
-                            color={
-                                activeTab === "itemWise"
-                                    ? colors.white
-                                    : colors.textSecondary
-                            }
-                        />
-                        <Text
-                            style={[
-                                styles.tabText,
-                                activeTab === "itemWise" &&
-                                styles.activeTabText,
-                            ]}>
-                            Item Wise
-                        </Text>
+                    <TouchableOpacity style={[styles.tab, activeTab === "itemWise" && styles.activeTab]} onPress={() => setActiveTab("itemWise")}>
+                        <Icon name="inventory" size={20} color={activeTab === "itemWise" ? colors.white : colors.textSecondary} />
+                        <Text style={[styles.tabText, activeTab === "itemWise" && styles.activeTabText]}>Item Wise</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[
-                            styles.tab,
-                            activeTab === "godownWise" && styles.activeTab,
-                        ]}
-                        onPress={() => setActiveTab("godownWise")}>
-                        <Icon
-                            name="store"
-                            size={20}
-                            color={
-                                activeTab === "godownWise"
-                                    ? colors.white
-                                    : colors.textSecondary
-                            }
-                        />
-                        <Text
-                            style={[
-                                styles.tabText,
-                                activeTab === "godownWise" &&
-                                styles.activeTabText,
-                            ]}>
-                            Godown Wise
-                        </Text>
+                    <TouchableOpacity style={[styles.tab, activeTab === "godownWise" && styles.activeTab]} onPress={() => setActiveTab("godownWise")}>
+                        <Icon name="store" size={20} color={activeTab === "godownWise" ? colors.white : colors.textSecondary} />
+                        <Text style={[styles.tabText, activeTab === "godownWise" && styles.activeTabText]}>Godown Wise</Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* Search Bar */}
+                {/* Search */}
                 <View style={styles.searchContainer}>
-                    <Icon
-                        name="search"
-                        size={20}
-                        color={colors.textSecondary}
-                    />
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholder={
-                            activeTab === "godownWise"
-                                ? "Search by godown or item name..."
-                                : "Search by group or item name..."
-                        }
-                        placeholderTextColor={colors.textSecondary}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                    />
+                    <Icon name="search" size={20} color={colors.textSecondary} />
+                    <TextInput style={styles.searchInput} placeholder={activeTab === "godownWise" ? "Search by godown or item name..." : "Search by group or item name..."} placeholderTextColor={colors.textSecondary} value={searchQuery} onChangeText={setSearchQuery} />
                     {searchQuery.length > 0 && (
                         <TouchableOpacity onPress={() => setSearchQuery("")}>
-                            <Icon
-                                name="clear"
-                                size={20}
-                                color={colors.textSecondary}
-                            />
+                            <Icon name="clear" size={20} color={colors.textSecondary} />
                         </TouchableOpacity>
                     )}
                 </View>
 
-                {/* Sort Controls */}
+                {/* Sort controls */}
                 <View style={styles.sortContainer}>
                     <View style={styles.sortButtons}>
-                        <TouchableOpacity
-                            style={[
-                                styles.sortButton,
-                                sortBy === "name" && styles.sortButtonActive,
-                            ]}
-                            onPress={() => {
-                                if (sortBy === "name") {
-                                    setSortOrder(prev =>
-                                        prev === "asc" ? "desc" : "asc",
-                                    );
-                                } else {
-                                    setSortBy("name");
-                                    setSortOrder("asc");
-                                }
-                            }}>
-                            <Icon
-                                name={
-                                    sortBy === "name" && sortOrder === "desc"
-                                        ? "arrow-downward"
-                                        : "arrow-upward"
-                                }
-                                size={16}
-                                color={
-                                    sortBy === "name"
-                                        ? colors.white
-                                        : colors.text
-                                }
-                            />
-                            <Text
-                                style={[
-                                    styles.sortButtonText,
-                                    sortBy === "name" &&
-                                    styles.sortButtonTextActive,
-                                ]}>
-                                Name
-                            </Text>
+                        <TouchableOpacity style={[styles.sortButton, sortBy === "name" && styles.sortButtonActive]} onPress={() => { if (sortBy === "name") setSortOrder(prev => prev === "asc" ? "desc" : "asc"); else { setSortBy("name"); setSortOrder("asc"); } }}>
+                            <Icon name={sortBy === "name" && sortOrder === "desc" ? "arrow-downward" : "arrow-upward"} size={16} color={sortBy === "name" ? colors.white : colors.text} />
+                            <Text style={[styles.sortButtonText, sortBy === "name" && styles.sortButtonTextActive]}>Name</Text>
                         </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[
-                                styles.sortButton,
-                                sortBy === "count" && styles.sortButtonActive,
-                            ]}
-                            onPress={() => {
-                                if (sortBy === "count") {
-                                    setSortOrder(prev =>
-                                        prev === "asc" ? "desc" : "asc",
-                                    );
-                                } else {
-                                    setSortBy("count");
-                                    setSortOrder("desc");
-                                }
-                            }}>
-                            <Icon
-                                name={
-                                    sortBy === "count" && sortOrder === "desc"
-                                        ? "arrow-downward"
-                                        : "arrow-upward"
-                                }
-                                size={16}
-                                color={
-                                    sortBy === "count"
-                                        ? colors.white
-                                        : colors.text
-                                }
-                            />
-                            <Text
-                                style={[
-                                    styles.sortButtonText,
-                                    sortBy === "count" &&
-                                    styles.sortButtonTextActive,
-                                ]}>
-                                Count
-                            </Text>
+                        <TouchableOpacity style={[styles.sortButton, sortBy === "count" && styles.sortButtonActive]} onPress={() => { if (sortBy === "count") setSortOrder(prev => prev === "asc" ? "desc" : "asc"); else { setSortBy("count"); setSortOrder("desc"); } }}>
+                            <Icon name={sortBy === "count" && sortOrder === "desc" ? "arrow-downward" : "arrow-upward"} size={16} color={sortBy === "count" ? colors.white : colors.text} />
+                            <Text style={[styles.sortButtonText, sortBy === "count" && styles.sortButtonTextActive]}>Count</Text>
                         </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[
-                                styles.sortButton,
-                                sortBy === "balance" && styles.sortButtonActive,
-                            ]}
-                            onPress={() => {
-                                if (sortBy === "balance") {
-                                    setSortOrder(prev =>
-                                        prev === "asc" ? "desc" : "asc",
-                                    );
-                                } else {
-                                    setSortBy("balance");
-                                    setSortOrder("desc");
-                                }
-                            }}>
-                            <Icon
-                                name={
-                                    sortBy === "balance" && sortOrder === "desc"
-                                        ? "arrow-downward"
-                                        : "arrow-upward"
-                                }
-                                size={16}
-                                color={
-                                    sortBy === "balance"
-                                        ? colors.white
-                                        : colors.text
-                                }
-                            />
-                            <Text
-                                style={[
-                                    styles.sortButtonText,
-                                    sortBy === "balance" &&
-                                    styles.sortButtonTextActive,
-                                ]}>
-                                Balance
-                            </Text>
+                        <TouchableOpacity style={[styles.sortButton, sortBy === "balance" && styles.sortButtonActive]} onPress={() => { if (sortBy === "balance") setSortOrder(prev => prev === "asc" ? "desc" : "asc"); else { setSortBy("balance"); setSortOrder("desc"); } }}>
+                            <Icon name={sortBy === "balance" && sortOrder === "desc" ? "arrow-downward" : "arrow-upward"} size={16} color={sortBy === "balance" ? colors.white : colors.text} />
+                            <Text style={[styles.sortButtonText, sortBy === "balance" && styles.sortButtonTextActive]}>Balance</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
 
-                {/* Loading State */}
+                {/* Loading / Error / Content */}
                 {isLoading && (
                     <View style={styles.loadingContainer}>
-                        <Text style={styles.loadingText}>
-                            Loading stock data...
-                        </Text>
+                        <Text style={styles.loadingText}>Loading stock data...</Text>
                     </View>
                 )}
 
-                {/* Error State */}
                 {!isLoading && currentError && (
                     <View style={styles.errorContainer}>
-                        <Icon
-                            name="error-outline"
-                            size={48}
-                            color={colors.accent}
-                        />
-                        <Text style={styles.errorText}>
-                            Error loading stock data
-                        </Text>
-                        <Text style={styles.errorSubtext}>
-                            {currentError.message || "Please try again later"}
-                        </Text>
-                        <TouchableOpacity
-                            style={styles.retryButton}
-                            onPress={onRefresh}>
-                            <Icon
-                                name="refresh"
-                                size={20}
-                                color={colors.white}
-                            />
+                        <Icon name="error-outline" size={48} color={colors.accent} />
+                        <Text style={styles.errorText}>Error loading stock data</Text>
+                        <Text style={styles.errorSubtext}>{currentError?.message || "Please try again later"}</Text>
+                        <TouchableOpacity style={styles.retryButton} onPress={onRefresh}>
+                            <Icon name="refresh" size={20} color={colors.white} />
                             <Text style={styles.retryButtonText}>Retry</Text>
                         </TouchableOpacity>
                     </View>
                 )}
 
-                {/* Data Display */}
                 {!isLoading && !currentError && displayData.length > 0 && (
                     <>
-                        {/* Summary Info */}
                         <View style={styles.summaryContainer}>
                             <Text style={styles.summaryText}>
-                                Showing {displayData.length}{" "}
-                                {activeTab === "godownWise"
-                                    ? "godowns"
-                                    : "groups"}{" "}
-                                ({totalItems} total{" "}
-                                {activeTab === "godownWise"
-                                    ? "godowns"
-                                    : "groups"}
-                                , {totalRecords} total records)
+                                Showing {displayData.length} {activeTab === "godownWise" ? "godowns" : "groups"} ({totalItems} total {activeTab === "godownWise" ? "godowns" : "groups"}, {totalRecords} total records)
                             </Text>
                         </View>
 
-                        {/* Stock Groups */}
-                        {displayData.map((group, index) => (
-                            <StockGroupCard
-                                key={group.groupName}
-                                group={group}
-                            />
+                        {displayData.map((group, idx) => (
+                            <View key={group.groupName} style={styles.groupCard}>
+                                <TouchableOpacity style={styles.groupHeader} onPress={() => toggleGroup(group.groupName)} activeOpacity={0.8}>
+                                    <View style={styles.groupHeaderLeft}>
+                                        <View style={styles.groupNameContainer}>
+                                            <Icon name={activeTab === "godownWise" ? "store" : "category"} size={18} color={colors.primary} />
+                                            <Text style={styles.groupName}>{group.groupName}</Text>
+                                        </View>
+                                        <View style={styles.groupStats}>
+                                            <Text style={styles.groupCount}>Items: {group.count}</Text>
+                                            <Text style={[styles.groupBalance, { color: group.totalBalance >= 0 ? colors.primary : colors.accent }]}>Balance: {formatNumber(group.totalBalance)}</Text>
+                                        </View>
+                                    </View>
+                                    <Icon name={expandedGroups.has(group.groupName) ? "expand-less" : "expand-more"} size={24} color={colors.textSecondary} />
+                                </TouchableOpacity>
+
+                                {expandedGroups.has(group.groupName) && (
+                                    <View style={{ marginTop: 8 }}>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                            <View>
+                                                {activeTab === "itemWise" ? <ItemWiseHeader /> : <GodownWiseHeader />}
+
+                                                {group.items.map((item: any, i: number) => (
+                                                    <View key={`${item.Item_Group_Id ?? item.Product_Id}-${i}`} style={styles.tableRow}>
+                                                        {activeTab === "itemWise" ? <ItemWiseRow item={item} /> : <GodownWiseRow item={item} />}
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        </ScrollView>
+                                    </View>
+                                )}
+                            </View>
                         ))}
 
-                        {/* Pagination */}
-                        {totalPages > 1 && <PaginationControls />}
+                        {totalPages > 1 && (
+                            <PaginationControls
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                totalItems={totalItems}
+                                totalRecords={totalRecords}
+                                onPageChange={(p) => setCurrentPage(p)}
+                            />
+                        )}
                     </>
                 )}
 
-                {/* No Data State */}
                 {!isLoading && !currentError && displayData.length === 0 && (
                     <View style={styles.noDataContainer}>
-                        <Icon
-                            name="inventory"
-                            size={48}
-                            color={colors.textSecondary}
-                        />
-                        <Text style={styles.noDataText}>
-                            No stock data found
-                        </Text>
-                        <Text style={styles.noDataSubtext}>
-                            {searchQuery
-                                ? "Try adjusting your search terms"
-                                : "Please select a date range to view data"}
-                        </Text>
+                        <Icon name="inventory" size={48} color={colors.textSecondary} />
+                        <Text style={styles.noDataText}>No stock data found</Text>
+                        <Text style={styles.noDataSubtext}>{searchQuery ? "Try adjusting your search terms" : "Please select a date range to view data"}</Text>
                     </View>
                 )}
             </ScrollView>
@@ -936,7 +608,7 @@ const getStyles = (typography: any, colors: any) =>
             marginVertical: responsiveWidth(1),
             borderRadius: 8,
             borderLeftWidth: 1,
-            borderRightWidth:1,
+            borderRightWidth: 1,
             borderLeftColor: colors.primary,
             borderRightColor: colors.primary,
         },

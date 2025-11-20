@@ -128,7 +128,7 @@ const LoginScreen = () => {
 
     const getUserAuth = async (userAuth: string, webApi: string) => {
         try {
-            // baseurl(webApi);
+            baseurl(webApi);
             const url = `${API.getUserAuthMob()}`;
             const response = await fetch(url, {
                 method: "GET",

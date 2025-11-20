@@ -1,3 +1,4 @@
+// src/Components/FilterModal.tsx
 import { StyleSheet, Text, View, TouchableOpacity, Modal } from "react-native";
 import React, { FC } from "react";
 import DatePickerButton from "./DatePickerButton";
@@ -7,46 +8,56 @@ import { shadows, spacing } from "../constants/helper";
 import { fetchSalesInvoiceFilters } from "../Api/Sales";
 import { Dropdown } from "react-native-element-dropdown";
 
-
-// Define interfaces for dropdown items
-interface DropdownItem {
+export interface DropdownItem {
     label: string;
     value: string;
 }
 
-type FilterModalProps = {
-    // Required props
+export type FilterModalProps = {
     visible: boolean;
-    fromDate: Date;
-    fromLabel: string;
-    onFromDateChange: (date: Date) => void;
-    onApply: (selectedFilters: Record<string, string>) => void;
-    onClose: () => void;
-    title: string;
+    title?: string;
 
-    // Optional To Date props
+    // Date filters
+    fromDate: Date;
+    fromLabel?: string;
+    onFromDateChange: (date: Date) => void;
+
     showToDate?: boolean;
     toDate?: Date;
-    onToDateChange?: (date: Date) => void;
     toLabel?: string;
+    onToDateChange?: (date: Date) => void;
 
-    // Optional Sales Person props
+    // Apply + Close
+    onApply: (selectedFilters: Record<string, string>) => void;
+    onClose: () => void;
+
+    // New: allow parent to provide fetch function or external data for dynamic filters
+    enableDynamicFilter?: boolean;
+    fetchFiltersFn?: (date: Date) => Promise<any[]>;
+    externalFilters?: any[];
+
+    // Sales Person Filter (existing)
     showSalesPerson?: boolean;
+    salesPersonLabel?: string;
     salesPersonData?: DropdownItem[];
     selectedSalesPerson?: DropdownItem | null;
-    onSalesPersonChange?: (salesPerson: DropdownItem | null) => void;
-    salesPersonLabel?: string;
+    onSalesPersonChange?: (item: DropdownItem | null) => void;
+
+    // Brand Filter (existing)
     brand?: boolean;
     brandlabel?: string;
+    brandData?: DropdownItem[];
+    selectedBrand?: DropdownItem | null;
+    onBrandChange?: (item: DropdownItem | null) => void;
 
-    // Optional Payment Option props
+    // Payment Option Filter (existing)
     showPaymentOption?: boolean;
+    paymentOptionLabel?: string;
     paymentOptionData?: DropdownItem[];
     selectedPaymentOption?: DropdownItem | null;
-    onPaymentOptionChange?: (paymentOption: DropdownItem | null) => void;
-    paymentOptionLabel?: string;
-    salesinvoiceFilter?: (salesinvoicefilter1: DropdownItem | null) => void;
-    enableDynamicFilter?: boolean;
+    onPaymentOptionChange?: (item: DropdownItem | null) => void;
+
+    defaultLabel?: string;
 };
 
 const FilterModal: FC<FilterModalProps> = ({
@@ -72,6 +83,9 @@ const FilterModal: FC<FilterModalProps> = ({
     onPaymentOptionChange,
     paymentOptionLabel = "Payment Option",
     enableDynamicFilter = false,
+    defaultLabel = "All",
+    fetchFiltersFn,
+    externalFilters,
 }) => {
     const { colors, typography } = useTheme();
     const styles = getStyles(typography, colors);
@@ -83,53 +97,59 @@ const FilterModal: FC<FilterModalProps> = ({
     React.useEffect(() => {
         const loadFilters = async () => {
             try {
-                // ✅ Keep previous selections so they aren't reset on refresh
+                // preserve previous selected filters if present
                 const prevSelectedFilters = { ...selectedFilters };
+                let res: any[] | null = null;
 
-                console.log("Fetching filters from API...");
-                const res = await fetchSalesInvoiceFilters();
+                if (externalFilters && Array.isArray(externalFilters) && externalFilters.length > 0) {
+                    res = externalFilters;
+                } else if (fetchFiltersFn) {
+                    res = await fetchFiltersFn(fromDate);
+                } else {
+                    // fallback (legacy)
+                    res = await fetchSalesInvoiceFilters();
+                }
+
                 if (!res || !Array.isArray(res)) {
                     console.warn("Invalid response for filters:", res);
                     setFilterOptions([]);
                     return;
                 }
 
-                // ✅ Build mapping for dynamic filters
-                const filterDynamicMapping: Record<string, string> = {};
-                res.forEach((filter: any, index: number) => {
-                    filterDynamicMapping[filter.columnName] = `filter${index + 1}`;
+                // Map column names -> filter1/filter2...
+                const mapping: Record<string, string> = {};
+                res.forEach((filter: any, idx: number) => {
+                    mapping[filter.columnName] = `filter${idx + 1}`;
                 });
-                setFilterDynamicMapping(filterDynamicMapping);
+                setFilterDynamicMapping(mapping);
 
-                // ✅ Map API data into searchable-friendly format
-                const enhancedFilters = res.map((filter: any) => ({
-                    ...filter,
-                    searchQuery: "", // local search state for dropdown filtering
-                    filteredOptions: filter.options || [], // filtered list for UI
+                // Enhance filters structure for dropdown UI
+                const enhanced = res.map((f: any) => ({
+                    ...f,
+                    searchQuery: "",
+                    filteredOptions: f.options || [],
                 }));
 
-                // ✅ Preserve previous selections
-                const updatedSelectedFilters: Record<string, string> = {};
-                enhancedFilters.forEach((filter: any) => {
-                    const prevValue = prevSelectedFilters[filter.columnName];
-                    if (prevValue) {
-                        updatedSelectedFilters[filter.columnName] = prevValue;
-                    }
+                // Rehydrate previous selections (if keys changed)
+                const updatedSelected: Record<string, string> = {};
+                enhanced.forEach((f: any) => {
+                    const mappedKey = mapping[f.columnName];
+                    const prevVal = prevSelectedFilters[mappedKey];
+                    if (prevVal) updatedSelected[mappedKey] = prevVal;
                 });
 
-                setFilterOptions(enhancedFilters);
-                setSelectedFilters(updatedSelectedFilters);
-
-                console.log("✅ Filters loaded successfully:", enhancedFilters.length);
+                setFilterOptions(enhanced);
+                setSelectedFilters(updatedSelected);
             } catch (err) {
-                console.error("❌ Failed to fetch salesinvoiceFilter:", err);
+                console.error("❌ Failed to load dynamic filters:", err);
+                setFilterOptions([]);
             }
         };
 
         if (visible && enableDynamicFilter) loadFilters();
         else if (!enableDynamicFilter) setFilterOptions([]);
-
-    }, [visible]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [visible, enableDynamicFilter, fromDate, fetchFiltersFn, externalFilters]);
 
     return (
         <Modal visible={visible} transparent animationType="slide">
@@ -140,14 +160,25 @@ const FilterModal: FC<FilterModalProps> = ({
                     </View>
 
                     <View style={styles.modalBody}>
+                        {/* Date Pickers */}
+                        <View style={{ flexDirection: "row", marginTop: 8, marginBottom: -10, gap: 12 }}>
+                            <View style={[styles.datePickerContainer, { flex: 1 }]}>
+                                <Text style={styles.dateLabel}>{fromLabel}</Text>
+                                <DatePickerButton title="" date={fromDate} onDateChange={onFromDateChange} />
+                            </View>
 
+                            {showToDate && toDate && onToDateChange && (
+                                <View style={[styles.datePickerContainer, { flex: 1 }]}>
+                                    <Text style={styles.dateLabel}>{toLabel}</Text>
+                                    <DatePickerButton title="" date={toDate} onDateChange={onToDateChange} />
+                                </View>
+                            )}
+                        </View>
 
                         {/* Sales Person Dropdown */}
                         {showSalesPerson && (
                             <View style={styles.dropdownContainer}>
-                                <Text style={styles.dateLabel}>
-                                    {salesPersonLabel}
-                                </Text>
+                                <Text style={styles.dateLabel}>{salesPersonLabel}</Text>
                                 <EnhancedDropdown
                                     data={salesPersonData}
                                     labelField="label"
@@ -159,75 +190,51 @@ const FilterModal: FC<FilterModalProps> = ({
                             </View>
                         )}
 
-                        {/* Brand wise Dropdown */}
-                        {/* {brand && (
-                            <View style={styles.dropdownContainer}>
-                                <Text style={styles.dateLabel}>
-                                    {brandlabel}
-                                </Text>
-                                <EnhancedDropdown
-                                    data={salesPersonData}
-                                    labelField="label"
-                                    valueField="value"
-                                    placeholder="Select Filter"
-                                    value={selectedSalesPerson?.value || ""}
-                                    onChange={salesinvoiceFilter}
-                                />
-                            </View>
-                        )} */}
-
-                        {/* 🔽 Dynamic API-based filters */}
+                        {/* Dynamic API-based filters */}
                         {filterOptions.length > 0 && (
                             <View style={{ marginTop: 16 }}>
-                                {filterOptions.map((filter: any) => (
-                                    <View key={filter.columnName} style={{ marginBottom: 12 }}>
-                                        <Text style={[styles.label]}>
-                                            {filter.columnName.replace(/_/g, " ")}
-                                        </Text>
+                                {filterOptions.map((filter: any) => {
+                                    const mappedKey = filterDynamicMapping[filter.columnName];
+                                    const selectedValue = selectedFilters[mappedKey] || "";
 
-                                        <Dropdown
-                                            style={{
-                                                borderColor: "#ccc",
-                                                borderWidth: 1,
-                                                borderRadius: 8,
-                                                paddingHorizontal: 8,
-                                                height: 45,
-                                            }}
-                                            data={[
-                                                { label: "All", value: "" },
-                                                ...(filter.options?.map((option: any) => ({
-                                                    label: option.label,
-                                                    value: option.value,
-                                                })) || []),
-                                            ]}
-                                            search
-                                            maxHeight={250}
-                                            labelField="label"
-                                            valueField="value"
-                                            placeholder={`Select ${filter.columnName.replace(/_/g, " ")}`}
-                                            searchPlaceholder="Search..."
-                                            value={selectedFilters[filter.columnName] || ""}
-                                            onChange={(item: any) => {
-                                                const selectedLabel = item.label;
-                                                console.log("Selected:", selectedLabel);
+                                    return (
+                                        <View key={filter.columnName} style={{ marginBottom: 12 }}>
+                                            <Text style={[styles.label]}>{filter.columnName.replace(/_/g, " ")}</Text>
 
-                                                setSelectedFilters((prev: any) => ({
-                                                    ...prev,
-                                                    [filterDynamicMapping[filter.columnName]]: selectedLabel,
-                                                }));
-                                            }}
-                                        />
-                                    </View>
-                                ))}
+                                            <Dropdown
+                                                style={{
+                                                    borderColor: "#ccc",
+                                                    borderWidth: 1,
+                                                    borderRadius: 8,
+                                                    paddingHorizontal: 8,
+                                                    height: 45,
+                                                }}
+                                                data={[
+                                                    { label: defaultLabel, value: "" },
+                                                    ...(filter.options?.map((o: any) => ({ label: o.label, value: o.value })) || []),
+                                                ]}
+                                                search
+                                                maxHeight={250}
+                                                labelField="label"
+                                                valueField="label"
+                                                placeholder={`Select ${filter.columnName.replace(/_/g, " ")}`}
+                                                searchPlaceholder="Search..."
+                                                value={selectedValue}
+                                                onChange={(item: any) => {
+                                                    const selectedLabel = item.label;
+                                                    setSelectedFilters((prev) => ({ ...prev, [mappedKey]: selectedLabel }));
+                                                }}
+                                            />
+                                        </View>
+                                    );
+                                })}
                             </View>
                         )}
 
                         {/* Payment Option Dropdown */}
                         {showPaymentOption && (
                             <View style={styles.dropdownContainer}>
-                                <Text style={styles.dateLabel}>
-                                    {paymentOptionLabel}
-                                </Text>
+                                <Text style={styles.dateLabel}>{paymentOptionLabel}</Text>
                                 <EnhancedDropdown
                                     data={paymentOptionData}
                                     labelField="label"
@@ -238,34 +245,10 @@ const FilterModal: FC<FilterModalProps> = ({
                                 />
                             </View>
                         )}
-
-                        {/* Date Pickers */}
-                        <View style={styles.datePickerContainer}>
-                            <Text style={styles.dateLabel}>{fromLabel}</Text>
-                            <DatePickerButton
-                                title=""
-                                date={fromDate}
-                                onDateChange={onFromDateChange}
-                            />
-                        </View>
-
-                        {showToDate && toDate && onToDateChange && (
-                            <View style={styles.datePickerContainer}>
-                                <Text style={styles.dateLabel}>{toLabel}</Text>
-                                <DatePickerButton
-                                    title=""
-                                    date={toDate}
-                                    onDateChange={onToDateChange}
-                                />
-                            </View>
-                        )}
                     </View>
 
                     <View style={styles.modalFooter}>
-                        <TouchableOpacity
-                            style={styles.cancelButton}
-                            onPress={onClose}
-                            activeOpacity={0.7}>
+                        <TouchableOpacity style={styles.cancelButton} onPress={onClose} activeOpacity={0.7}>
                             <Text style={styles.cancelButtonText}>Cancel</Text>
                         </TouchableOpacity>
 
@@ -274,7 +257,8 @@ const FilterModal: FC<FilterModalProps> = ({
                             onPress={() => {
                                 onApply(selectedFilters);
                                 onClose();
-                            }}>
+                            }}
+                        >
                             <Text style={styles.applyButtonText}>Apply</Text>
                         </TouchableOpacity>
                     </View>
@@ -366,8 +350,8 @@ const getStyles = (typography: any, colors: any) =>
         },
         label: {
             fontSize: 14,
-            fontWeight: '600',
+            fontWeight: "600",
             marginBottom: 6,
-            color: '#333',
+            color: "#333",
         },
     });

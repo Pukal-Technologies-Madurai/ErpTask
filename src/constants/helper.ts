@@ -51,6 +51,7 @@ export const customColors = {
         info: "#2196F3",
         rec: "#9f18c9ff",
         pay: "#01220fd7",
+        pen: "#941108d7",
     },
     dark: {
         background: "#121212",
@@ -59,6 +60,7 @@ export const customColors = {
         accent: "#FF8A65",
         text: "#E0E0E0",
         textSecondary: "#9E9E9E",
+        textDanger: "#e60909ff",
         black: "#000000",
         white: "#ffffff",
         borderColor: "#2C2C2C",

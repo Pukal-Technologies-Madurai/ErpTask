@@ -22,6 +22,10 @@ interface receiptListParams  {
     branchId: any;
 }
 
+interface saleOrderPendParams {
+    branchId: any;
+}
+
 export type BottomTabParamList = {
     Home: undefined;
     Attendance: undefined;
@@ -58,4 +62,5 @@ export type RootStackParamList = {
     purchaseInvoice : purchaseInvoiceParams;
     ItemStack: undefined;
     paymentList: paymentListParams;
+    saleorderpend: saleOrderPendParams;
 };

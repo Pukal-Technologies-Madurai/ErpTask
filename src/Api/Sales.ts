@@ -1,4 +1,5 @@
 import { API } from "../constants/api";
+import SaleInvoice from "../Screens/Sales/SaleInvoice";
 
 /**
  * Fetch Sales Invoice data with optional filters
@@ -99,24 +100,60 @@ export const salesOrderInvoice = async (
         throw error;
     }
 };
+
 export const fetchSalesInvoiceFilters = async () => {
     try {
-        const url = API.salesinvoiceFilter();
+        const url = API.getReportFilters("Sales Invoice");
         console.log("Fetching filters from:", url);
 
         const res = await fetch(url);
-        const text = await res.text();
-        // console.log("Raw response:", text);
 
-        if (text.startsWith("<")) {
+        const text = await res.text();
+
+        if (text.trim().startsWith("<")) {
             throw new Error("Received HTML instead of JSON");
         }
 
         const json = JSON.parse(text);
-        if (!json.success) throw new Error("Failed to fetch filters");
+
+        if (!json.success) {
+            throw new Error("Failed to fetch filters");
+        }
+
         return json.data || [];
+
     } catch (err) {
         console.error("Error fetching filters:", err);
         throw err;
+    }
+};
+
+export const saleorderPendingList = async (
+    from: Date | string,
+    to: Date | string,
+    userId: any,
+    branchId: any
+) => {
+    try {
+        const fromStr = typeof from === "string" ? from : from.toISOString().split("T")[0];
+        const toStr = typeof to === "string" ? to : to.toISOString().split("T")[0];
+
+        const url = API.saleorderPending(fromStr, toStr, userId, branchId);
+
+        const res = await fetch(url, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+        });
+
+        const json = await res.json();
+
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        if (!json.success)
+            throw new Error(json.message || "Failed to fetch sale order pending data");
+
+        return json.data || [];
+    } catch (error) {
+        console.error("Error fetching sales order pending invoice data:", error);
+        throw error;
     }
 };

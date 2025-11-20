@@ -70,7 +70,7 @@ const SaleInvoice = ({ route }: { route: any }) => {
         enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
-    console.log("selectedfilters",selectedFilters.Party_Mailing_Name)
+    console.log("selectedfilters", selectedFilters.Party_Mailing_Name)
 
     // Filter and sort data
     const getProcessedData = () => {
@@ -228,6 +228,22 @@ const SaleInvoice = ({ route }: { route: any }) => {
 
         return Array.from(items);
     };
+    
+     const normalizeFilters = (filters: Record<string, string>) => {
+            const result: Record<string, string> = {};
+
+            Object.keys(filters || {}).forEach((key) => {
+                const value = filters[key];
+
+                // Convert "All" to empty string
+                result[key] =
+                    value === "All" || value === null || value === undefined
+                        ? ""
+                        : value;
+            });
+
+            return result;
+        };
 
     // Brand Filter Component
     const BrandFilter = () => {
@@ -614,15 +630,19 @@ const SaleInvoice = ({ route }: { route: any }) => {
                 visible={modalVisible}
                 fromDate={fromDate}
                 toDate={toDate}
-                enableDynamicFilter = {true}
+                enableDynamicFilter={true}
                 onFromDateChange={setFromDate}
                 onToDateChange={setToDate}
                 onApply={(filters) => {
-                    console.log("filter", filters)
-                    setSelectedFilters(filters);
+                    const cleaned = normalizeFilters(filters);
+
+                    console.log("Clean Filters →", cleaned);
+
+                    setSelectedFilters(cleaned);
                     setModalVisible(false);
                     refetch();
                 }}
+
                 onClose={handleCloseModal}
                 showToDate={true}
                 title="Filter Options"
