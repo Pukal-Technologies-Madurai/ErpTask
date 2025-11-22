@@ -1,15 +1,15 @@
 import { MMKV } from "react-native-mmkv";
 const storage = new MMKV();
 
-let baseURL = storage.getString("baseURL") || "https://erpsmt.in/";
-// export let baseURL = "http://192.168.3.112:9001/";
+// let baseURL = storage.getString("baseURL") || "https://erpsmt.in/";
+export let baseURL = "http://192.168.3.112:9001/";
 // export let baseURL = "https://erpsmt.in/"
 // const baseURL = "http://192.168.1.18:9001/api/";
 
 export const baseurl = (url: any) => {
     baseURL = url;
     console.log("baseurl", baseURL);
-    storage.set("baseURL", url);
+    // storage.set("baseURL", url);
 };
 
 export const API = {
@@ -27,8 +27,11 @@ export const API = {
     salesOrderInvoice: (from: string, to: string, userId: number, branchId?: number) =>
         `${baseURL}api/sales/saleOrderMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
 
-    saleorderPending: (from: string, to: string, userId: number, branchId?: number)=>
+    deliveryPending: (from: string, to: string, userId: number, branchId?: number) =>
         `${baseURL}api/delivery/deliveryOrderListDataMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
+
+    saleorderPending: (from: string, to: string, userId: number | string, branchId?: number | string) =>
+        `${baseURL}api/reports/reportsNonconvert/sales?Fromdate=${from}&User_Id=${userId}&Todate=${to}&Branch_Id=${branchId || ''}`,
 
     purchaseReport: (from: string, to: string) =>
         `${baseURL}api/reports/PurchaseOrderReportCard?Report_Type=2&Fromdate=${from}&Todate=${to}`,
@@ -57,9 +60,7 @@ export const API = {
     getPayment: (from: string, to: string, userId: number, branchId?: number) =>
         `${baseURL}api/payment/paymentMasterMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
 
-     getReportFilters: (reportName: string) =>
-        `${baseURL}api/sales/salesFilterDropdown?reportName=${encodeURIComponent(
-            reportName
-        )}`,
+    getReportFilters: (reportName: string) =>
+        `${baseURL}api/sales/salesFilterDropdown?reportName=${encodeURIComponent(reportName)}`,
 
 };

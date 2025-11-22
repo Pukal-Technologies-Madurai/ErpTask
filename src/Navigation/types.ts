@@ -22,7 +22,11 @@ interface receiptListParams  {
     branchId: any;
 }
 
-interface saleOrderPendParams {
+interface deliveryPendParams {
+    branchId: any;
+}
+
+interface saleorderpendParams {
     branchId: any;
 }
 
@@ -62,5 +66,6 @@ export type RootStackParamList = {
     purchaseInvoice : purchaseInvoiceParams;
     ItemStack: undefined;
     paymentList: paymentListParams;
-    saleorderpend: saleOrderPendParams;
+    deliveryPend: deliveryPendParams;
+    saleorderpend: saleorderpendParams;
 };

@@ -21,7 +21,8 @@ import CompanySwitch from "../Screens/Login/CompanySwitch";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import ReceiptList from "../Screens/Receipts/ReceiptList";
 import PaymentList from "../Screens/Payment/PaymentList";
-import SaleOrderPending from "../Screens/Sales/SaleOrderPending";
+import DeliveryPending from "../Screens/Sales/DeliveryPending";
+import SaleOrderPending from "../Screens/Sales/SaleorderPending";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -99,6 +100,10 @@ const Navigation = () => {
                         component={ItemStack}
                     />
                     <Stack.Screen
+                        name="deliveryPend"
+                        component={DeliveryPending}
+                    />
+                    <Stack.Screen 
                         name="saleorderpend"
                         component={SaleOrderPending}
                     />

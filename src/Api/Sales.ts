@@ -76,7 +76,8 @@ export const salesOrderInvoice = async (
             typeof to === "string" ? to : to.toISOString().split("T")[0];
 
         const url = API.salesOrderInvoice(fromStr, toStr, userId, branchId);
-        // console.log(url)
+        console.log("API URL =", url);
+
         const res = await fetch(url, {
             method: "GET",
             headers: {
@@ -128,7 +129,7 @@ export const fetchSalesInvoiceFilters = async () => {
     }
 };
 
-export const saleorderPendingList = async (
+export const DeliveryPendingList = async (
     from: Date | string,
     to: Date | string,
     userId: any,
@@ -138,7 +139,7 @@ export const saleorderPendingList = async (
         const fromStr = typeof from === "string" ? from : from.toISOString().split("T")[0];
         const toStr = typeof to === "string" ? to : to.toISOString().split("T")[0];
 
-        const url = API.saleorderPending(fromStr, toStr, userId, branchId);
+        const url = API.deliveryPending(fromStr, toStr, userId, branchId);
 
         const res = await fetch(url, {
             method: "GET",
@@ -149,11 +150,51 @@ export const saleorderPendingList = async (
 
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         if (!json.success)
-            throw new Error(json.message || "Failed to fetch sale order pending data");
+            throw new Error(json.message || "Failed to fetch delivery data");
 
         return json.data || [];
     } catch (error) {
-        console.error("Error fetching sales order pending invoice data:", error);
+        console.error("Error fetching delivery data:", error);
+        throw error;
+    }
+
+};
+
+export const salesOrderPendingList = async (
+    from: Date | string,
+    to: Date | string,
+    userId: any,
+    branchId: number | string,
+) => {
+    try {
+        const fromStr =
+            typeof from === "string" ? from : from.toISOString().split("T")[0];
+        const toStr =
+            typeof to === "string" ? to : to.toISOString().split("T")[0];
+
+        const url = API.saleorderPending(fromStr, toStr, userId, branchId);
+        console.log("API URL =", url);
+
+        const res = await fetch(url, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+
+        const json = await res.json();
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
+        if (!json.success) {
+            throw new Error(
+                json.message || "Failed to fetch sale order pending data"
+            );
+        }
+        return json.data || [];
+    } catch (error) {
+        console.error("Error fetching sale order pending data:", error);
         throw error;
     }
 };

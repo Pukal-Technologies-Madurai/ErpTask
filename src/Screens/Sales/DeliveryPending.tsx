@@ -16,7 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../Context/ThemeContext";
 import AppHeader from "../../Components/AppHeader";
 import FilterModal from "../../Components/FilterModal";
-import { salesOrderPendingList } from "../../Api/Sales";
+import { DeliveryPendingList } from "../../Api/Sales";
 import { RootStackParamList } from "../../Navigation/types";
 import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
@@ -24,13 +24,13 @@ import { usePagination } from "../../hooks/usePagination";
 import PaginationControls from "../../Components/PaginationControls";
 import { MMKV } from "react-native-mmkv";
 
-const SaleOrderPending = ({ route }: { route: any }) => {
+const DeliveryPending = ({ route }: { route: any }) => {
     const item = route.params || {};
     const branchIdProps = item.branchId;
-//   console.log("branchId", branchIdProps);
-    
+    //   console.log("branchId", branchIdProps);
+
     const { typography, colors } = useTheme();
-     const storage = new MMKV();
+    const storage = new MMKV();
     const styles = getStyles(typography, colors);
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -46,15 +46,16 @@ const SaleOrderPending = ({ route }: { route: any }) => {
     const [modalVisible, setModalVisible] = React.useState(false);
     const [refreshing, setRefreshing] = React.useState(false);
     const [selectedBrand, setSelectedBrand] = React.useState<string>("");
+    const [selectedTab, setSelectedTab] = React.useState<"All" | "Delivered" | "Pending">("All");
 
     const ITEMS_PER_PAGE = 15;
 
     React.useEffect(() => {
-            const userId =  storage.getString("userId")
-            const branchId =  storage.getString("branchId")
-            if (userId) setUserId(userId);
-            if (branchId) setBranchId(branchId);
-        }, []);
+        const userId = storage.getString("userId")
+        const branchId = storage.getString("branchId")
+        if (userId) setUserId(userId);
+        if (branchId) setBranchId(branchId);
+    }, []);
 
     const {
         data: saleOrder = [],
@@ -63,19 +64,16 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         refetch,
     } = useQuery({
         queryKey: ["saleOrder", fromDate, toDate],
-        queryFn: () => salesOrderPendingList(fromDate, toDate, userId, branchIdProps),
+        queryFn: () => DeliveryPendingList(fromDate, toDate, userId, branchIdProps),
         enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
     // Get unique brands and their totals from products
-    const getBrandsWithTotals = () => {
-        const brandTotals = new Map<
-            string,
-            { count: number; amount: number }
-        >();
+    const getBrandsWithTotals = (data: any[]) => {
+        const brandTotals = new Map<string, { count: number; amount: number }>();
 
-        saleOrder.forEach((order: any) => {
-            order.Products_Array?.forEach((product: any) => {
+        data.forEach((order: any) => {
+            order.Products_List?.forEach((product: any) => {
                 if (product.BrandGet) {
                     const current = brandTotals.get(product.BrandGet) || {
                         count: 0,
@@ -96,43 +94,46 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         }));
     };
 
+
+
     // Filter data by brand and search query
     const getProcessedData = () => {
         let filtered = [...saleOrder];
 
-        // Filter by search query
+        // 1️⃣ APPLY TOGGLE FILTER
+        if (selectedTab === "Delivered") {
+            filtered = filtered.filter(o => o.DeliveryStatusName === "Delivered");
+        } else if (selectedTab === "Pending") {
+            filtered = filtered.filter(o => o.DeliveryStatusName !== "Delivered");
+        }
+        // All = do nothing
+
+        // 2️⃣ Search filter
         if (searchQuery.trim()) {
             filtered = filtered.filter(
                 order =>
-                    order.So_Inv_No?.toLowerCase().includes(
-                        searchQuery.toLowerCase(),
-                    ) ||
-                    order.Retailer_Name?.toLowerCase().includes(
-                        searchQuery.toLowerCase(),
-                    ) ||
-                    order.Sales_Person_Name?.toLowerCase().includes(
-                        searchQuery.toLowerCase(),
-                    ) ||
-                    order.Branch_Name?.toLowerCase().includes(
-                        searchQuery.toLowerCase(),
-                    ),
+                    order.Do_Inv_No?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    order.Retailer_Name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    order.Delivery_Person_Name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    order.Branch_Name?.toLowerCase().includes(searchQuery.toLowerCase())
             );
         }
 
-        // Filter by selected brand
+        // 3️⃣ Brand filter
         if (selectedBrand) {
             filtered = filtered.filter(order =>
-                order.Products_Array?.some(
-                    (product: any) => product.BrandGet === selectedBrand,
-                ),
+                order.Products_List?.some((p: any) => p.BrandGet === selectedBrand)
             );
         }
 
-        // Pagination
         return filtered;
     };
 
-    const filteredData = getProcessedData();
+    const filteredData: any[] = React.useMemo(
+        () => getProcessedData(),
+        [saleOrder, searchQuery, selectedBrand, selectedTab]
+    );
+
     const totalAmount = filteredData.reduce(
         (sum, order) => sum + (order.Total_Invoice_value || 0),
         0,
@@ -156,6 +157,7 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         if (newExpanded.has(orderId)) {
             newExpanded.delete(orderId);
         } else {
+            newExpanded.clear();
             newExpanded.add(orderId);
         }
         setExpandedOrders(newExpanded);
@@ -197,7 +199,7 @@ const SaleOrderPending = ({ route }: { route: any }) => {
 
     // Brand Filter Component
     const BrandFilter = () => {
-        const brandsWithTotals = getBrandsWithTotals();
+        const brandsWithTotals = getBrandsWithTotals(filteredData);
 
         return (
             <ScrollView
@@ -224,14 +226,14 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                         style={[
                             styles.brandFilterButton,
                             selectedBrand === brand &&
-                                styles.brandFilterButtonActive,
+                            styles.brandFilterButtonActive,
                         ]}
                         onPress={() => setSelectedBrand(brand)}>
                         <Text
                             style={[
                                 styles.brandFilterText,
                                 selectedBrand === brand &&
-                                    styles.brandFilterTextActive,
+                                styles.brandFilterTextActive,
                             ]}>
                             {brand}
                         </Text>
@@ -243,7 +245,7 @@ const SaleOrderPending = ({ route }: { route: any }) => {
 
     // Sales Order Card Component
     const SaleOrderCard = ({ order }: { order: any }) => {
-        const isExpanded = expandedOrders.has(order.S_Id);
+        const isExpanded = expandedOrders.has(order.Do_Inv_No);
 
         const getFormattedDate = (dateString: string) => {
             try {
@@ -258,13 +260,13 @@ const SaleOrderPending = ({ route }: { route: any }) => {
             <View style={styles.orderCard}>
                 <TouchableOpacity
                     style={styles.orderHeader}
-                    onPress={() => toggleOrder(order.S_Id)}
+                    onPress={() => toggleOrder(order.Do_Inv_No)}
                     activeOpacity={0.7}>
                     <View style={styles.orderHeaderLeft}>
                         <View style={styles.orderTopRow}>
                             <View style={styles.orderNumberContainer}>
                                 <Text style={styles.orderNumber}>
-                                    {order.So_Inv_No}
+                                    {order.Do_Inv_No}
                                 </Text>
                                 <View style={styles.dateTimeContainer}>
                                     <Icon
@@ -291,6 +293,25 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                                     </Text>
                                 </View>
                             </View>
+                            {order.DeliveryStatusName !== "Delivered" && (
+                                <View
+                                    style={[
+                                        styles.badge,
+                                        {
+                                            backgroundColor:
+                                                order.DeliveryStatusName === "New"
+                                                    ? "#FF9800" 
+                                                    : "red", 
+                                        },
+                                    ]}
+                                >
+                                    <Text style={styles.badgeText}>
+                                        {order.DeliveryStatusName === "New"
+                                            ? "Pending"
+                                            : order.DeliveryStatusName}
+                                    </Text>
+                                </View>
+                            )}
                             <Text style={styles.orderAmount}>
                                 {formatCurrency(order.Total_Invoice_value)}
                             </Text>
@@ -309,6 +330,7 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                                     {order.Retailer_Name}
                                 </Text>
                             </View>
+
                             <View style={styles.salesPersonContainer}>
                                 <Icon
                                     name="person"
@@ -317,13 +339,25 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                                     style={styles.bottomRowIcon}
                                 />
                                 <Text style={styles.salesPerson}>
-                                    {order.Sales_Person_Name}
+                                    {order.Delivery_Person_Name}
                                 </Text>
                             </View>
                         </View>
                     </View>
+                    {order.Narration ? (
+                        <View style={styles.notesContainer}>
+                            <Icon
+                                name="notes"
+                                size={14}
+                                color={colors.primary}
+                                style={styles.bottomRowIcon}
+                            />
+                            <Text style={styles.notesName} numberOfLines={2}>
+                                {order.Narration}
+                            </Text>
+                        </View>
+                    ) : null}
                 </TouchableOpacity>
-
                 {isExpanded && (
                     <View style={styles.orderDetails}>
                         {/* Essential Order Info */}
@@ -382,8 +416,8 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                         </View>
 
                         {/* Products Table */}
-                        {order.Products_Array &&
-                            order.Products_Array.length > 0 && (
+                        {order.Products_List &&
+                            order.Products_List.length > 0 && (
                                 <View style={styles.productsTable}>
                                     <View style={styles.tableHeader}>
                                         <Text
@@ -403,7 +437,7 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                                             Amount
                                         </Text>
                                     </View>
-                                    {order.Products_Array.map(
+                                    {order.Products_List.map(
                                         (product: any, index: number) => (
                                             <View
                                                 key={index}
@@ -447,7 +481,7 @@ const SaleOrderPending = ({ route }: { route: any }) => {
     return (
         <SafeAreaView style={styles.container}>
             <AppHeader
-                title="Sale Order Pending"
+                title="Delivery List"
                 navigation={navigation}
                 showRightIcon={true}
                 rightIconLibrary="MaterialIcon"
@@ -519,6 +553,32 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                 {/* Data Display */}
                 {!isLoading && !error && saleOrder.length > 0 && (
                     <>
+                        {/* Toggle Buttons */}
+                        <View style={styles.toggleContainer}>
+                            {["All", "Delivered", "Pending"].map(tab => (
+                                <TouchableOpacity
+                                    key={tab}
+                                    onPress={() => {
+                                        setSelectedTab(tab as any);
+                                        setCurrentPage(1); // reset pagination
+                                    }}
+                                    style={[
+                                        styles.toggleButton,
+                                        selectedTab === tab && styles.toggleButtonActive
+                                    ]}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.toggleText,
+                                            selectedTab === tab && styles.toggleTextActive
+                                        ]}
+                                    >
+                                        {tab}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
                         {/* Summary Cards */}
                         <SummaryCards />
 
@@ -617,7 +677,7 @@ const SaleOrderPending = ({ route }: { route: any }) => {
     );
 };
 
-export default SaleOrderPending;
+export default DeliveryPending;
 
 const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
@@ -935,5 +995,55 @@ const getStyles = (typography: any, colors: any) =>
             color: colors.textSecondary,
             textAlign: "center",
             marginTop: 8,
+        },
+        toggleContainer: {
+            flexDirection: "row",
+            justifyContent: "space-around",
+            marginVertical: 10,
+            paddingHorizontal: 10,
+        },
+
+        toggleButton: {
+            paddingVertical: 8,
+            paddingHorizontal: 20,
+            borderRadius: 20,
+            backgroundColor: "#E6E6E6",
+        },
+
+        toggleButtonActive: {
+            backgroundColor: colors.primary,
+        },
+
+        toggleText: {
+            color: colors.textPrimary,
+            fontSize: 14,
+        },
+
+        toggleTextActive: {
+            color: colors.white,
+            fontWeight: "600",
+        },
+        badge: {
+            paddingHorizontal: 8,
+            paddingVertical: 3,
+            borderRadius: 10,
+            alignSelf: "flex-start",
+        },
+        badgeText: {
+            fontSize: 12,
+            fontWeight: "600",
+            color: "#fff",
+        },
+        notesContainer: {
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            marginTop: 2,
+            marginRight: 8,
+        },
+        notesName: {
+            ...typography.body2,
+            color: "red",
+            flex: 1,
         },
     });

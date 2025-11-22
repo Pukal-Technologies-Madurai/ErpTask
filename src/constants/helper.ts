@@ -47,11 +47,13 @@ export const customColors = {
         // Status colors
         success: "#4CAF50",
         error: "#F44336",
-        warning: "#FF9800",
+        warning: "#a610ccc0",
+        sih: "#17ca9dff",
         info: "#2196F3",
         rec: "#9f18c9ff",
         pay: "#01220fd7",
         pen: "#941108d7",
+        del: "#ff1a0aff",
     },
     dark: {
         background: "#121212",
