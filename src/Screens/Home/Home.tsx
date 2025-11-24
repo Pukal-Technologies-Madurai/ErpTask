@@ -1,4 +1,3 @@
-// Full patched Home component
 import {
   ScrollView,
   StyleSheet,
@@ -257,11 +256,12 @@ const Home = () => {
 
   const totalSalesPend = React.useMemo( () => {
     return (SaleorderPendingData || []).reduce(
-      (acc: number, item: { Total_Invoice_Value?:number})=>
-        acc + (item.Total_Invoice_Value || 0),
+      (acc: number, item: { Total_Invoice_value?:number})=>
+        acc + (item.Total_Invoice_value || 0),
       0,
     );
   },[SaleorderPendingData]);
+  console.log("total:",totalSalesPend);
 
   const totalReceipt = React.useMemo(() => {
     return (receiptList || []).reduce(
@@ -488,23 +488,30 @@ const Home = () => {
   setBranchModalVisible(false);
 
   // Determine branchId to use in state
-  if (!selectedBranches || selectedBranches.length === 0 || selectedBranches.length === getBranch.length) {
-    // No branch or all branches selected → load all branches
-    setBranchId(""); 
-    storage.delete("branchId");
+  let newBranchId = "";
+
+  if (selectedBranches.length === 0 || selectedBranches.length === getBranch.length) {
+    // No branch or all branches selected → empty string
+    newBranchId = "";
   } else {
-    // Some branches selected → use the first selected branch
-    const primaryBranch = selectedBranches[0];
-    const id = String(primaryBranch.id ?? (primaryBranch as any).BranchId ?? primaryBranch.id);
-    setBranchId(id);
-    storage.set("branchId", id);
+    // Some branches selected → join all selected IDs as CSV
+    newBranchId = selectedBranches.map(b => b.id).join(",");
+  }
+
+  setBranchId(newBranchId);
+
+  // Save to storage only if there is a branchId
+  if (newBranchId) {
+    storage.set("branchId", newBranchId);
+  } else {
+    storage.delete("branchId");
   }
 
   if (branchLoading) return;
   setBranchLoading(true);
 
   try {
-    // Just refetch existing queries; they will read branchId from state
+    // Refetch all queries
     const promises: Promise<any>[] = [];
     if (typeof refetch === "function") promises.push(refetch());
     if (typeof refetchSalesinvoice === "function") promises.push(refetchSalesinvoice());
@@ -538,7 +545,6 @@ const Home = () => {
   refetchDeliveryPendingList,
   refetchsalesOrderPendingList,
 ]);
-
 
 
   // -------------------------------

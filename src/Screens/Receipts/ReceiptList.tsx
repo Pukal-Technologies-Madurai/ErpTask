@@ -19,7 +19,6 @@ import { useTheme } from "../../Context/ThemeContext";
 import AppHeader from "../../Components/AppHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
 import FilterModal from "../../Components/FilterModal";
-import { usePagination } from "../../hooks/usePagination";
 import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
 
 const ReceiptList = ({ route }: { route: any }) => {
@@ -43,15 +42,13 @@ const ReceiptList = ({ route }: { route: any }) => {
     const [refreshing, setRefreshing] = React.useState(false);
     const [selectedTransactionType, setSelectedTransactionType] = React.useState<string>("");
 
-    const ITEMS_PER_PAGE = 15;
-
     // Fetch receipts
     React.useEffect(() => {
-            const userId = storage.getString("userId");
-            const branchId = storage.getString("branchId");
-            if (userId) setUserId(userId);
-            if (branchId) setBranchId(branchId);
-        }, []);
+        const userId = storage.getString("userId");
+        const branchId = storage.getString("branchId");
+        if (userId) setUserId(userId);
+        if (branchId) setBranchId(branchId);
+    }, []);
 
     const {
         data: receipts = [],
@@ -61,7 +58,7 @@ const ReceiptList = ({ route }: { route: any }) => {
     } = useQuery({
         queryKey: ["receiptList", fromDate, toDate],
         queryFn: () => fetchReceiptList(fromDate, toDate, userId, branchIdProps),
-        enabled: !!fromDate && !!toDate && !! userId && !! branchIdProps,
+        enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
     // Get unique transaction types
@@ -77,7 +74,7 @@ const ReceiptList = ({ route }: { route: any }) => {
     const getProcessedData = () => {
         let filtered = [...receipts];
 
-         if (branchIdProps) {
+        if (branchIdProps) {
             const branchIds = Array.isArray(branchIdProps) ? branchIdProps.map(id => Number(id)) : [Number(branchIdProps)];
             filtered = filtered.filter(invoice => branchIds.includes(invoice.Branch_Id));
         }
@@ -103,17 +100,24 @@ const ReceiptList = ({ route }: { route: any }) => {
     const filteredData = getProcessedData();
     const totalAmount = filteredData.reduce((sum, r) => sum + (r.credit_amount || 0), 0);
 
-    const {
-            currentPage,
-            totalPages,
-            totalItems,
-            totalRecords,
-            currentData: displayData,
-            setCurrentPage,
-        } = usePagination({
-            data: filteredData,
-            itemsPerPage: ITEMS_PER_PAGE,
-        });
+    // Initialize pagination state manually
+    const [currentPage, setCurrentPage] = React.useState(1);
+    const ITEMS_PER_PAGE = 15;
+
+    const totalItems = filteredData.length;
+    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+
+    // Get current page data
+    const displayData = React.useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    }, [filteredData, currentPage]);
+
+    // Reset page to 1 only when filters change
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, selectedTransactionType, fromDate, toDate, branchIdProps]);
+
 
     const toggleReceipt = (receiptId: string) => {
         const newExpanded = new Set(expandedReceipts);
@@ -187,14 +191,14 @@ const ReceiptList = ({ route }: { route: any }) => {
     const ReceiptCard = ({ receipt }: { receipt: any }) => {
         const isExpanded = expandedReceipts.has(receipt.receipt_id);
 
-          const getFormattedDate = (dateString: string) => {
-                    try {
-                        const date = new Date(dateString);
-                        return formatDate(date);
-                    } catch (error) {
-                        return "--";
-                    }
-                };
+        const getFormattedDate = (dateString: string) => {
+            try {
+                const date = new Date(dateString);
+                return formatDate(date);
+            } catch (error) {
+                return "--";
+            }
+        };
 
         return (
             <View style={styles.orderCard}>
@@ -208,10 +212,10 @@ const ReceiptList = ({ route }: { route: any }) => {
                             <View style={styles.orderNumberContainer}>
                                 <Text style={styles.orderNumber}>{receipt.debit_ledger_name}</Text>
                                 <View style={styles.dateTimeContainer}>
-                                    <Icon name="event" 
-                                    size={12} 
-                                    color={colors.textSecondary} 
-                                    style={styles.dateTimeIcon} />
+                                    <Icon name="event"
+                                        size={12}
+                                        color={colors.textSecondary}
+                                        style={styles.dateTimeIcon} />
                                     <Text style={styles.orderDateTime}>
                                         {receipt.created_on
                                             ? getFormattedDate(receipt.created_on)
@@ -253,7 +257,8 @@ const ReceiptList = ({ route }: { route: any }) => {
                 rightIconName="filter-list"
                 onRightPress={() => {
                     console.log(modalVisible)
-                    setModalVisible(true)}}
+                    setModalVisible(true)
+                }}
             />
 
             <FilterModal
@@ -300,7 +305,7 @@ const ReceiptList = ({ route }: { route: any }) => {
                     </View>
                 )}
 
-                {!isLoading && !error && receipts.length > 0 &&  (
+                {!isLoading && !error && receipts.length > 0 && (
                     <>
                         <SummaryCards />
                         <TransactionTypeFilter />
@@ -323,13 +328,39 @@ const ReceiptList = ({ route }: { route: any }) => {
 
                         <View style={styles.resultsContainer}>
                             <Text style={styles.resultsText}>
-                                Showing {displayData.length} receipts ({totalItems} filtered, {totalRecords} total)
+                                Showing {displayData.length} receipts ({totalItems} filtered, {receipts.length} total)
                             </Text>
+
                         </View>
 
                         {displayData.map(receipt => (
                             <ReceiptCard key={receipt.receipt_id} receipt={receipt} />
                         ))}
+                        {totalPages > 1 && (
+                            <View style={styles.paginationContainer}>
+                                {/* Previous Arrow */}
+                                <TouchableOpacity
+                                    style={[styles.arrowButton, currentPage === 1 && styles.arrowDisabled]}
+                                    disabled={currentPage === 1}
+                                    onPress={() => setCurrentPage(currentPage - 1)}
+                                >
+                                    <Icon name="chevron-left" size={24} color={currentPage === 1 ? colors.textSecondary : colors.primary} />
+                                </TouchableOpacity>
+
+                                <Text style={styles.pageInfo}>
+                                    {currentPage} / {totalPages}
+                                </Text>
+
+                                {/* Next Arrow */}
+                                <TouchableOpacity
+                                    style={[styles.arrowButton, currentPage === totalPages && styles.arrowDisabled]}
+                                    disabled={currentPage === totalPages}
+                                    onPress={() => setCurrentPage(currentPage + 1)}
+                                >
+                                    <Icon name="chevron-right" size={24} color={currentPage === totalPages ? colors.textSecondary : colors.primary} />
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </>
                 )}
 
@@ -597,10 +628,13 @@ const getStyles = (typography: any, colors: any) =>
         },
         pageButtonDisabled: {
             opacity: 0.5,
+            backgroundColor: colors.border,
         },
         pageInfo: {
             ...typography.caption,
             color: colors.textSecondary,
+            fontSize: 14,
+            fontWeight: "500",
         },
         loadingContainer: {
             flex: 1,
@@ -665,6 +699,13 @@ const getStyles = (typography: any, colors: any) =>
             color: colors.textSecondary,
             textAlign: "center",
             marginTop: 8,
+        },
+        arrowButton: {
+            padding: 8,
+            borderRadius: 6,
+        },
+        arrowDisabled: {
+            opacity: 0.3,
         },
     });
 

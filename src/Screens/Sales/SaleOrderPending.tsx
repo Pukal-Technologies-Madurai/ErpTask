@@ -24,13 +24,24 @@ import { usePagination } from "../../hooks/usePagination";
 import PaginationControls from "../../Components/PaginationControls";
 import { MMKV } from "react-native-mmkv";
 
+type Product = {
+    SO_St_Id?: string;
+    Product_Name?: string;
+    BrandGet?: string;
+    Bill_Qty?: number;
+    Total_Qty?: number;
+    Item_Rate?: number;
+    Final_Amo?: number;
+    Created_on?: string;
+    [k: string]: any;
+};
+
 const SaleOrderPending = ({ route }: { route: any }) => {
     const item = route.params || {};
     const branchIdProps = item.branchId;
-//   console.log("branchId", branchIdProps);
-    
+
     const { typography, colors } = useTheme();
-     const storage = new MMKV();
+    const storage = new MMKV();
     const styles = getStyles(typography, colors);
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -46,15 +57,16 @@ const SaleOrderPending = ({ route }: { route: any }) => {
     const [modalVisible, setModalVisible] = React.useState(false);
     const [refreshing, setRefreshing] = React.useState(false);
     const [selectedBrand, setSelectedBrand] = React.useState<string>("");
+    const [viewMode, setViewMode] = React.useState<"order" | "item">("order");
 
     const ITEMS_PER_PAGE = 15;
 
     React.useEffect(() => {
-            const userId =  storage.getString("userId")
-            const branchId =  storage.getString("branchId")
-            if (userId) setUserId(userId);
-            if (branchId) setBranchId(branchId);
-        }, []);
+        const userId = storage.getString("userId");
+        const branchId = storage.getString("branchId");
+        if (userId) setUserId(userId);
+        if (branchId) setBranchId(branchId);
+    }, [branchId]);
 
     const {
         data: saleOrder = [],
@@ -63,19 +75,17 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         refetch,
     } = useQuery({
         queryKey: ["saleOrder", fromDate, toDate],
-        queryFn: () => salesOrderPendingList(fromDate, toDate, userId, branchIdProps),
+        queryFn: () =>
+            salesOrderPendingList(fromDate, toDate, userId, branchIdProps),
         enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
-    // Get unique brands and their totals from products
+    // Get unique brands and their totals from products (uses Products_List)
     const getBrandsWithTotals = () => {
-        const brandTotals = new Map<
-            string,
-            { count: number; amount: number }
-        >();
+        const brandTotals = new Map<string, { count: number; amount: number }>();
 
-        saleOrder.forEach((order: any) => {
-            order.Products_Array?.forEach((product: any) => {
+        (saleOrder as any[]).forEach((order: any) => {
+            order.Products_List?.forEach((product: any) => {
                 if (product.BrandGet) {
                     const current = brandTotals.get(product.BrandGet) || {
                         count: 0,
@@ -98,43 +108,66 @@ const SaleOrderPending = ({ route }: { route: any }) => {
 
     // Filter data by brand and search query
     const getProcessedData = () => {
-        let filtered = [...saleOrder];
+        let filtered = [...(saleOrder as any[])];
 
         // Filter by search query
         if (searchQuery.trim()) {
-            filtered = filtered.filter(
-                order =>
-                    order.So_Inv_No?.toLowerCase().includes(
-                        searchQuery.toLowerCase(),
-                    ) ||
-                    order.Retailer_Name?.toLowerCase().includes(
-                        searchQuery.toLowerCase(),
-                    ) ||
-                    order.Sales_Person_Name?.toLowerCase().includes(
-                        searchQuery.toLowerCase(),
-                    ) ||
-                    order.Branch_Name?.toLowerCase().includes(
-                        searchQuery.toLowerCase(),
-                    ),
+            filtered = filtered.filter((order: any) =>
+                (
+                    order.So_Inv_No?.toLowerCase() +
+                    " " +
+                    order.Retailer_Name?.toLowerCase() +
+                    " " +
+                    order.Sales_Person_Name?.toLowerCase() +
+                    " " +
+                    order.Branch_Name?.toLowerCase()
+                ).includes(searchQuery.toLowerCase()),
             );
         }
 
         // Filter by selected brand
         if (selectedBrand) {
-            filtered = filtered.filter(order =>
-                order.Products_Array?.some(
-                    (product: any) => product.BrandGet === selectedBrand,
+            filtered = filtered.filter((order: any) =>
+                order.Products_List?.some(
+                    (product: Product) => product.BrandGet === selectedBrand,
                 ),
             );
         }
 
-        // Pagination
         return filtered;
     };
 
     const filteredData = getProcessedData();
+
+    // Build item-wise list from Products_List
+    const itemWiseData = React.useMemo(() => {
+        const list: any[] = [];
+
+        (filteredData as any[]).forEach((order: any) => {
+            order.Products_List?.forEach((product: Product) => {
+                list.push({
+                    ...product,
+                    So_Inv_No: order.So_Inv_No,
+                    Retailer_Name: order.Retailer_Name,
+                    Sales_Person_Name: order.Sales_Person_Name,
+                    Created_on: order.Created_on,
+                    Branch_Name: order.Branch_Name,
+                    Total_Invoice_value: order.Total_Invoice_value,
+                });
+            });
+        });
+
+        return list;
+    }, [filteredData]);
+
+    // debug - shows itemWiseData after it's created (remove in production)
+    React.useEffect(() => {
+        // eslint-disable-next-line no-console
+        console.log("ItemWiseData generated:", itemWiseData.length, itemWiseData);
+    }, [itemWiseData]);
+
     const totalAmount = filteredData.reduce(
-        (sum, order) => sum + (order.Total_Invoice_value || 0),
+        (sum: number, order: any) => sum + (order.Total_Invoice_value || 0),
         0,
     );
 
@@ -146,7 +179,7 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         currentData: displayData,
         setCurrentPage,
     } = usePagination({
-        data: filteredData,
+        data: viewMode === "order" ? filteredData : itemWiseData,
         itemsPerPage: ITEMS_PER_PAGE,
     });
 
@@ -175,7 +208,7 @@ const SaleOrderPending = ({ route }: { route: any }) => {
     React.useEffect(() => {
         setCurrentPage(1);
         setExpandedOrders(new Set());
-    }, [searchQuery, selectedBrand]);
+    }, [searchQuery, selectedBrand, viewMode, setCurrentPage]);
 
     // Summary Cards Component
     const SummaryCards = () => (
@@ -218,20 +251,20 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                         All
                     </Text>
                 </TouchableOpacity>
-                {brandsWithTotals.map(({ brand, count, amount }) => (
+                {brandsWithTotals.map(({ brand }) => (
                     <TouchableOpacity
                         key={brand}
                         style={[
                             styles.brandFilterButton,
                             selectedBrand === brand &&
-                                styles.brandFilterButtonActive,
+                            styles.brandFilterButtonActive,
                         ]}
                         onPress={() => setSelectedBrand(brand)}>
                         <Text
                             style={[
                                 styles.brandFilterText,
                                 selectedBrand === brand &&
-                                    styles.brandFilterTextActive,
+                                styles.brandFilterTextActive,
                             ]}>
                             {brand}
                         </Text>
@@ -241,7 +274,7 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         );
     };
 
-    // Sales Order Card Component
+    // Sales Order Card Component (unchanged logic)
     const SaleOrderCard = ({ order }: { order: any }) => {
         const isExpanded = expandedOrders.has(order.S_Id);
 
@@ -382,63 +415,121 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                         </View>
 
                         {/* Products Table */}
-                        {order.Products_Array &&
-                            order.Products_Array.length > 0 && (
-                                <View style={styles.productsTable}>
-                                    <View style={styles.tableHeader}>
-                                        <Text
-                                            style={[
-                                                styles.tableCell,
-                                                styles.productNameCell,
-                                            ]}>
-                                            Product
-                                        </Text>
-                                        <Text style={styles.tableCell}>
-                                            Qty
-                                        </Text>
-                                        <Text style={styles.tableCell}>
-                                            Rate
-                                        </Text>
-                                        <Text style={styles.tableCell}>
-                                            Amount
-                                        </Text>
-                                    </View>
-                                    {order.Products_Array.map(
-                                        (product: any, index: number) => (
-                                            <View
-                                                key={index}
-                                                style={styles.tableRow}>
-                                                <Text
-                                                    style={[
-                                                        styles.tableCell,
-                                                        styles.productNameCell,
-                                                    ]}
-                                                    numberOfLines={4}>
-                                                    {product.Product_Name}
-                                                </Text>
-                                                <Text style={styles.tableCell}>
-                                                    {product.Bill_Qty}
-                                                </Text>
-                                                <Text style={styles.tableCell}>
-                                                    {formatCurrency(
-                                                        product.Item_Rate,
-                                                    ).replace("₹", "")}
-                                                </Text>
-                                                <Text style={styles.tableCell}>
-                                                    {formatCurrency(
-                                                        product.Final_Amo,
-                                                    ).replace("₹", "")}
-                                                </Text>
-                                            </View>
-                                        ),
-                                    )}
+                        {order.Products_List && order.Products_List.length > 0 && (
+                            <View style={styles.productsTable}>
+                                <View style={styles.tableHeader}>
+                                    <Text
+                                        style={[
+                                            styles.tableCell,
+                                            styles.productNameCell,
+                                        ]}>
+                                        Product
+                                    </Text>
+                                    <Text style={styles.tableCell}>Qty</Text>
+                                    <Text style={styles.tableCell}>Rate</Text>
+                                    <Text style={styles.tableCell}>Amount</Text>
                                 </View>
-                            )}
+                                {order.Products_List.map(
+                                    (product: any, index: number) => (
+                                        <View key={index} style={styles.tableRow}>
+                                            <Text
+                                                style={[
+                                                    styles.tableCell,
+                                                    styles.productNameCell,
+                                                ]}
+                                                numberOfLines={4}>
+                                                {product.Product_Name}
+                                            </Text>
+                                            <Text style={styles.tableCell}>
+                                                {product.Bill_Qty ?? product.Total_Qty}
+                                            </Text>
+                                            <Text style={styles.tableCell}>
+                                                {formatCurrency(
+                                                    product.Item_Rate,
+                                                ).replace("₹", "")}
+                                            </Text>
+                                            <Text style={styles.tableCell}>
+                                                {formatCurrency(
+                                                    product.Final_Amo,
+                                                ).replace("₹", "")}
+                                            </Text>
+                                        </View>
+                                    ),
+                                )}
+                            </View>
+                        )}
                     </View>
                 )}
             </View>
         );
     };
+
+    // Item-wise Card - displays product as requested
+const ItemWiseCard = ({ item }: { item: any }) => {
+    const formatDate = (value: any) => {
+        if (!value) return "—";
+        const d = new Date(value);
+        if (isNaN(d.getTime())) return "—";
+        return d.toLocaleDateString("en-IN");
+    };
+
+    return (
+        <View style={styles.cardContainer}>
+            {/* Header: Product + Brand */}
+            <View style={styles.cardHeader}>
+                <View style={{ flex: 1 }}>
+                    <Text style={styles.productName}>
+                        {item.Product_Name || "--"}
+                    </Text>
+                    <Text style={styles.brandName}>
+                        {item.BrandGet || "--"}
+                    </Text>
+                </View>
+
+                <View style={styles.amountContainer}>
+                    <Text style={styles.amount}>
+                        {formatCurrency(item.Final_Amo)}
+                    </Text>
+                </View>
+            </View>
+
+            {/* Divider */}
+            <View style={styles.divider} />
+
+            {/* Details Row */}
+            <View style={styles.detailsRow}>
+                {/* Left Column */}
+                <View style={styles.detailsColumn}>
+                    <Text style={styles.label}>Order No</Text>
+                    <Text style={styles.value}>{item.So_Inv_No || "--"}</Text>
+
+                    <Text style={styles.label}>Retailer</Text>
+                    <Text style={styles.value}>{item.Retailer_Name || "--"}</Text>
+
+                    <Text style={styles.label}>Qty</Text>
+                    <Text style={styles.value}>
+                        {item.Bill_Qty ?? item.Total_Qty ?? "--"}
+                    </Text>
+                </View>
+
+                {/* Right Column */}
+                <View style={styles.detailsColumn}>
+                    <Text style={styles.label}>Sales Person</Text>
+                    <Text style={styles.value}>
+                        {item.Sales_Person_Name || "--"}
+                    </Text>
+
+                    <Text style={styles.label}>Date</Text>
+                    <Text style={styles.value}>{formatDate(item.Created_on)}</Text>
+
+                    <Text style={styles.label}>Branch</Text>
+                    <Text style={styles.value}>{item.Branch_Name || "--"}</Text>
+                </View>
+            </View>
+        </View>
+    );
+};
+
 
     const handleCloseModal = () => {
         setModalVisible(false);
@@ -483,42 +574,61 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                 {/* Loading State */}
                 {isLoading && (
                     <View style={styles.loadingContainer}>
-                        <Text style={styles.loadingText}>
-                            Loading orders...
-                        </Text>
+                        <Text style={styles.loadingText}>Loading orders...</Text>
                     </View>
                 )}
 
                 {/* Error State */}
                 {!isLoading && error && (
                     <View style={styles.errorContainer}>
-                        <Icon
-                            name="error-outline"
-                            size={48}
-                            color={colors.accent}
-                        />
-                        <Text style={styles.errorText}>
-                            Error loading orders
-                        </Text>
+                        <Icon name="error-outline" size={48} color={colors.accent} />
+                        <Text style={styles.errorText}>Error loading orders</Text>
                         <Text style={styles.errorSubtext}>
                             {error.message || "Please try again later"}
                         </Text>
-                        <TouchableOpacity
-                            style={styles.retryButton}
-                            onPress={onRefresh}>
-                            <Icon
-                                name="refresh"
-                                size={20}
-                                color={colors.white}
-                            />
+                        <TouchableOpacity style={styles.retryButton} onPress={onRefresh}>
+                            <Icon name="refresh" size={20} color={colors.white} />
                             <Text style={styles.retryButtonText}>Retry</Text>
                         </TouchableOpacity>
                     </View>
                 )}
 
                 {/* Data Display */}
-                {!isLoading && !error && saleOrder.length > 0 && (
+                {!isLoading && !error && (saleOrder as any[]).length > 0 && (
                     <>
+                        {/* Toggle View Buttons */}
+                        <View style={styles.toggleContainer}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.toggleButton,
+                                    viewMode === "order" && styles.toggleButtonActive,
+                                ]}
+                                onPress={() => setViewMode("order")}>
+                                <Text
+                                    style={[
+                                        styles.toggleText,
+                                        viewMode === "order" && styles.toggleTextActive,
+                                    ]}>
+                                    Order Wise
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.toggleButton,
+                                    viewMode === "item" && styles.toggleButtonActive,
+                                ]}
+                                onPress={() => setViewMode("item")}>
+                                <Text
+                                    style={[
+                                        styles.toggleText,
+                                        viewMode === "item" && styles.toggleTextActive,
+                                    ]}>
+                                    Item Wise
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
                         {/* Summary Cards */}
                         <SummaryCards />
 
@@ -527,11 +637,7 @@ const SaleOrderPending = ({ route }: { route: any }) => {
 
                         {/* Search Bar */}
                         <View style={styles.searchContainer}>
-                            <Icon
-                                name="search"
-                                size={20}
-                                color={colors.textSecondary}
-                            />
+                            <Icon name="search" size={20} color={colors.textSecondary} />
                             <TextInput
                                 style={styles.searchInput}
                                 placeholder="Search by order number, retailer, sales person..."
@@ -540,13 +646,8 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                                 onChangeText={setSearchQuery}
                             />
                             {searchQuery.length > 0 && (
-                                <TouchableOpacity
-                                    onPress={() => setSearchQuery("")}>
-                                    <Icon
-                                        name="clear"
-                                        size={20}
-                                        color={colors.textSecondary}
-                                    />
+                                <TouchableOpacity onPress={() => setSearchQuery("")}>
+                                    <Icon name="clear" size={20} color={colors.textSecondary} />
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -554,16 +655,19 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                         {/* Results Info */}
                         <View style={styles.resultsContainer}>
                             <Text style={styles.resultsText}>
-                                Showing {displayData.length} orders (
-                                {totalItems} filtered, {totalRecords} total
-                                records)
+                                Showing {displayData.length} {viewMode === "order" ? "orders" : "items"} (
+                                {totalItems} filtered, {totalRecords} total records)
                             </Text>
                         </View>
 
-                        {/* Orders List */}
-                        {displayData.map((order, index) => (
-                            <SaleOrderCard key={order.S_Id} order={order} />
-                        ))}
+                        {/* List */}
+                        {viewMode === "order"
+                            ? displayData.map((order: any) => (
+                                <SaleOrderCard key={order.S_Id} order={order} />
+                            ))
+                            : displayData.map((item: any, idx: number) => (
+                                <ItemWiseCard key={idx} item={item} />
+                            ))}
 
                         {/* Pagination */}
                         {totalPages > 1 && (
@@ -579,13 +683,9 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                 )}
 
                 {/* No Data State */}
-                {!isLoading && !error && saleOrder.length === 0 && (
+                {!isLoading && !error && (saleOrder as any[]).length === 0 && (
                     <View style={styles.noDataContainer}>
-                        <Icon
-                            name="shopping-cart"
-                            size={48}
-                            color={colors.textSecondary}
-                        />
+                        <Icon name="shopping-cart" size={48} color={colors.textSecondary} />
                         <Text style={styles.noDataText}>No orders found</Text>
                         <Text style={styles.noDataSubtext}>
                             Please select a date range to view orders
@@ -596,17 +696,11 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                 {/* No Results State */}
                 {!isLoading &&
                     !error &&
-                    saleOrder.length > 0 &&
+                    (saleOrder as any[]).length > 0 &&
                     displayData.length === 0 && (
                         <View style={styles.noDataContainer}>
-                            <Icon
-                                name="search-off"
-                                size={48}
-                                color={colors.textSecondary}
-                            />
-                            <Text style={styles.noDataText}>
-                                No results found
-                            </Text>
+                            <Icon name="search-off" size={48} color={colors.textSecondary} />
+                            <Text style={styles.noDataText}>No results found</Text>
                             <Text style={styles.noDataSubtext}>
                                 Try adjusting your search or filter criteria
                             </Text>
@@ -936,4 +1030,134 @@ const getStyles = (typography: any, colors: any) =>
             textAlign: "center",
             marginTop: 8,
         },
+        toggleContainer: {
+            flexDirection: "row",
+            justifyContent: "center",
+            marginVertical: 10,
+        },
+        toggleButton: {
+            paddingVertical: 8,
+            paddingHorizontal: 16,
+            borderWidth: 1,
+            borderColor: colors.primary,
+            borderRadius: 6,
+            marginHorizontal: 5,
+        },
+        toggleButtonActive: {
+            backgroundColor: colors.primary,
+        },
+        toggleText: {
+            color: colors.primary,
+            fontWeight: "600",
+        },
+        toggleTextActive: {
+            color: colors.white,
+        },
+
+        // Item card
+        itemCard: {
+            backgroundColor: colors.cardBackground,
+            padding: 12,
+            marginVertical: 8,
+            borderRadius: 8,
+            elevation: 2,
+        },
+        itemProductName: {
+            fontSize: 16,
+            fontWeight: "700",
+            color: colors.primary,
+        },
+        itemTop: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+        },
+        itemBrand: {
+            fontSize: 14,
+            color: colors.textSecondary,
+            marginBottom: 10,
+        },
+        itemRow: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+        },
+        itemAmount: {
+            fontWeight: "700",
+            color: colors.success,
+        },
+        itemLeft: {
+            width: "48%",
+        },
+        itemRight: {
+            width: "48%",
+        },
+        itemLabel: {
+            color: colors.textSecondary,
+            fontSize: 12,
+        },
+        itemValue: {
+            color: colors.textPrimary,
+            fontWeight: "600",
+            marginBottom: 6,
+        },
+         cardContainer: {
+        backgroundColor: "#fff",
+        borderRadius: 12,
+        padding: 16,
+        marginVertical: 8,
+        marginHorizontal: 16,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+        elevation: 5,
+    },
+    cardHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 12,
+    },
+    productName: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: "#339e38ff",
+    },
+    brandName: {
+        fontSize: 13,
+        color: "#48693bff",
+        marginTop: 2,
+    },
+    amountContainer: {
+        alignItems: "flex-end",
+    },
+    amount: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: "#1e88e5", 
+    },
+    divider: {
+        height: 1,
+        backgroundColor: "#eee",
+        marginVertical: 8,
+    },
+    detailsRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+    },
+    detailsColumn: {
+        flex: 1,
+    },
+    label: {
+        fontSize: 12,
+        color: "#999",
+        marginTop: 4,
+    },
+    value: {
+        fontSize: 14,
+        fontWeight: "500",
+        color: "#444",
+        marginBottom: 4,
+    },
+
     });

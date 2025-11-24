@@ -54,7 +54,7 @@ const SaleOrder = ({ route }: { route: any }) => {
             const branchId =  storage.getString("branchId")
             if (userId) setUserId(userId);
             if (branchId) setBranchId(branchId);
-        }, []);
+        }, [branchId]);
 
     const {
         data: saleOrder = [],

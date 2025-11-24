@@ -55,7 +55,7 @@ const DeliveryPending = ({ route }: { route: any }) => {
         const branchId = storage.getString("branchId")
         if (userId) setUserId(userId);
         if (branchId) setBranchId(branchId);
-    }, []);
+    }, [branchId]);
 
     const {
         data: saleOrder = [],
@@ -300,8 +300,8 @@ const DeliveryPending = ({ route }: { route: any }) => {
                                         {
                                             backgroundColor:
                                                 order.DeliveryStatusName === "New"
-                                                    ? "#FF9800" 
-                                                    : "red", 
+                                                    ? "#FF9800"
+                                                    : "red",
                                         },
                                     ]}
                                 >
@@ -437,35 +437,25 @@ const DeliveryPending = ({ route }: { route: any }) => {
                                             Amount
                                         </Text>
                                     </View>
-                                    {order.Products_List.map(
-                                        (product: any, index: number) => (
+                                    {order.Products_List &&
+                                        order.Products_List.length > 0 &&
+                                        order.Products_List.map((product: any) => (
                                             <View
-                                                key={index}
-                                                style={styles.tableRow}>
-                                                <Text
-                                                    style={[
-                                                        styles.tableCell,
-                                                        styles.productNameCell,
-                                                    ]}
-                                                    numberOfLines={4}>
+                                                key={product.Product_Id || product.Product_Name}
+                                                style={styles.tableRow}
+                                            >
+                                                <Text style={[styles.tableCell, styles.productNameCell]} numberOfLines={4}>
                                                     {product.Product_Name}
                                                 </Text>
+                                                <Text style={styles.tableCell}>{product.Bill_Qty}</Text>
                                                 <Text style={styles.tableCell}>
-                                                    {product.Bill_Qty}
+                                                    {formatCurrency(product.Item_Rate).replace("₹", "")}
                                                 </Text>
                                                 <Text style={styles.tableCell}>
-                                                    {formatCurrency(
-                                                        product.Item_Rate,
-                                                    ).replace("₹", "")}
-                                                </Text>
-                                                <Text style={styles.tableCell}>
-                                                    {formatCurrency(
-                                                        product.Final_Amo,
-                                                    ).replace("₹", "")}
+                                                    {formatCurrency(product.Final_Amo).replace("₹", "")}
                                                 </Text>
                                             </View>
-                                        ),
-                                    )}
+                                        ))}
                                 </View>
                             )}
                     </View>
