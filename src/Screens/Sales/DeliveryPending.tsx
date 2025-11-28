@@ -299,14 +299,14 @@ const DeliveryPending = ({ route }: { route: any }) => {
                                         styles.badge,
                                         {
                                             backgroundColor:
-                                                order.DeliveryStatusName === "New"
+                                                order.DeliveryStatusName === "New" || order.DeliveryStatusName == null
                                                     ? "#FF9800"
                                                     : "red",
                                         },
                                     ]}
                                 >
                                     <Text style={styles.badgeText}>
-                                        {order.DeliveryStatusName === "New"
+                                        {order.DeliveryStatusName === "New" || order.DeliveryStatusName == null
                                             ? "Pending"
                                             : order.DeliveryStatusName}
                                     </Text>

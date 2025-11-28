@@ -1,4 +1,3 @@
-// src/Components/FilterModal.tsx
 import { StyleSheet, Text, View, TouchableOpacity, Modal } from "react-native";
 import React, { FC } from "react";
 import DatePickerButton from "./DatePickerButton";

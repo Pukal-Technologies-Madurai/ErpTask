@@ -80,6 +80,10 @@ const Home = () => {
   // --- Read initial storage synchronously to avoid race with queries ---
   const initialCompanyId = storage.getString("companyId") ?? "";
   const initialUserId = storage.getString("userId") ?? "";
+  const initialUserTypeId = storage.getString("userTypeId") ?? "";
+  const ADMIN_USER_TYPES = ["0", "1", "2"];
+  const isAdmin = ADMIN_USER_TYPES.includes(initialUserTypeId);
+
   const initialBranchId = storage.getString("branchId") ?? "";
 
   const [companyId, setCompanyId] = React.useState(initialCompanyId);
@@ -101,7 +105,6 @@ const Home = () => {
     if (u.includes("kg") || u.includes("kilogram")) return qty / 1000;
     if (u.includes("ton") || u.includes("tonne")) return qty;
     if (u.includes("g") && !u.includes("kg")) return qty / 1000000;
-    // default assume kg
     return qty / 1000;
   }, []);
 
@@ -142,12 +145,6 @@ const Home = () => {
     return () => controller.abort();
   }, []);
 
-  // NOTE: We avoid reading storage in effect because we already read it synchronously above.
-  // If you want to sync later changes in storage you can add a listener here.
-
-  // -------------------------------
-  // --- react-query useQuery hooks (left unchanged)
-  // -------------------------------
   const {
     data: saleOrderData = [],
     isLoading,
@@ -235,9 +232,6 @@ const Home = () => {
     },
   );
 
-  // -------------------------------
-  // --- Memoized heavy totals (useMemo)
-  // -------------------------------
   const totalSales = React.useMemo(() => {
     return (saleOrderData || []).reduce(
       (acc: number, item: { Total_Invoice_value?: number }) =>
@@ -449,12 +443,9 @@ const Home = () => {
   return (itemWiseStockData || []).reduce((acc: number, item: { Bal_Qty?: number }) => {
     const balQtyInKg = Number(item.Bal_Qty || 0);
     return acc + qtyToTons(balQtyInKg, "kg");
-  }, 0); // <-- initial value must be 0 (not the deps array)
+  }, 0); 
 }, [itemWiseStockData, qtyToTons]);
 
-  // -------------------------------
-  // --- format helpers
-  // -------------------------------
   const formatNumber = React.useCallback((num: number) => {
     if (num >= 10000000) return `${(num / 10000000).toFixed(1)}Cr`;
     if (num >= 100000) return `${(num / 100000).toFixed(1)}L`;
@@ -467,9 +458,6 @@ const Home = () => {
     return tons.toFixed(1);
   }, []);
 
-  // -------------------------------
-  // --- toggle branch selection (modal)
-  // -------------------------------
   const toggleBranchSelection = React.useCallback((branch: Branch) => {
     setSelectedBranches(prev => {
       const exists = prev.some(b => b.id === branch.id);
@@ -481,26 +469,18 @@ const Home = () => {
     });
   }, []);
 
-  // -------------------------------
-  // --- apply selected branches and auto-load (Done)
-  // -------------------------------
  const applySelectedBranchesAndLoad = React.useCallback(async () => {
   setBranchModalVisible(false);
-
-  // Determine branchId to use in state
   let newBranchId = "";
 
   if (selectedBranches.length === 0 || selectedBranches.length === getBranch.length) {
-    // No branch or all branches selected → empty string
     newBranchId = "";
   } else {
-    // Some branches selected → join all selected IDs as CSV
     newBranchId = selectedBranches.map(b => b.id).join(",");
   }
 
   setBranchId(newBranchId);
 
-  // Save to storage only if there is a branchId
   if (newBranchId) {
     storage.set("branchId", newBranchId);
   } else {
@@ -546,10 +526,6 @@ const Home = () => {
   refetchsalesOrderPendingList,
 ]);
 
-
-  // -------------------------------
-  // --- onRefresh fallback (pull-to-refresh)
-  // -------------------------------
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
@@ -583,9 +559,7 @@ const Home = () => {
     refetchsalesOrderPendingList,
   ]);
 
-  // -------------------------------
-  // --- Render
-  // -------------------------------
+  
   return (
     <SafeAreaView style={[styles.container]} edges={["top"]}>
       <AppHeader
@@ -593,7 +567,7 @@ const Home = () => {
         showDrawer={true}
         name={storage.getString("name")}
         subtitle={storage.getString("companyName")}
-        showRightIcon={true}
+        showRightIcon={isAdmin}
         rightIconLibrary="MaterialIcon"
         rightIconName="compare-arrows"
         onRightPress={() => navigation.navigate("CompanySwitch")}

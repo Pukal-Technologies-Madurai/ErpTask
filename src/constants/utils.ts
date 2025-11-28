@@ -20,11 +20,15 @@ export const formatTime = (timeString: string) => {
 };
 
 export const formatCurrency = (amount: number) => {
+    const num = Number(amount);
+    const rounded = isNaN(num) ? 0 : Math.round(num);
+
     return new Intl.NumberFormat("en-IN", {
         style: "currency",
         currency: "INR",
-        maximumFractionDigits: 2,
-    }).format(amount);
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(rounded);
 };
 
 export const LocalTime = (dateObj: Date | string | number) => {

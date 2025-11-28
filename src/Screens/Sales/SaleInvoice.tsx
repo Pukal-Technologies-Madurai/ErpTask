@@ -211,6 +211,43 @@ const SaleInvoice = ({ route }: { route: any }) => {
         return Array.from(brandMap.values()).sort((a, b) => b.count - a.count);
     };
 
+ const getItemsWithTotals = () => {
+    const itemMap = new Map();
+
+    invoiceData.forEach((invoice: any) => {
+        invoice.Products_List?.forEach((product: any) => {
+            // Match brand filter 
+            const brand =
+                product.BrandGet && product.BrandGet.trim() !== ""
+                    ? product.BrandGet
+                    : "No Brand";
+
+            if (selectedBrand && brand !== selectedBrand) return;
+
+            // Item Name
+            const item =
+                product.Product_Name && product.Product_Name.trim() !== ""
+                    ? product.Product_Name
+                    : "No Item";
+
+            // Count using Bill_Qty
+            const qty = Number(product.Bill_Qty) || 0;
+
+            if (!itemMap.has(item)) {
+                itemMap.set(item, {
+                    item,
+                    total: 0, 
+                });
+            }
+
+            const entry = itemMap.get(item);
+            entry.total += qty;
+        });
+    });
+
+    return Array.from(itemMap.values()).sort((a, b) => b.total - a.total);
+};
+
     const getItemsByBrand = (brand: any) => {
         if (!brand) return [];
 
@@ -228,22 +265,22 @@ const SaleInvoice = ({ route }: { route: any }) => {
 
         return Array.from(items);
     };
-    
-     const normalizeFilters = (filters: Record<string, string>) => {
-            const result: Record<string, string> = {};
 
-            Object.keys(filters || {}).forEach((key) => {
-                const value = filters[key];
+    const normalizeFilters = (filters: Record<string, string>) => {
+        const result: Record<string, string> = {};
 
-                // Convert "All" to empty string
-                result[key] =
-                    value === "All" || value === null || value === undefined
-                        ? ""
-                        : value;
-            });
+        Object.keys(filters || {}).forEach((key) => {
+            const value = filters[key];
 
-            return result;
-        };
+            // Convert "All" to empty string
+            result[key] =
+                value === "All" || value === null || value === undefined
+                    ? ""
+                    : value;
+        });
+
+        return result;
+    };
 
     // Brand Filter Component
     const BrandFilter = () => {
@@ -291,56 +328,63 @@ const SaleInvoice = ({ route }: { route: any }) => {
         );
     };
 
-    const ItemFilter = () => {
-        if (!selectedBrand) return null;
+const ItemFilter = () => {
+    if (!selectedBrand) return null;
 
-        return (
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.brandFilterContainer}
+    const itemsWithTotals = getItemsWithTotals();
+
+    return (
+        <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.brandFilterContainer}
+        >
+
+            {/* All Items */}
+            <TouchableOpacity
+                style={[
+                    styles.brandFilterButton,
+                    !selectedItem && styles.brandFilterButtonActive,
+                ]}
+                onPress={() => setSelectedItem("")}
             >
+                <Text
+                    style={[
+                        styles.brandFilterText,
+                        !selectedItem && styles.brandFilterTextActive,
+                    ]}
+                >
+                    All
+                </Text>
+            </TouchableOpacity>
+
+            {/* Individual Items */}
+            {itemsWithTotals.map(({ item, total }) => (
                 <TouchableOpacity
+                    key={item}
                     style={[
                         styles.brandFilterButton,
-                        !selectedItem && styles.brandFilterButtonActive,
+                        selectedItem === item &&
+                            styles.brandFilterButtonActive,
                     ]}
-                    onPress={() => setSelectedItem("")}
+                    onPress={() => setSelectedItem(item)}
                 >
                     <Text
                         style={[
                             styles.brandFilterText,
-                            !selectedItem && styles.brandFilterTextActive,
+                            selectedItem === item &&
+                                styles.brandFilterTextActive,
                         ]}
                     >
-                        All Items
+                        {item} ({total})
                     </Text>
                 </TouchableOpacity>
+            ))}
+        </ScrollView>
+    );
+};
 
-                {itemsList.map((itemName) => (
-                    <TouchableOpacity
-                        key={itemName}
-                        style={[
-                            styles.brandFilterButton,
-                            selectedItem === itemName &&
-                            styles.brandFilterButtonActive,
-                        ]}
-                        onPress={() => setSelectedItem(itemName)}
-                    >
-                        <Text
-                            style={[
-                                styles.brandFilterText,
-                                selectedItem === itemName &&
-                                styles.brandFilterTextActive,
-                            ]}
-                        >
-                            {itemName}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </ScrollView>
-        );
-    };
+
 
 
     // Summary Cards Component
@@ -385,7 +429,7 @@ const SaleInvoice = ({ route }: { route: any }) => {
                         <View style={styles.orderTopRow}>
                             <View style={styles.orderNumberContainer}>
                                 <Text style={styles.orderNumber}>
-                                    {invoice.Do_Inv_No}
+                                    {invoice.Retailer_Name}
                                 </Text>
                                 <View style={styles.dateTimeContainer}>
                                     <Icon
@@ -414,24 +458,46 @@ const SaleInvoice = ({ route }: { route: any }) => {
                                     </Text>
                                 </View>
                             </View>
-                            <Text style={styles.orderAmount}>
-                                {formatCurrency(invoice.Total_Invoice_value)}
-                            </Text>
+                            <View style={styles.amountWrapper}>
+                                {/* Amount Box */}
+                                <View style={styles.amountSection}>
+                                    <Text style={styles.orderAmount}>
+                                        {formatCurrency(invoice.Total_Invoice_value)}
+                                    </Text>
+                                </View>
+
+                                {/* Ref_Brokers Box (separate, aligned) */}
+                                {invoice.Ref_Brokers ? (
+                                    <View style={styles.refBrokerSection}>
+                                        <Icon
+                                            name="groups"
+                                            size={12}
+                                            color={colors.textSecondary}
+                                            style={styles.brokerIcon}
+                                        />
+                                        <Text style={styles.brokerLabel} numberOfLines={1}>
+                                            {invoice.Ref_Brokers}
+                                        </Text>
+                                    </View>
+                                ) : null}
+                            </View>
                         </View>
                         <View style={styles.orderBottomRow}>
+                            {/* Invoice Number */}
                             <View style={styles.retailerContainer}>
                                 <Icon
-                                    name="store"
+                                    name="receipt"
                                     size={14}
                                     color={colors.primary}
                                     style={styles.bottomRowIcon}
                                 />
-                                <Text
-                                    style={styles.retailerName}
-                                    numberOfLines={2}>
-                                    {invoice.Retailer_Name}
+                                <Text style={styles.retailerName} numberOfLines={2}>
+                                    {invoice.Do_Inv_No}
                                 </Text>
                             </View>
+
+
+                            {/* Created By */}
                             <View style={styles.salesPersonContainer}>
                                 <Icon
                                     name="person"
@@ -1219,7 +1285,6 @@ const getStyles = (typography: any, colors: any) =>
             fontWeight: "700",
         },
 
-        // Expenses Section
         expensesSection: {
             backgroundColor: colors.accent + "05",
             padding: responsiveWidth(3),
@@ -1294,4 +1359,23 @@ const getStyles = (typography: any, colors: any) =>
             color: colors.textSecondary,
             textAlign: "center",
         },
+        amountWrapper: {
+            flexDirection: 'column',
+            alignItems: 'flex-end', 
+        },
+        refBrokerSection: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginTop: 4,  
+        },
+        brokerIcon: {
+            marginRight: 4,
+            fontSize: 14
+        },
+        brokerLabel: {
+            fontSize: 14,
+            color: colors.textSecondary,
+            maxWidth: 140,
+        },
+
     });

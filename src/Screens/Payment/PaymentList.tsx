@@ -95,7 +95,13 @@ const PaymentList = ({ route }: { route: any }) => {
         return filtered;
     };
 
-    const filteredData = getProcessedData();
+    const filteredData = React.useMemo(() => getProcessedData(), [
+        payments,
+        searchQuery,
+        selectedTransactionType,
+        branchIdProps
+    ]);
+
     const totalAmount = filteredData.reduce((sum, r) => sum + (r.credit_amount || 0), 0);
 
     const {
@@ -109,6 +115,11 @@ const PaymentList = ({ route }: { route: any }) => {
         data: filteredData,
         itemsPerPage: ITEMS_PER_PAGE,
     });
+
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, selectedTransactionType, branchIdProps]);
+
 
     const togglePayment = (paymentId: string) => {
         const newExpanded = new Set(expandedPayments);
@@ -346,8 +357,30 @@ const PaymentList = ({ route }: { route: any }) => {
                         <Text style={styles.noDataSubtext}>Please select a date range to view receipts</Text>
                     </View>
                 )}
+                {/* Arrow Pagination Controls */}
+                {totalPages > 1 && (
+                    <View style={styles.paginationContainer}>
+                        <TouchableOpacity
+                            style={[styles.arrowButton, currentPage === 1 && styles.arrowButtonDisabled]}
+                            disabled={currentPage === 1}
+                            onPress={() => setCurrentPage(currentPage - 1)}
+                        >
+                            <Text style={styles.arrowText}>{"<"}</Text>
+                        </TouchableOpacity>
 
+                        <Text style={styles.pageInfo}>
+                            {currentPage} / {totalPages}
+                        </Text>
 
+                        <TouchableOpacity
+                            style={[styles.arrowButton, currentPage === totalPages && styles.arrowButtonDisabled]}
+                            disabled={currentPage === totalPages}
+                            onPress={() => setCurrentPage(currentPage + 1)}
+                        >
+                            <Text style={styles.arrowText}>{">"}</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </ScrollView>
         </SafeAreaView>
     )
@@ -473,10 +506,10 @@ const getStyles = (typography: any, colors: any) =>
             color: colors.success,
             fontWeight: "600",
             marginTop: 6,
-            maxWidth: "100%",       
-            overflow: "hidden",    
-            textAlign: "left",     
-            flexShrink: 0,          
+            maxWidth: "100%",
+            overflow: "hidden",
+            textAlign: "left",
+            flexShrink: 0,
         },
         retailerContainer: {
             flex: 1,
@@ -617,6 +650,8 @@ const getStyles = (typography: any, colors: any) =>
         pageInfo: {
             ...typography.caption,
             color: colors.textSecondary,
+            fontSize: typography.fontSizeMedium,
+            marginHorizontal: responsiveWidth(2),
         },
         loadingContainer: {
             flex: 1,
@@ -682,5 +717,20 @@ const getStyles = (typography: any, colors: any) =>
             textAlign: "center",
             marginTop: 8,
         },
+        arrowButton: {
+            paddingVertical: responsiveHeight(1),
+            paddingHorizontal: responsiveWidth(3),
+            backgroundColor: colors.primary,
+            borderRadius: 6,
+        },
+        arrowButtonDisabled: {
+            backgroundColor: colors.disabled || "#ccc",
+        },
+        arrowText: {
+            color: colors.white,
+            fontSize: typography.fontSizeLarge,
+            fontWeight: "bold",
+        },
+
     });
 
