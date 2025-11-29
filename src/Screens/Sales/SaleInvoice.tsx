@@ -211,42 +211,42 @@ const SaleInvoice = ({ route }: { route: any }) => {
         return Array.from(brandMap.values()).sort((a, b) => b.count - a.count);
     };
 
- const getItemsWithTotals = () => {
-    const itemMap = new Map();
+    const getItemsWithTotals = () => {
+        const itemMap = new Map();
 
-    invoiceData.forEach((invoice: any) => {
-        invoice.Products_List?.forEach((product: any) => {
-            // Match brand filter 
-            const brand =
-                product.BrandGet && product.BrandGet.trim() !== ""
-                    ? product.BrandGet
-                    : "No Brand";
+        invoiceData.forEach((invoice: any) => {
+            invoice.Products_List?.forEach((product: any) => {
+                // Match brand filter 
+                const brand =
+                    product.BrandGet && product.BrandGet.trim() !== ""
+                        ? product.BrandGet
+                        : "No Brand";
 
-            if (selectedBrand && brand !== selectedBrand) return;
+                if (selectedBrand && brand !== selectedBrand) return;
 
-            // Item Name
-            const item =
-                product.Product_Name && product.Product_Name.trim() !== ""
-                    ? product.Product_Name
-                    : "No Item";
+                // Item Name
+                const item =
+                    product.Product_Name && product.Product_Name.trim() !== ""
+                        ? product.Product_Name
+                        : "No Item";
 
-            // Count using Bill_Qty
-            const qty = Number(product.Bill_Qty) || 0;
+                // Count using Bill_Qty
+                const qty = Number(product.Bill_Qty) || 0;
 
-            if (!itemMap.has(item)) {
-                itemMap.set(item, {
-                    item,
-                    total: 0, 
-                });
-            }
+                if (!itemMap.has(item)) {
+                    itemMap.set(item, {
+                        item,
+                        total: 0,
+                    });
+                }
 
-            const entry = itemMap.get(item);
-            entry.total += qty;
+                const entry = itemMap.get(item);
+                entry.total += qty;
+            });
         });
-    });
 
-    return Array.from(itemMap.values()).sort((a, b) => b.total - a.total);
-};
+        return Array.from(itemMap.values()).sort((a, b) => b.total - a.total);
+    };
 
     const getItemsByBrand = (brand: any) => {
         if (!brand) return [];
@@ -328,64 +328,61 @@ const SaleInvoice = ({ route }: { route: any }) => {
         );
     };
 
-const ItemFilter = () => {
-    if (!selectedBrand) return null;
+    const ItemFilter = () => {
+        if (!selectedBrand) return null;
 
-    const itemsWithTotals = getItemsWithTotals();
+        const itemsWithTotals = getItemsWithTotals();
 
-    return (
-        <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.brandFilterContainer}
-        >
-
-            {/* All Items */}
-            <TouchableOpacity
-                style={[
-                    styles.brandFilterButton,
-                    !selectedItem && styles.brandFilterButtonActive,
-                ]}
-                onPress={() => setSelectedItem("")}
+        return (
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.brandFilterContainer}
             >
-                <Text
-                    style={[
-                        styles.brandFilterText,
-                        !selectedItem && styles.brandFilterTextActive,
-                    ]}
-                >
-                    All
-                </Text>
-            </TouchableOpacity>
 
-            {/* Individual Items */}
-            {itemsWithTotals.map(({ item, total }) => (
+                {/* All Items */}
                 <TouchableOpacity
-                    key={item}
                     style={[
                         styles.brandFilterButton,
-                        selectedItem === item &&
-                            styles.brandFilterButtonActive,
+                        !selectedItem && styles.brandFilterButtonActive,
                     ]}
-                    onPress={() => setSelectedItem(item)}
+                    onPress={() => setSelectedItem("")}
                 >
                     <Text
                         style={[
                             styles.brandFilterText,
-                            selectedItem === item &&
-                                styles.brandFilterTextActive,
+                            !selectedItem && styles.brandFilterTextActive,
                         ]}
                     >
-                        {item} ({total})
+                        All
                     </Text>
                 </TouchableOpacity>
-            ))}
-        </ScrollView>
-    );
-};
 
-
-
+                {/* Individual Items */}
+                {itemsWithTotals.map(({ item, total }) => (
+                    <TouchableOpacity
+                        key={item}
+                        style={[
+                            styles.brandFilterButton,
+                            selectedItem === item &&
+                            styles.brandFilterButtonActive,
+                        ]}
+                        onPress={() => setSelectedItem(item)}
+                    >
+                        <Text
+                            style={[
+                                styles.brandFilterText,
+                                selectedItem === item &&
+                                styles.brandFilterTextActive,
+                            ]}
+                        >
+                            {item} ({total})
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
+        );
+    };
 
     // Summary Cards Component
     const SummaryCards = () => (
@@ -424,89 +421,57 @@ const ItemFilter = () => {
                 <TouchableOpacity
                     style={styles.orderHeader}
                     onPress={() => toggleInvoice(invoice.Do_Id)}
-                    activeOpacity={0.7}>
-                    <View style={styles.orderHeaderLeft}>
-                        <View style={styles.orderTopRow}>
-                            <View style={styles.orderNumberContainer}>
-                                <Text style={styles.orderNumber}>
-                                    {invoice.Retailer_Name}
-                                </Text>
-                                <View style={styles.dateTimeContainer}>
-                                    <Icon
-                                        name="event"
-                                        size={12}
-                                        color={colors.textSecondary}
-                                        style={styles.dateTimeIcon}
-                                    />
-                                    <Text style={styles.orderDateTime}>
-                                        {invoice.Created_on
-                                            ? getFormattedDate(
-                                                invoice.Created_on,
-                                            )
-                                            : "--"}
+                    activeOpacity={0.8}
+                >
+                    <View style={styles.orderHeaderContent}>
+                        {/* Left Column */}
+                        <View style={styles.leftColumn}>
+                            <Text style={styles.retailerName} numberOfLines={2}>
+                                {invoice.Retailer_Name || "--"}
+                            </Text>
+                            <View style={styles.dateTimeRow}>
+                                <View style={styles.dateTimeItem}>
+                                    <Icon name="event" size={12} color={colors.textSecondary} />
+                                    <Text style={styles.dateTimeText}>
+                                        {invoice.Created_on ? getFormattedDate(invoice.Created_on) : "--"}
                                     </Text>
-                                    <Icon
-                                        name="schedule"
-                                        size={12}
-                                        color={colors.textSecondary}
-                                        style={styles.dateTimeIcon}
-                                    />
-                                    <Text style={styles.orderDateTime}>
-                                        {invoice.Created_on
-                                            ? formatTime(invoice.Created_on)
-                                            : "--"}
+                                </View>
+                                <View style={styles.dateTimeItem}>
+                                    <Icon name="schedule" size={12} color={colors.textSecondary} />
+                                    <Text style={styles.dateTimeText}>
+                                        {invoice.Created_on ? formatTime(invoice.Created_on) : "--"}
                                     </Text>
                                 </View>
                             </View>
-                            <View style={styles.amountWrapper}>
-                                {/* Amount Box */}
-                                <View style={styles.amountSection}>
-                                    <Text style={styles.orderAmount}>
-                                        {formatCurrency(invoice.Total_Invoice_value)}
-                                    </Text>
-                                </View>
-
-                                {/* Ref_Brokers Box (separate, aligned) */}
-                                {invoice.Ref_Brokers ? (
-                                    <View style={styles.refBrokerSection}>
-                                        <Icon
-                                            name="groups"
-                                            size={12}
-                                            color={colors.textSecondary}
-                                            style={styles.brokerIcon}
-                                        />
-                                        <Text style={styles.brokerLabel} numberOfLines={1}>
-                                            {invoice.Ref_Brokers}
-                                        </Text>
-                                    </View>
-                                ) : null}
+                            <View style={styles.invoiceIdRow}>
+                                <Icon name="receipt" size={14} color={colors.primary} />
+                                <Text style={styles.invoiceIdText} numberOfLines={1}>
+                                    {invoice.Do_Inv_No || "--"}
+                                </Text>
                             </View>
                         </View>
-                        <View style={styles.orderBottomRow}>
-                            {/* Invoice Number */}
-                            <View style={styles.retailerContainer}>
-                                <Icon
-                                    name="receipt"
-                                    size={14}
-                                    color={colors.primary}
-                                    style={styles.bottomRowIcon}
-                                />
-                                <Text style={styles.retailerName} numberOfLines={2}>
-                                    {invoice.Do_Inv_No}
-                                </Text>
-                            </View>
 
-
-                            {/* Created By */}
-                            <View style={styles.salesPersonContainer}>
-                                <Icon
-                                    name="person"
-                                    size={14}
-                                    color={colors.textSecondary}
-                                    style={styles.bottomRowIcon}
-                                />
-                                <Text style={styles.salesPerson}>
-                                    {invoice.Created_BY_Name}
+                        {/* Right Column */}
+                        <View style={styles.rightColumn}>
+                            <Text style={styles.totalAmount}>
+                                {invoice.Total_Invoice_value
+                                    ? formatCurrency(invoice.Total_Invoice_value)
+                                    : "--"}
+                            </Text>
+                            {invoice.Ref_Brokers ? (
+                                <View style={styles.refBrokerRow}>
+                                    <Icon name="groups" size={12} color={colors.textSecondary} />
+                                    <Text style={styles.refBrokerText} numberOfLines={1}>
+                                        {invoice.Ref_Brokers}
+                                    </Text>
+                                </View>
+                            ) : (
+                                <View style={{ height: 18 }} />
+                            )}
+                            <View style={styles.createdByRow}>
+                                <Icon name="person" size={14} color={colors.textSecondary} />
+                                <Text style={styles.createdByText} numberOfLines={1}>
+                                    {invoice.Created_BY_Name || "--"}
                                 </Text>
                             </View>
                         </View>
@@ -1040,6 +1005,7 @@ const getStyles = (typography: any, colors: any) =>
             alignItems: "flex-start",
             justifyContent: "space-between",
             padding: responsiveWidth(4),
+            backgroundColor: colors.white,
         },
         orderHeaderLeft: {
             flex: 1,
@@ -1098,7 +1064,11 @@ const getStyles = (typography: any, colors: any) =>
             flex: 1,
             ...typography.body2,
             color: colors.text,
-            fontWeight: "500",
+            fontSize: 16,
+            fontWeight: '600',
+            marginBottom: 6,
+            lineHeight: 20,
+            flexWrap: 'wrap',
         },
         salesPersonContainer: {
             flexDirection: "row",
@@ -1361,12 +1331,12 @@ const getStyles = (typography: any, colors: any) =>
         },
         amountWrapper: {
             flexDirection: 'column',
-            alignItems: 'flex-end', 
+            alignItems: 'flex-end',
         },
         refBrokerSection: {
             flexDirection: 'row',
             alignItems: 'center',
-            marginTop: 4,  
+            marginTop: 4,
         },
         brokerIcon: {
             marginRight: 4,
@@ -1377,5 +1347,85 @@ const getStyles = (typography: any, colors: any) =>
             color: colors.textSecondary,
             maxWidth: 140,
         },
+        dateTimeItem: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginRight: 8,
+        },
+        bottomRowItem: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginRight: 16,
+            flexShrink: 1,
+        },
+        bottomRowText: {
+            fontSize: 13,
+            color: colors.textPrimary,
+            marginLeft: 4,
+            fontWeight: '500',
+            flexShrink: 1,
+        },
+        orderHeaderContent: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+        },
+        leftColumn: {
+            flex: 1,
+            paddingRight: 8,
+        },
+        rightColumn: {
+            flex: 1,
+            alignItems: 'flex-end',
+            paddingLeft: 8,
+        },
+        dateTimeRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginBottom: 6,
+        },
+        dateTimeText: {
+            fontSize: 12,
+            color: colors.textSecondary,
+            marginLeft: 4,
+        },
+        invoiceIdRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+        },
+        invoiceIdText: {
+            fontSize: 13,
+            color: colors.textPrimary,
+            marginLeft: 4,
+            fontWeight: '500',
+        },
+        totalAmount: {
+            fontSize: 16,
+            fontWeight: '600',
+            color: colors.success,
+            marginBottom: 6,
+        },
+        refBrokerRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginBottom: 6,
+        },
+        refBrokerText: {
+            fontSize: 12,
+            color: colors.textSecondary,
+            marginLeft: 4,
+            maxWidth: 120,
+        },
+        createdByRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+        },
+        createdByText: {
+            fontSize: 12,
+            color: colors.textSecondary,
+            marginLeft: 4,
+            maxWidth: 120,
+        },
+
 
     });

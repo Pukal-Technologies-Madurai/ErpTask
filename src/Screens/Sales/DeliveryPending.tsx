@@ -550,7 +550,7 @@ const DeliveryPending = ({ route }: { route: any }) => {
                                     key={tab}
                                     onPress={() => {
                                         setSelectedTab(tab as any);
-                                        setCurrentPage(1); // reset pagination
+                                        setCurrentPage(1);
                                     }}
                                     style={[
                                         styles.toggleButton,
@@ -612,7 +612,10 @@ const DeliveryPending = ({ route }: { route: any }) => {
 
                         {/* Orders List */}
                         {displayData.map((order, index) => (
-                            <SaleOrderCard key={order.S_Id} order={order} />
+                            <SaleOrderCard
+                                key={order.Order_No || order.S_Id || index}
+                                order={order}
+                            />
                         ))}
 
                         {/* Pagination */}

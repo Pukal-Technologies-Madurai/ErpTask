@@ -5,7 +5,7 @@ import EnhancedDropdown from "./EnhancedDropdown";
 import { useTheme } from "../Context/ThemeContext";
 import { shadows, spacing } from "../constants/helper";
 import { fetchSalesInvoiceFilters } from "../Api/Sales";
-import { Dropdown } from "react-native-element-dropdown";
+import MultiSelectDropdown from "./MultiSelectDropdown";
 
 export interface DropdownItem {
     label: string;
@@ -194,37 +194,25 @@ const FilterModal: FC<FilterModalProps> = ({
                             <View style={{ marginTop: 16 }}>
                                 {filterOptions.map((filter: any) => {
                                     const mappedKey = filterDynamicMapping[filter.columnName];
-                                    const selectedValue = selectedFilters[mappedKey] || "";
+                                    const selectedList: string[] =
+                                        selectedFilters[mappedKey]?.split(",").filter(Boolean) || [];
 
                                     return (
-                                        <View key={filter.columnName} style={{ marginBottom: 12 }}>
-                                            <Text style={[styles.label]}>{filter.columnName.replace(/_/g, " ")}</Text>
-
-                                            <Dropdown
-                                                style={{
-                                                    borderColor: "#ccc",
-                                                    borderWidth: 1,
-                                                    borderRadius: 8,
-                                                    paddingHorizontal: 8,
-                                                    height: 45,
-                                                }}
-                                                data={[
-                                                    { label: defaultLabel, value: "" },
-                                                    ...(filter.options?.map((o: any) => ({ label: o.label, value: o.value })) || []),
-                                                ]}
-                                                search
-                                                maxHeight={250}
-                                                labelField="label"
-                                                valueField="label"
-                                                placeholder={`Select ${filter.columnName.replace(/_/g, " ")}`}
-                                                searchPlaceholder="Search..."
-                                                value={selectedValue}
-                                                onChange={(item: any) => {
-                                                    const selectedLabel = item.label;
-                                                    setSelectedFilters((prev) => ({ ...prev, [mappedKey]: selectedLabel }));
-                                                }}
-                                            />
-                                        </View>
+                                        <MultiSelectDropdown
+                                            key={filter.columnName}
+                                            label={filter.columnName.replace(/_/g, " ")}
+                                            selected={selectedList}
+                                            options={filter.options?.map((o: any) => ({
+                                                label: o.label,
+                                                value: o.value,
+                                            })) || []}
+                                            onChange={(values) => {
+                                                setSelectedFilters((prev) => ({
+                                                    ...prev,
+                                                    [mappedKey]: values.join(","), 
+                                                }));
+                                            }}
+                                        />
                                     );
                                 })}
                             </View>
