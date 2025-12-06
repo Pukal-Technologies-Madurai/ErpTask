@@ -30,26 +30,18 @@ export type FilterModalProps = {
     onApply: (selectedFilters: Record<string, string>) => void;
     onClose: () => void;
 
-    // New: allow parent to provide fetch function or external data for dynamic filters
     enableDynamicFilter?: boolean;
     fetchFiltersFn?: (date: Date) => Promise<any[]>;
     externalFilters?: any[];
 
-    // Sales Person Filter (existing)
+    // Sales Person Filter
     showSalesPerson?: boolean;
     salesPersonLabel?: string;
     salesPersonData?: DropdownItem[];
     selectedSalesPerson?: DropdownItem | null;
     onSalesPersonChange?: (item: DropdownItem | null) => void;
 
-    // Brand Filter (existing)
-    brand?: boolean;
-    brandlabel?: string;
-    brandData?: DropdownItem[];
-    selectedBrand?: DropdownItem | null;
-    onBrandChange?: (item: DropdownItem | null) => void;
-
-    // Payment Option Filter (existing)
+    // Payment Option Filter
     showPaymentOption?: boolean;
     paymentOptionLabel?: string;
     paymentOptionData?: DropdownItem[];
@@ -57,6 +49,9 @@ export type FilterModalProps = {
     onPaymentOptionChange?: (item: DropdownItem | null) => void;
 
     defaultLabel?: string;
+    reportName?: string;
+    expectedReportName?: string;
+
 };
 
 const FilterModal: FC<FilterModalProps> = ({
@@ -76,15 +71,19 @@ const FilterModal: FC<FilterModalProps> = ({
     selectedSalesPerson = null,
     onSalesPersonChange,
     salesPersonLabel = "Sales Person",
+
     showPaymentOption = false,
     paymentOptionData = [],
     selectedPaymentOption = null,
     onPaymentOptionChange,
     paymentOptionLabel = "Payment Option",
+
     enableDynamicFilter = false,
     defaultLabel = "All",
     fetchFiltersFn,
     externalFilters,
+    reportName,
+    expectedReportName,
 }) => {
     const { colors, typography } = useTheme();
     const styles = getStyles(typography, colors);
@@ -93,61 +92,66 @@ const FilterModal: FC<FilterModalProps> = ({
     const [selectedFilters, setSelectedFilters] = React.useState<Record<string, string>>({});
     const [filterDynamicMapping, setFilterDynamicMapping] = React.useState<Record<string, string>>({});
 
+    //  -------------------------
+    //  LOAD FILTERS (ONLY LEVEL 1)
+    //  -------------------------
     React.useEffect(() => {
         const loadFilters = async () => {
             try {
-                // preserve previous selected filters if present
-                const prevSelectedFilters = { ...selectedFilters };
                 let res: any[] | null = null;
 
-                if (externalFilters && Array.isArray(externalFilters) && externalFilters.length > 0) {
+                if (externalFilters?.length) {
                     res = externalFilters;
                 } else if (fetchFiltersFn) {
                     res = await fetchFiltersFn(fromDate);
                 } else {
-                    // fallback (legacy)
                     res = await fetchSalesInvoiceFilters();
                 }
 
                 if (!res || !Array.isArray(res)) {
-                    console.warn("Invalid response for filters:", res);
                     setFilterOptions([]);
                     return;
                 }
 
-                // Map column names -> filter1/filter2...
+                //  ✅ FILTER ONLY LEVEL 1
+                const LEVEL1 = res.filter((item) => item.Level );
+
                 const mapping: Record<string, string> = {};
-                res.forEach((filter: any, idx: number) => {
-                    mapping[filter.columnName] = `filter${idx + 1}`;
+                LEVEL1.forEach((f: any, idx: number) => {
+                    mapping[f.columnName] = `filter${idx + 1}`;
                 });
+
                 setFilterDynamicMapping(mapping);
 
-                // Enhance filters structure for dropdown UI
-                const enhanced = res.map((f: any) => ({
+                const enhanced = LEVEL1.map((f: any) => ({
                     ...f,
                     searchQuery: "",
-                    filteredOptions: f.options || [],
+                    filteredOptions: f.options ?? [],
                 }));
 
-                // Rehydrate previous selections (if keys changed)
-                const updatedSelected: Record<string, string> = {};
-                enhanced.forEach((f: any) => {
-                    const mappedKey = mapping[f.columnName];
-                    const prevVal = prevSelectedFilters[mappedKey];
-                    if (prevVal) updatedSelected[mappedKey] = prevVal;
-                });
-
                 setFilterOptions(enhanced);
-                setSelectedFilters(updatedSelected);
             } catch (err) {
-                console.error("❌ Failed to load dynamic filters:", err);
+                console.error("Error loading filters", err);
                 setFilterOptions([]);
             }
         };
 
-        if (visible && enableDynamicFilter) loadFilters();
-        else if (!enableDynamicFilter) setFilterOptions([]);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // NEW: Dynamic filter should load ONLY when report names match
+        const canLoadDynamic =
+            visible &&
+            enableDynamicFilter &&
+            reportName &&
+            expectedReportName &&
+            reportName.toLowerCase() === expectedReportName.toLowerCase();
+
+        if (canLoadDynamic) {
+            loadFilters();
+        } else {
+            // Prevent loading dynamic filters for non-matching pages
+            setFilterOptions([]);
+        }
+
+
     }, [visible, enableDynamicFilter, fromDate, fetchFiltersFn, externalFilters]);
 
     return (
@@ -189,7 +193,9 @@ const FilterModal: FC<FilterModalProps> = ({
                             </View>
                         )}
 
-                        {/* Dynamic API-based filters */}
+                        {/*  -------------------------
+                            DYNAMIC FILTERS (LEVEL 1 ONLY)
+                            --------------------------- */}
                         {filterOptions.length > 0 && (
                             <View style={{ marginTop: 16 }}>
                                 {filterOptions.map((filter: any) => {
@@ -197,19 +203,22 @@ const FilterModal: FC<FilterModalProps> = ({
                                     const selectedList: string[] =
                                         selectedFilters[mappedKey]?.split(",").filter(Boolean) || [];
 
+                                    const options =
+                                        filter.options?.map((o: any) => ({
+                                            label: o.label,
+                                            value: o.value,
+                                        })) || [];
+
                                     return (
                                         <MultiSelectDropdown
                                             key={filter.columnName}
                                             label={filter.columnName.replace(/_/g, " ")}
                                             selected={selectedList}
-                                            options={filter.options?.map((o: any) => ({
-                                                label: o.label,
-                                                value: o.value,
-                                            })) || []}
+                                            options={options}
                                             onChange={(values) => {
                                                 setSelectedFilters((prev) => ({
                                                     ...prev,
-                                                    [mappedKey]: values.join(","), 
+                                                    [mappedKey]: values.join(","),
                                                 }));
                                             }}
                                         />

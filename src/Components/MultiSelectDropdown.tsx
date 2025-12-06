@@ -1,10 +1,7 @@
 import React, { useState } from "react";
 import {
-    View,
-    Text,
-    TouchableOpacity,
-    FlatList,
-    TextInput,
+    View, Text, TouchableOpacity,
+    FlatList, TextInput
 } from "react-native";
 
 export interface MultiSelectItem {
@@ -23,7 +20,6 @@ const MultiSelectDropdown = ({ label, selected, options, onChange }: Props) => {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
 
-    // Filter using search box
     const filtered = options.filter((o) =>
         o.label.toLowerCase().includes(search.toLowerCase())
     );
@@ -36,9 +32,12 @@ const MultiSelectDropdown = ({ label, selected, options, onChange }: Props) => {
         }
     };
 
+    const removeValue = (value: string) => {
+        onChange(selected.filter((v) => v !== value));
+    };
+
     return (
         <View style={{ marginBottom: 12 }}>
-            {/* Label */}
             <Text style={{ marginBottom: 6, fontWeight: "600", fontSize: 14 }}>
                 {label}
             </Text>
@@ -50,16 +49,40 @@ const MultiSelectDropdown = ({ label, selected, options, onChange }: Props) => {
                     borderWidth: 1,
                     borderColor: "#999",
                     borderRadius: 8,
-                    padding: 12,
+                    padding: 10,
+                    minHeight: 50,
                     backgroundColor: "#fff",
                 }}
                 activeOpacity={0.6}
             >
-                <Text numberOfLines={1}>
-                    {selected.length > 0
-                        ? selected.join(", ")
-                        : "Select"}
-                </Text>
+                {/* Chips */}
+                <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                    {selected.length > 0 ? (
+                        selected.map((item) => (
+                            <View
+                                key={item}
+                                style={{
+                                    flexDirection: "row",
+                                    backgroundColor: "#e3f2fd",
+                                    paddingHorizontal: 10,
+                                    paddingVertical: 6,
+                                    borderRadius: 16,
+                                    marginRight: 6,
+                                    marginBottom: 6,
+                                }}
+                            >
+                                <Text style={{ marginRight: 6 }}>{item}</Text>
+
+                                {/* Remove Icon */}
+                                <TouchableOpacity onPress={() => removeValue(item)}>
+                                    <Text style={{ fontWeight: "bold" }}>×</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ))
+                    ) : (
+                        <Text style={{ color: "#666" }}>Select</Text>
+                    )}
+                </View>
             </TouchableOpacity>
 
             {/* Dropdown Content */}
@@ -87,7 +110,6 @@ const MultiSelectDropdown = ({ label, selected, options, onChange }: Props) => {
                         }}
                     />
 
-                    {/* List */}
                     <FlatList
                         data={filtered}
                         keyExtractor={(item) => item.value}

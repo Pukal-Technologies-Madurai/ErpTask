@@ -319,6 +319,8 @@ const OpeningStock = () => {
                 title="Filter Options"
                 fromLabel="From Date"
                 toLabel="To Date"
+                reportName="StockInhand"
+                expectedReportName="StockInhand"
                 enableDynamicFilter={true}
                 externalFilters={externalFilterTemplate || undefined}
             />

@@ -1,12 +1,6 @@
 import {
-    StyleSheet,
-    Text,
-    View,
-    ScrollView,
-    TouchableOpacity,
-    RefreshControl,
-    TextInput,
-} from "react-native";
+    StyleSheet,Text,View,ScrollView,TouchableOpacity,
+    RefreshControl,TextInput,} from "react-native";
 import React from "react";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
@@ -661,6 +655,8 @@ const SaleInvoice = ({ route }: { route: any }) => {
                 visible={modalVisible}
                 fromDate={fromDate}
                 toDate={toDate}
+                reportName="Sales Invoice"
+                expectedReportName="Sales Invoice"
                 enableDynamicFilter={true}
                 onFromDateChange={setFromDate}
                 onToDateChange={setToDate}
