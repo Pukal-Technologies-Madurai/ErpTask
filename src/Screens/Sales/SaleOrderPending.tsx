@@ -46,8 +46,13 @@ const SaleOrderPending = ({ route }: { route: any }) => {
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-    const [fromDate, setFromDate] = React.useState<Date>(new Date());
-    const [toDate, setToDate] = React.useState<Date>(new Date());
+    const today = new Date();
+    const last30 = new Date();
+    last30.setDate(today.getDate() - 30);
+
+    const [fromDate, setFromDate] = React.useState<Date>(last30);
+    const [toDate, setToDate] = React.useState<Date>(today);
+
     const [userId, setUserId] = React.useState("");
     const [branchId, setBranchId] = React.useState("");
     const [searchQuery, setSearchQuery] = React.useState("");
@@ -465,70 +470,70 @@ const SaleOrderPending = ({ route }: { route: any }) => {
     };
 
     // Item-wise Card - displays product as requested
-const ItemWiseCard = ({ item }: { item: any }) => {
-    const formatDate = (value: any) => {
-        if (!value) return "—";
-        const d = new Date(value);
-        if (isNaN(d.getTime())) return "—";
-        return d.toLocaleDateString("en-IN");
+    const ItemWiseCard = ({ item }: { item: any }) => {
+        const formatDate = (value: any) => {
+            if (!value) return "—";
+            const d = new Date(value);
+            if (isNaN(d.getTime())) return "—";
+            return d.toLocaleDateString("en-IN");
+        };
+
+        return (
+            <View style={styles.cardContainer}>
+                {/* Header: Product + Brand */}
+                <View style={styles.cardHeader}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.productName}>
+                            {item.Product_Name || "--"}
+                        </Text>
+                        <Text style={styles.brandName}>
+                            {item.BrandGet || "--"}
+                        </Text>
+                    </View>
+
+                    <View style={styles.amountContainer}>
+                        <Text style={styles.amount}>
+                            {formatCurrency(item.Final_Amo)}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Divider */}
+                <View style={styles.divider} />
+
+                {/* Details Row */}
+                <View style={styles.detailsRow}>
+                    {/* Left Column */}
+                    <View style={styles.detailsColumn}>
+                        <Text style={styles.label}>Order No</Text>
+                        <Text style={styles.value}>{item.So_Inv_No || "--"}</Text>
+
+                        <Text style={styles.label}>Retailer</Text>
+                        <Text style={styles.value}>{item.Retailer_Name || "--"}</Text>
+
+                        <Text style={styles.label}>Qty</Text>
+                        <Text style={styles.value}>
+                            {item.Bill_Qty ?? item.Total_Qty ?? "--"}
+                        </Text>
+                    </View>
+
+                    {/* Right Column */}
+                    <View style={styles.detailsColumn}>
+                        <Text style={styles.label}>Sales Person</Text>
+                        <Text style={styles.value}>
+                            {item.Sales_Person_Name || "--"}
+                        </Text>
+
+                        <Text style={styles.label}>Date</Text>
+                        <Text style={styles.value}>{formatDate(item.Created_on)}</Text>
+
+                        <Text style={styles.label}>Branch</Text>
+                        <Text style={styles.value}>{item.Branch_Name || "--"}</Text>
+                    </View>
+                </View>
+            </View>
+        );
     };
-
-    return (
-        <View style={styles.cardContainer}>
-            {/* Header: Product + Brand */}
-            <View style={styles.cardHeader}>
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.productName}>
-                        {item.Product_Name || "--"}
-                    </Text>
-                    <Text style={styles.brandName}>
-                        {item.BrandGet || "--"}
-                    </Text>
-                </View>
-
-                <View style={styles.amountContainer}>
-                    <Text style={styles.amount}>
-                        {formatCurrency(item.Final_Amo)}
-                    </Text>
-                </View>
-            </View>
-
-            {/* Divider */}
-            <View style={styles.divider} />
-
-            {/* Details Row */}
-            <View style={styles.detailsRow}>
-                {/* Left Column */}
-                <View style={styles.detailsColumn}>
-                    <Text style={styles.label}>Order No</Text>
-                    <Text style={styles.value}>{item.So_Inv_No || "--"}</Text>
-
-                    <Text style={styles.label}>Retailer</Text>
-                    <Text style={styles.value}>{item.Retailer_Name || "--"}</Text>
-
-                    <Text style={styles.label}>Qty</Text>
-                    <Text style={styles.value}>
-                        {item.Bill_Qty ?? item.Total_Qty ?? "--"}
-                    </Text>
-                </View>
-
-                {/* Right Column */}
-                <View style={styles.detailsColumn}>
-                    <Text style={styles.label}>Sales Person</Text>
-                    <Text style={styles.value}>
-                        {item.Sales_Person_Name || "--"}
-                    </Text>
-
-                    <Text style={styles.label}>Date</Text>
-                    <Text style={styles.value}>{formatDate(item.Created_on)}</Text>
-
-                    <Text style={styles.label}>Branch</Text>
-                    <Text style={styles.value}>{item.Branch_Name || "--"}</Text>
-                </View>
-            </View>
-        </View>
-    );
-};
 
 
     const handleCloseModal = () => {
@@ -1101,63 +1106,63 @@ const getStyles = (typography: any, colors: any) =>
             fontWeight: "600",
             marginBottom: 6,
         },
-         cardContainer: {
-        backgroundColor: "#fff",
-        borderRadius: 12,
-        padding: 16,
-        marginVertical: 8,
-        marginHorizontal: 16,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.1,
-        shadowRadius: 6,
-        elevation: 5,
-    },
-    cardHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 12,
-    },
-    productName: {
-        fontSize: 16,
-        fontWeight: "700",
-        color: "#339e38ff",
-    },
-    brandName: {
-        fontSize: 13,
-        color: "#48693bff",
-        marginTop: 2,
-    },
-    amountContainer: {
-        alignItems: "flex-end",
-    },
-    amount: {
-        fontSize: 16,
-        fontWeight: "700",
-        color: "#1e88e5", 
-    },
-    divider: {
-        height: 1,
-        backgroundColor: "#eee",
-        marginVertical: 8,
-    },
-    detailsRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-    },
-    detailsColumn: {
-        flex: 1,
-    },
-    label: {
-        fontSize: 12,
-        color: "#999",
-        marginTop: 4,
-    },
-    value: {
-        fontSize: 14,
-        fontWeight: "500",
-        color: "#444",
-        marginBottom: 4,
-    },
+        cardContainer: {
+            backgroundColor: "#fff",
+            borderRadius: 12,
+            padding: 16,
+            marginVertical: 8,
+            marginHorizontal: 16,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.1,
+            shadowRadius: 6,
+            elevation: 5,
+        },
+        cardHeader: {
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 12,
+        },
+        productName: {
+            fontSize: 16,
+            fontWeight: "700",
+            color: "#339e38ff",
+        },
+        brandName: {
+            fontSize: 13,
+            color: "#48693bff",
+            marginTop: 2,
+        },
+        amountContainer: {
+            alignItems: "flex-end",
+        },
+        amount: {
+            fontSize: 16,
+            fontWeight: "700",
+            color: "#1e88e5",
+        },
+        divider: {
+            height: 1,
+            backgroundColor: "#eee",
+            marginVertical: 8,
+        },
+        detailsRow: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+        },
+        detailsColumn: {
+            flex: 1,
+        },
+        label: {
+            fontSize: 12,
+            color: "#999",
+            marginTop: 4,
+        },
+        value: {
+            fontSize: 14,
+            fontWeight: "500",
+            color: "#444",
+            marginBottom: 4,
+        },
 
     });

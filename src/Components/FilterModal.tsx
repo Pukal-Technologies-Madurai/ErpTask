@@ -114,7 +114,7 @@ const FilterModal: FC<FilterModalProps> = ({
                 }
 
                 //  ✅ FILTER ONLY LEVEL 1
-                const LEVEL1 = res.filter((item) => item.Level );
+                const LEVEL1 = res.filter((item) => item.FilterLevel === 1);
 
                 const mapping: Record<string, string> = {};
                 LEVEL1.forEach((f: any, idx: number) => {
