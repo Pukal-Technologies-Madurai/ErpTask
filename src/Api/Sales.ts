@@ -223,5 +223,29 @@ export const getFilterColumnName = async () => {
     
 };
 
+export const stockItemFilterColumnName = async () => {
+    try {
+        
+        const url = API.getReportFilters("Stockinhand"); 
+        console.log("getFilterColumnName url", url);
+
+        const res = await fetch(url, { 
+            method: "GET", 
+            headers: { "Content-Type": "application/json" } 
+        });
+        const json = await res.json();
+
+        if (!res.ok || !json.success) {
+            throw new Error(json.message || "Failed to fetch filter column name");
+        }
+
+        return json.data || [];
+    } catch (error) {
+        console.error("Error fetching filter column name:", error);
+        throw error;
+    }
+    
+};
+
 
 

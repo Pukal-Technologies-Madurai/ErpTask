@@ -57,6 +57,8 @@ export type RootStackParamList = {
     profile: undefined;
     Home: undefined;
     Stock: undefined;
+    Stockitem:undefined;
+    Stockgodown:undefined;
     receiptList: receiptListParams;
 
     invoiceSale: SaleInvoiceParams;

@@ -779,25 +779,25 @@ const Home = () => {
               </Pressable>
             </View>
 
-            <View style={styles.summaryRow}>
-              <Pressable onPress={() => navigation.navigate("ItemStack")}>
+              <View style={styles.summaryRow}>
+              <Pressable onPress={() => navigation.navigate("Stockitem")}>
                 <View style={styles.summaryCard}>
                   <Icon name="inventory" size={32} color={colors.success} />
-                  <Text style={styles.summaryCardTitle}>Item Stock Value</Text>
-                  <Text style={styles.summaryCardValue}>₹{formatNumber(totalStockValue)}</Text>
+                  <Text style={styles.summaryCardTitle}>Stock Itemwise</Text>
+                  <Text style={styles.summaryCardValue}>₹{formatNumber(totalItemWise)}</Text>
                   <View style={[styles.tonnageContainer, { backgroundColor: colors.success + "15" }]}>
                     <Icon name="scale" size={16} color={colors.success} />
                     <Text style={[styles.tonnageText, { color: colors.success }]}>
-                      {formatTonnage(totalStockTonnage)} Tons
+                      {formatTonnage(totalItemWiseTonnage)} Tons
                     </Text>
                   </View>
                 </View>
               </Pressable>
 
-              <Pressable onPress={() => navigation.navigate("Stock")}>
+              <Pressable onPress={() => navigation.navigate("Stockgodown")}>
                 <View style={styles.summaryCard}>
                   <Icon name="warehouse" size={32} color={colors.sih} />
-                  <Text style={styles.summaryCardTitle}>Stock in Hand</Text>
+                  <Text style={styles.summaryCardTitle}>Stock Godownwise</Text>
                   <Text style={styles.summaryCardValue}>₹{formatNumber(totalItemWise)}</Text>
                   <View style={[styles.tonnageContainer, { backgroundColor: colors.sih + "15" }]}>
                     <Icon name="scale" size={16} color={colors.sih} />
@@ -866,6 +866,36 @@ const Home = () => {
                   </View>
                 </View>
               </Pressable>
+            </View>
+
+             <View style={styles.summaryRow}>
+              <Pressable onPress={() => navigation.navigate("ItemStack")}>
+                <View style={styles.summaryCard}>
+                  <Icon name="inventory" size={32} color={colors.success} />
+                  <Text style={styles.summaryCardTitle}>Item Stock Value</Text>
+                  <Text style={styles.summaryCardValue}>₹{formatNumber(totalStockValue)}</Text>
+                  <View style={[styles.tonnageContainer, { backgroundColor: colors.success + "15" }]}>
+                    <Icon name="scale" size={16} color={colors.success} />
+                    <Text style={[styles.tonnageText, { color: colors.success }]}>
+                      {formatTonnage(totalStockTonnage)} Tons
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+
+              {/* <Pressable onPress={() => navigation.navigate("Stock")}>
+                <View style={styles.summaryCard}>
+                  <Icon name="warehouse" size={32} color={colors.sih} />
+                  <Text style={styles.summaryCardTitle}>Stock in Hand</Text>
+                  <Text style={styles.summaryCardValue}>₹{formatNumber(totalItemWise)}</Text>
+                  <View style={[styles.tonnageContainer, { backgroundColor: colors.sih + "15" }]}>
+                    <Icon name="scale" size={16} color={colors.sih} />
+                    <Text style={[styles.tonnageText, { color: colors.sih }]}>
+                      {formatTonnage(totalItemWiseTonnage)} Tons
+                    </Text>
+                  </View>
+                </View>
+              </Pressable> */}
             </View>
 
           </View>
