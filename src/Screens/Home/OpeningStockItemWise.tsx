@@ -69,9 +69,13 @@ const OpeningStockItemWise = () => {
     const [selectedValuesByType, setSelectedValuesByType] = React.useState<Record<number, string>>({});
     const [activeTypeValuesWithTotals, setActiveTypeValuesWithTotals] = React.useState<{ value: string; total: number }[]>([]);
     const [secondLevelValues, setSecondLevelValues] = React.useState<{ value: string; total: number }[]>([]);
+    const [groupByColumn, setGroupByColumn] = React.useState<string>("Stock_Group");
+
 
     const fromStr = React.useMemo(() => formatApiDate(fromDate), [fromDate]);
     const toStr = React.useMemo(() => formatApiDate(toDate), [toDate]);
+    const REPORT_NAME = "StockInhand";
+
 
     // --- fetch ItemWise stock
     const {
@@ -94,22 +98,24 @@ const OpeningStockItemWise = () => {
     // ---- Load external filters for FilterModal (same as before) ----
     const loadExternalFilters = React.useCallback(async () => {
         try {
-            const url = API.getReportFilters?.("StockInHand") as string;
+            const url = API.getReportFilters(REPORT_NAME);
             const res = await fetch(url);
-            const txt = await res.text();
-            if (txt.startsWith("<")) {
-                console.warn("Filter template returned HTML", txt.slice(0, 200));
-                setExternalFilterTemplate([]);
-                return;
-            }
-            const json = JSON.parse(txt);
-            const data = json?.data || [];
-            setExternalFilterTemplate(Array.isArray(data) ? data : []);
+            const json = await res.json();
+            setExternalFilterTemplate(Array.isArray(json?.data) ? json.data : []);
         } catch (err) {
             console.error("Failed to load report filters:", err);
             setExternalFilterTemplate([]);
         }
     }, []);
+
+
+    const getGroupIcon = () => {
+        if (groupByColumn.toLowerCase().includes("brand")) return "branding-watermark";
+        if (groupByColumn.toLowerCase().includes("bag")) return "inventory";
+        if (groupByColumn.toLowerCase().includes("grade")) return "layers";
+        if (groupByColumn.toLowerCase().includes("group")) return "category";
+        return "label";
+    };
 
     React.useEffect(() => {
         if (modalVisible) loadExternalFilters();
@@ -164,77 +170,112 @@ const OpeningStockItemWise = () => {
             .sort((a, b) => b.total - a.total);
     };
 
+    React.useEffect(() => {
+        if (!externalFilterTemplate?.length) return;
+
+        const groupFilter = externalFilterTemplate.find(
+            (f: any) =>
+                f.filterType === "GROUP_FILTER" ||
+                f.isGroupFilter === true
+        );
+
+        if (!groupFilter?.columnName) {
+            console.warn("No GROUP_FILTER found, fallback to Stock_Group");
+            setGroupByColumn("Stock_Group");
+            return;
+        }
+
+        const normalized = normalizeColumnKey(groupFilter.columnName);
+        console.log("✅ Grouping by backend column:", normalized);
+
+        setGroupByColumn(normalized);
+    }, [externalFilterTemplate]);
+
+    React.useEffect(() => {
+    loadExternalFilters();
+}, []);
+
     // --- Load level2 columns metadata from filter API (same endpoint used by SalesInvoice) ---
-    const loadLevel2Columns = React.useCallback(async () => {
-        try {
-            // Try generic API helper if available
-            let resJson: any = null;
-            if (API.getReportFilters) {
-                const url = API.getReportFilters("StockInHand");
-                const resp = await fetch(url);
-                const txt = await resp.text();
-                try {
-                    resJson = JSON.parse(txt);
-                } catch {
-                    resJson = resp.json ? await resp.json() : [];
-                }
-            } else {
-                const resp = await fetch("https://erpsmt.in/api/sales/salesFilterDropdown?reportName=StockInhand");
-                resJson = await resp.json();
-            }
+const loadLevel2Columns = React.useCallback(async () => {
+    try {
+        let resJson: any = null;
 
-            const arr = Array.isArray(resJson) ? resJson : resJson?.data || [];
-            const lvl2Raw = (arr || []).filter(
-                (f: any) =>
-                    Number(f?.FilterLevel) === 2 ||
-                    Number(f?.Filter_Level) === 2 ||
-                    Number(f?.Filterlevel) === 2
-            );
-
-            const lvl2 = lvl2Raw.map((f: any) => {
-                const columnName =
-                    f?.Column_Name ||
-                    f?.columnName ||
-                    f?.ColumnName ||
-                    f?.column_name ||
-                    f?.Column ||
-                    f?.columnName ||
-                    "";
-                const rawType =
-                    f?.Type ?? f?.type ?? f?.filterType ?? f?.FilterType ?? f?.filter_type;
-                const typeNum = rawType !== undefined ? Number(rawType) : NaN;
-                const options =
-                    f?.options || f?.Options || f?.optionsList || f?.OptionsList || [];
-                return {
-                    ...f,
-                    Column_Name: String(columnName),
-                    Type: Number.isNaN(typeNum) ? null : typeNum,
-                    options: Array.isArray(options) ? options : [],
-                };
-            });
-
-            setLevel2Columns(lvl2);
-
-            const uniqTypes = Array.from(
-                new Set(lvl2.map((x: any) => Number(x.Type)).filter((t: number) => !isNaN(t)))
-            ) as number[];
-
-            uniqTypes.sort((a: number, b: number) => a - b);
-            setLevel2TypesOrder(uniqTypes);
-
-            // optionally set activeType to first
-            // setActiveType(uniqTypes[0] ?? null);
-            // clear active lists
-            setActiveTypeValuesWithTotals([]);
-            setSecondLevelValues([]);
-        } catch (err) {
-            console.error("loadLevel2Columns error:", err);
+        if (!API.getReportFilters) {
+            console.error("API.getReportFilters is not defined");
             setLevel2Columns([]);
             setLevel2TypesOrder([]);
-            setActiveTypeValuesWithTotals([]);
-            setSecondLevelValues([]);
+            return;
         }
-    }, []);
+
+        const url = API.getReportFilters(REPORT_NAME);
+        const resp = await fetch(url);
+        const txt = await resp.text();
+
+        try {
+            resJson = JSON.parse(txt);
+        } catch {
+            console.warn("Level2 filter API returned non-JSON");
+            resJson = [];
+        }
+
+        const arr = Array.isArray(resJson) ? resJson : resJson?.data || [];
+
+        const lvl2Raw = arr.filter(
+            (f: any) =>
+                Number(f?.FilterLevel) === 2 ||
+                Number(f?.Filter_Level) === 2 ||
+                Number(f?.Filterlevel) === 2
+        );
+
+        const lvl2 = lvl2Raw.map((f: any) => {
+            const columnName =
+                f?.Column_Name ||
+                f?.columnName ||
+                f?.ColumnName ||
+                f?.column_name ||
+                f?.Column ||
+                "";
+
+            const rawType =
+                f?.Type ??
+                f?.type ??
+                f?.filterType ??
+                f?.FilterType ??
+                f?.filter_type;
+
+            const typeNum = rawType !== undefined ? Number(rawType) : NaN;
+
+            return {
+                ...f,
+                Column_Name: String(columnName),
+                Type: Number.isNaN(typeNum) ? null : typeNum,
+                options: Array.isArray(f?.options) ? f.options : [],
+            };
+        });
+
+        setLevel2Columns(lvl2);
+
+        const uniqTypes = Array.from(
+            new Set(
+                lvl2
+                    .map((x: any) => Number(x.Type))
+                    .filter((t: number) => !isNaN(t))
+            )
+        ) as number[];
+
+        uniqTypes.sort((a, b) => a - b);
+        setLevel2TypesOrder(uniqTypes);
+
+        setActiveTypeValuesWithTotals([]);
+        setSecondLevelValues([]);
+    } catch (err) {
+        console.error("loadLevel2Columns error:", err);
+        setLevel2Columns([]);
+        setLevel2TypesOrder([]);
+        setActiveTypeValuesWithTotals([]);
+        setSecondLevelValues([]);
+    }
+}, []);
 
     // Load level2 columns on mount and whenever dynamicFilters change (because Level-1 is dynamic from modal)
     React.useEffect(() => {
@@ -301,30 +342,54 @@ const OpeningStockItemWise = () => {
     }, [itemWiseStockData, level2Columns, level2TypesOrder, JSON.stringify(selectedValuesByType)]);
 
     // ---- Filtering pipeline (grouping & search & level2 filter application) ----
-    const groupDataByStockGroup = (data: any[]) => {
+    const groupDataByDynamicColumn = (data: any[]) => {
         const grouped = data.reduce((acc: any, item: any) => {
-            const group = item.Stock_Group || "Others";
-            if (!acc[group]) acc[group] = [];
-            acc[group].push(item);
+            const rawValue = item?.[groupByColumn];
+            const groupKey = rawValue !== undefined && rawValue !== null && String(rawValue).trim() !== ""
+                ? String(rawValue)
+                : "Others";
+
+            if (!acc[groupKey]) acc[groupKey] = [];
+            acc[groupKey].push(item);
             return acc;
         }, {});
-        const groupArray = Object.keys(grouped).map(group => ({
-            groupName: group,
-            items: grouped[group],
-            count: grouped[group].length,
-            totalBalance: grouped[group].reduce((sum: number, it: any) => sum + (it.Bal_Qty || it.Act_Bal_Qty || it.OB_Bal_Qty || 0), 0),
-        }));
+
+        const groupArray = Object.keys(grouped).map((group) => {
+            const items = grouped[group];
+            const totalBalance = items.reduce(
+                (sum: number, it: any) =>
+                    sum + (it.Bal_Qty || it.Act_Bal_Qty || it.OB_Bal_Qty || 0),
+                0
+            );
+
+            return {
+                groupName: group,
+                items,
+                count: items.length,
+                totalBalance,
+            };
+        });
 
         return groupArray.sort((a, b) => {
+            const nameA = String(a.groupName ?? "");
+            const nameB = String(b.groupName ?? "");
+
             let comparison = 0;
             switch (sortBy) {
-                case "name": comparison = a.groupName.localeCompare(b.groupName); break;
-                case "count": comparison = a.count - b.count; break;
-                case "balance": comparison = a.totalBalance - b.totalBalance; break;
+                case "name":
+                    comparison = nameA.localeCompare(nameB);
+                    break;
+                case "count":
+                    comparison = a.count - b.count;
+                    break;
+                case "balance":
+                    comparison = a.totalBalance - b.totalBalance;
+                    break;
             }
             return sortOrder === "asc" ? comparison : -comparison;
         });
     };
+
 
     const applyLevel2FiltersToRaw = (rawData: any[]) => {
         if (!level2TypesOrder || level2TypesOrder.length === 0) return rawData;
@@ -355,11 +420,13 @@ const OpeningStockItemWise = () => {
     const filterData = (grouped: any[]) => {
         const q = searchQuery.trim().toLowerCase();
         if (!q) return grouped;
+
         return grouped.filter(group =>
-            group.groupName.toLowerCase().includes(q) ||
+            String(group.groupName).toLowerCase().includes(q) ||
             group.items.some((item: any) =>
-                (item.stock_item_name && String(item.stock_item_name).toLowerCase().includes(q)) ||
-                (item.Group_Name && String(item.Group_Name).toLowerCase().includes(q))
+                Object.values(item || {}).some(val =>
+                    typeof val === "string" && val.toLowerCase().includes(q)
+                )
             )
         );
     };
@@ -368,7 +435,7 @@ const OpeningStockItemWise = () => {
         const rawData = Array.isArray(itemWiseStockData) ? itemWiseStockData : [];
         // Apply level2 client-side filters on raw data before grouping
         const afterLevel2 = applyLevel2FiltersToRaw(rawData);
-        const grouped = groupDataByStockGroup(afterLevel2);
+        const grouped = groupDataByDynamicColumn(afterLevel2);
         const filtered = filterData(grouped);
         const totalItems = filtered.length;
         const totalRecords = rawData.length;
@@ -505,7 +572,7 @@ const OpeningStockItemWise = () => {
         return (
             <View style={styles.tableRow}>
                 <Text style={[styles.rowCell, { width: COL_WIDTH * 2 }]} numberOfLines={2}>{item.stock_item_name || item.stock_item_name}</Text>
-                 <Text style={[styles.rowCell, { width: COL_WIDTH, color: (item.Bal_Act_Qty ?? item.Act_Bal_Qty) >= 0 ? colors.primary : colors.accent }]}>
+                <Text style={[styles.rowCell, { width: COL_WIDTH, color: (item.Bal_Act_Qty ?? item.Act_Bal_Qty) >= 0 ? colors.primary : colors.accent }]}>
                     {item.Bal_Act_Qty ?? item.Act_Bal_Qty}
                 </Text>
                 <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.OB_Bal_Qty ?? item.OB_Act_Qty}</Text>
@@ -623,11 +690,11 @@ const OpeningStockItemWise = () => {
                         </View>
 
                         {displayData.map((group: any, idx: number) => (
-                            <View key={group.groupName} style={styles.groupCard}>
+                            <View key={`${group.groupName}-${idx}`} style={styles.groupCard}>
                                 <TouchableOpacity style={styles.groupHeader} onPress={() => toggleGroup(group.groupName)} activeOpacity={0.8}>
                                     <View style={styles.groupHeaderLeft}>
                                         <View style={styles.groupNameContainer}>
-                                            <Icon name="category" size={18} color={colors.primary} />
+                                            <Icon name={getGroupIcon()} size={18} color={colors.primary} />
                                             <Text style={styles.groupName}>{group.groupName}</Text>
                                         </View>
                                         <View style={styles.groupStats}>
