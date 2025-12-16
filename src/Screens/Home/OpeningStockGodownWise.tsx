@@ -76,6 +76,12 @@ const OpeningStockGodownWise = () => {
   const toStr = React.useMemo(() => formatApiDate(toDate), [toDate]);
   const REPORT_NAME = "stockInhand-Godown";
 
+  const dynamicFiltersKey = React.useMemo(
+    () => JSON.stringify(dynamicFilters),
+    [dynamicFilters]
+  );
+
+
   // Fetch GodownWise stock
   const {
     data: goDownWiseStockData = [],
@@ -83,10 +89,15 @@ const OpeningStockGodownWise = () => {
     error: godownWiseError,
     refetch: refetchGodownWise,
   } = useQuery({
-    queryKey: ["godownWiseStock", fromStr, toStr, dynamicFilters],
+    queryKey: ["godownWiseStock", fromStr, toStr, dynamicFiltersKey],
     queryFn: async () => {
       const base = API.godownWiseStock(fromStr, toStr);
-      const url = buildUrlWithFilters(base.split("?")[0], fromStr, toStr, dynamicFilters);
+      const url = buildUrlWithFilters(
+        base.split("?")[0],
+        fromStr,
+        toStr,
+        dynamicFilters
+      );
       const resp = await fetch(url);
       const json = await resp.json();
       return Array.isArray(json) ? json : (json.data || []);
@@ -256,57 +267,29 @@ const OpeningStockGodownWise = () => {
 
   // When the data or selectedValuesByType changes we may recompute some helper lists (optional)
   React.useEffect(() => {
-    // Example: compute values for the first available type to show on load
-    if (!level2TypesOrder || level2TypesOrder.length === 0) {
-      setActiveTypeValuesWithTotals([]);
-      setSecondLevelValues([]);
-      return;
-    }
+    if (!level2TypesOrder.length) return;
 
     const firstType = level2TypesOrder[0];
-    const colsForType = level2Columns.filter((c) => c.Type === firstType);
-    if (!colsForType.length) {
-      setActiveTypeValuesWithTotals([]);
-      setSecondLevelValues([]);
-      return;
-    }
-    const primaryCol = colsForType[0].Column_Name;
-    // find parent if exists
-    const idx = level2TypesOrder.indexOf(firstType);
-    let parentPair: { column: string; value: string } | undefined;
-    if (idx > 0) {
-      const parentType = level2TypesOrder[idx - 1];
-      const selectedParentValue = selectedValuesByType[parentType];
-      if (selectedParentValue) {
-        const parentCols = level2Columns.filter((c) => c.Type === parentType);
-        if (parentCols.length > 0) {
-          parentPair = { column: parentCols[0].Column_Name, value: selectedParentValue };
-        }
-      }
-    }
+    const colsForType = level2Columns.filter(c => c.Type === firstType);
+    if (!colsForType.length) return;
 
-    const mappedCol = normalizeColumnKey(primaryCol);
-    const parentForCompute = parentPair ? { column: normalizeColumnKey(parentPair.column), value: parentPair.value } : undefined;
-    const newVals = computeValuesWithTotals(mappedCol, parentForCompute);
-    setActiveTypeValuesWithTotals(newVals);
+    const mappedCol = normalizeColumnKey(colsForType[0].Column_Name);
+    const newVals = computeValuesWithTotals(mappedCol);
 
-    // if the firstType === 4 compute secondLevel (type 5) same as SalesInvoice
-    if (firstType === 4) {
-      const type5Cols = level2Columns.filter((c) => c.Type === 5);
-      if (type5Cols.length && selectedValuesByType[4]) {
-        const type5ColName = normalizeColumnKey(type5Cols[0].Column_Name);
-        const secondLevel = computeValuesWithTotals(type5ColName, {
-          column: normalizeColumnKey(primaryCol),
-          value: selectedValuesByType[4],
-        });
-        setSecondLevelValues(secondLevel);
-      } else {
-        setSecondLevelValues([]);
-      }
-    } else {
-      setSecondLevelValues([]);
-    }
-  }, [goDownWiseStockData, level2Columns, level2TypesOrder, JSON.stringify(selectedValuesByType)]);
+    setActiveTypeValuesWithTotals(prev =>
+      JSON.stringify(prev) === JSON.stringify(newVals) ? prev : newVals
+    );
+
+    setSecondLevelValues(prev =>
+      JSON.stringify(prev) === JSON.stringify([]) ? prev : []
+    );
+  }, [
+    goDownWiseStockData,
+    level2Columns,
+    level2TypesOrder,
+    selectedValuesByType
+  ]);
+
 
   const getGroupFilterColumn = React.useCallback(() => {
     if (!externalFilterTemplate) return null;
@@ -556,7 +539,21 @@ const OpeningStockGodownWise = () => {
     return { data: paginated, totalPages, totalItems, totalRecords };
   };
 
-  const { data: displayData = [], totalPages, totalItems, totalRecords } = getCurrentData();
+  // const { data: displayData = [], totalPages, totalItems, totalRecords } = getCurrentData();
+
+  const memoizedData = React.useMemo(() => {
+    return getCurrentData();
+  }, [
+    goDownWiseStockData,
+    searchQuery,
+    sortBy,
+    sortOrder,
+    currentPage,
+    selectedValuesByType,
+    expandedGroups
+  ]);
+
+  const { data: displayData, totalPages, totalItems, totalRecords } = memoizedData;
 
   // Toggle group
   const toggleGroup = (groupName: string) => {
