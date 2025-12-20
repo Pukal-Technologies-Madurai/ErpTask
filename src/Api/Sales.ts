@@ -165,6 +165,7 @@ export const salesOrderPendingList = async (
     to: Date | string,
     userId: any,
     branchId: number | string,
+    filters?: Record<string, string>
 ) => {
     try {
         const fromStr =
@@ -172,7 +173,18 @@ export const salesOrderPendingList = async (
         const toStr =
             typeof to === "string" ? to : to.toISOString().split("T")[0];
 
-        const url = API.saleorderPending(fromStr, toStr, userId, branchId);
+        // Base URL (same as before)
+        let url = API.saleorderPending(fromStr, toStr, userId, branchId);
+
+        // ✅ APPEND DYNAMIC FILTERS
+        if (filters) {
+            Object.entries(filters).forEach(([key, value]) => {
+                if (value) {
+                    url += `&${key}=${encodeURIComponent(value)}`;
+                }
+            });
+        }
+
         console.log("API URL =", url);
 
         const res = await fetch(url, {
@@ -183,6 +195,7 @@ export const salesOrderPendingList = async (
         });
 
         const json = await res.json();
+
         if (!res.ok) {
             throw new Error(`HTTP error! status: ${res.status}`);
         }
@@ -192,12 +205,14 @@ export const salesOrderPendingList = async (
                 json.message || "Failed to fetch sale order pending data"
             );
         }
+
         return json.data || [];
     } catch (error) {
         console.error("Error fetching sale order pending data:", error);
         throw error;
     }
 };
+
 
 export const getFilterColumnName = async () => {
     try {
@@ -223,10 +238,10 @@ export const getFilterColumnName = async () => {
     
 };
 
-export const stockItemFilterColumnName = async () => {
+export const getFilterSaleorderPending = async () => {
     try {
         
-        const url = API.getReportFilters("Stockinhand"); 
+        const url = API.getReportFilters("SalesReturn"); 
         console.log("getFilterColumnName url", url);
 
         const res = await fetch(url, { 

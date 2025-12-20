@@ -1,10 +1,10 @@
 import {
-    StyleSheet,
     Text,
+    StyleSheet,
     View,
     ScrollView,
-    TouchableOpacity,
     RefreshControl,
+    TouchableOpacity,
     TextInput,
 } from "react-native";
 import React from "react";
@@ -18,10 +18,10 @@ import AppHeader from "../../Components/AppHeader";
 import FilterModal from "../../Components/FilterModal";
 import { salesOrderPendingList } from "../../Api/Sales";
 import { RootStackParamList } from "../../Navigation/types";
-import { responsiveWidth, responsiveHeight } from "../../constants/helper";
-import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
+import { formatCurrency } from "../../constants/utils";
 import { usePagination } from "../../hooks/usePagination";
 import PaginationControls from "../../Components/PaginationControls";
+import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 import { MMKV } from "react-native-mmkv";
 
 type Product = {
@@ -36,33 +36,35 @@ type Product = {
     [k: string]: any;
 };
 
-const SaleOrderPending = ({ route }: { route: any }) => {
-    const item = route.params || {};
-    const branchIdProps = item.branchId;
+const ITEMS_PER_PAGE = 15;
 
+const SalesPendingItemWise = ({ route }: { route: any }) => {
+    const branchIdProps = route.params?.branchId;
     const { typography, colors } = useTheme();
-    const storage = new MMKV();
     const styles = getStyles(typography, colors);
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const storage = new MMKV();
 
     const today = new Date();
     const last30 = new Date();
     last30.setDate(today.getDate() - 30);
 
-    const [fromDate, setFromDate] = React.useState<Date>(last30);
-    const [toDate, setToDate] = React.useState<Date>(today);
-
+    const [fromDate, setFromDate] = React.useState(last30);
+    const [toDate, setToDate] = React.useState(today);
     const [userId, setUserId] = React.useState("");
     const [branchId, setBranchId] = React.useState("");
     const [searchQuery, setSearchQuery] = React.useState("");
+    const [modalVisible, setModalVisible] = React.useState(false);
     const [expandedOrders, setExpandedOrders] = React.useState<Set<string>>(
         new Set(),
     );
-    const [modalVisible, setModalVisible] = React.useState(false);
     const [refreshing, setRefreshing] = React.useState(false);
     const [selectedBrand, setSelectedBrand] = React.useState<string>("");
     const [viewMode, setViewMode] = React.useState<"order" | "item">("order");
+    const [expandedBrands, setExpandedBrands] = React.useState<Set<string>>(new Set());
+    const [expandedBrand, setExpandedBrand] = React.useState<string | null>(null);
+
 
     const ITEMS_PER_PAGE = 15;
 
@@ -85,7 +87,34 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
-    // Get unique brands and their totals from products (uses Products_List)
+    // Handle refresh
+    const onRefresh = React.useCallback(async () => {
+        setRefreshing(true);
+        try {
+            await refetch();
+        } finally {
+            setRefreshing(false);
+        }
+    }, [refetch]);
+
+    // Summary Cards Component
+    const SummaryCards = () => (
+        <View style={styles.summaryContainer}>
+            <View style={styles.summaryCard}>
+                <Icon name="shopping-cart" size={24} color={colors.primary} />
+                <Text style={styles.summaryValue}>{totalItems}</Text>
+                <Text style={styles.summaryLabel}>Orders</Text>
+            </View>
+            <View style={styles.summaryCard}>
+                <Icon name="currency-rupee" size={24} color={colors.success} />
+                <Text style={styles.summaryValue}>
+                    {formatCurrency(totalAmount).replace("₹", "")}
+                </Text>
+                <Text style={styles.summaryLabel}>Total Amount</Text>
+            </View>
+        </View>
+    );
+
     const getBrandsWithTotals = () => {
         const brandTotals = new Map<string, { count: number; amount: number }>();
 
@@ -111,11 +140,9 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         }));
     };
 
-    // Filter data by brand and search query
-    const getProcessedData = () => {
+    const filteredData = React.useMemo(() => {
         let filtered = [...(saleOrder as any[])];
 
-        // Filter by search query
         if (searchQuery.trim()) {
             filtered = filtered.filter((order: any) =>
                 (
@@ -130,7 +157,6 @@ const SaleOrderPending = ({ route }: { route: any }) => {
             );
         }
 
-        // Filter by selected brand
         if (selectedBrand) {
             filtered = filtered.filter((order: any) =>
                 order.Products_List?.some(
@@ -140,38 +166,42 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         }
 
         return filtered;
-    };
+    }, [saleOrder, searchQuery, selectedBrand]);
 
-    const filteredData = React.useMemo(() => {
-    let filtered = [...(saleOrder as any[])];
+    const filteredOrders = React.useMemo(() => {
+        let filtered = [...saleOrder];
 
-    if (searchQuery.trim()) {
-        filtered = filtered.filter((order: any) =>
-            (
-                order.So_Inv_No?.toLowerCase() +
-                " " +
-                order.Retailer_Name?.toLowerCase() +
-                " " +
-                order.Sales_Person_Name?.toLowerCase() +
-                " " +
-                order.Branch_Name?.toLowerCase()
-            ).includes(searchQuery.toLowerCase()),
-        );
-    }
+        if (searchQuery.trim()) {
+            filtered = filtered.filter((order: any) =>
+                (
+                    order.So_Inv_No +
+                    order.Retailer_Name +
+                    order.Sales_Person_Name +
+                    order.Branch_Name
+                )
+                    .toLowerCase()
+                    .includes(searchQuery.toLowerCase()),
+            );
+        }
 
-    if (selectedBrand) {
-        filtered = filtered.filter((order: any) =>
-            order.Products_List?.some(
-                (product: Product) => product.BrandGet === selectedBrand,
-            ),
-        );
-    }
+        if (selectedBrand) {
+            filtered = filtered.filter((order: any) =>
+                order.Products_List?.some(
+                    (p: any) => p.BrandGet === selectedBrand,
+                ),
+            );
+        }
 
-    return filtered;
-}, [saleOrder, searchQuery, selectedBrand]);
+        return filtered;
+    }, [saleOrder, searchQuery, selectedBrand]);
+
+    const totalAmount = filteredOrders.reduce(
+        (sum: number, o: any) => sum + (o.Total_Invoice_value || 0),
+        0,
+    );
 
 
-    // Build item-wise list from Products_List
+    /* ---------- ITEM WISE FLATTEN (ORIGINAL LOGIC) ---------- */
     const itemWiseData = React.useMemo(() => {
         const list: any[] = [];
 
@@ -192,75 +222,57 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         return list;
     }, [filteredData]);
 
-    // debug - shows itemWiseData after it's created (remove in production)
-    React.useEffect(() => {
-        // eslint-disable-next-line no-console
-        console.log("ItemWiseData generated:", itemWiseData.length, itemWiseData);
+    const filteredItems = React.useMemo(() => {
+        if (!searchQuery) return itemWiseData;
+
+        return itemWiseData.filter((i: any) =>
+            (
+                i.Product_Name +
+                i.So_Inv_No +
+                i.Retailer_Name
+            )
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase()),
+        );
+    }, [itemWiseData, searchQuery]);
+
+    const brandWiseUIData = React.useMemo(() => {
+        const map = new Map<string, any[]>();
+
+        itemWiseData.forEach((item: any) => {
+            const brand = item.BrandGet?.trim() || "Others";
+
+            if (!map.has(brand)) {
+                map.set(brand, []);
+            }
+            map.get(brand)?.push(item);
+        });
+
+        return Array.from(map.entries()).map(([brand, items]) => ({
+            brand,
+            items,
+            count: items.length,
+        }));
     }, [itemWiseData]);
 
-    const totalAmount = filteredData.reduce(
-        (sum: number, order: any) => sum + (order.Total_Invoice_value || 0),
-        0,
-    );
 
     const {
+        currentData: displayData,
         currentPage,
         totalPages,
         totalItems,
         totalRecords,
-        currentData: displayData,
         setCurrentPage,
     } = usePagination({
-        data: viewMode === "order" ? filteredData : itemWiseData,
+        data: filteredItems,
         itemsPerPage: ITEMS_PER_PAGE,
     });
 
-    // Toggle order expansion
-    const toggleOrder = (orderId: string) => {
-        const newExpanded = new Set(expandedOrders);
-        if (newExpanded.has(orderId)) {
-            newExpanded.delete(orderId);
-        } else {
-            newExpanded.add(orderId);
-        }
-        setExpandedOrders(newExpanded);
-    };
-
-    // Handle refresh
-    const onRefresh = React.useCallback(async () => {
-        setRefreshing(true);
-        try {
-            await refetch();
-        } finally {
-            setRefreshing(false);
-        }
-    }, [refetch]);
-
-    // Reset pagination when filters change
     React.useEffect(() => {
         setCurrentPage(1);
         setExpandedOrders(new Set());
     }, [searchQuery, selectedBrand, viewMode, setCurrentPage]);
 
-    // Summary Cards Component
-    const SummaryCards = () => (
-        <View style={styles.summaryContainer}>
-            <View style={styles.summaryCard}>
-                <Icon name="shopping-cart" size={24} color={colors.primary} />
-                <Text style={styles.summaryValue}>{totalItems}</Text>
-                <Text style={styles.summaryLabel}>Orders</Text>
-            </View>
-            <View style={styles.summaryCard}>
-                <Icon name="currency-rupee" size={24} color={colors.success} />
-                <Text style={styles.summaryValue}>
-                    {formatCurrency(totalAmount).replace("₹", "")}
-                </Text>
-                <Text style={styles.summaryLabel}>Total Amount</Text>
-            </View>
-        </View>
-    );
-
-    // Brand Filter Component
     const BrandFilter = () => {
         const brandsWithTotals = getBrandsWithTotals();
 
@@ -306,197 +318,10 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         );
     };
 
-    // Sales Order Card Component (unchanged logic)
-    const SaleOrderCard = ({ order }: { order: any }) => {
-        const isExpanded = expandedOrders.has(order.S_Id);
-
-        const getFormattedDate = (dateString: string) => {
-            try {
-                const date = new Date(dateString);
-                return formatDate(date);
-            } catch (error) {
-                return "--";
-            }
-        };
-
-        return (
-            <View style={styles.orderCard}>
-                <TouchableOpacity
-                    style={styles.orderHeader}
-                    onPress={() => toggleOrder(order.S_Id)}
-                    activeOpacity={0.7}>
-                    <View style={styles.orderHeaderLeft}>
-                        <View style={styles.orderTopRow}>
-                            <View style={styles.orderNumberContainer}>
-                                <Text style={styles.orderNumber}>
-                                    {order.So_Inv_No}
-                                </Text>
-                                <View style={styles.dateTimeContainer}>
-                                    <Icon
-                                        name="event"
-                                        size={12}
-                                        color={colors.textSecondary}
-                                        style={styles.dateTimeIcon}
-                                    />
-                                    <Text style={styles.orderDateTime}>
-                                        {order.Created_on
-                                            ? getFormattedDate(order.Created_on)
-                                            : "--"}
-                                    </Text>
-                                    <Icon
-                                        name="schedule"
-                                        size={12}
-                                        color={colors.textSecondary}
-                                        style={styles.dateTimeIcon}
-                                    />
-                                    <Text style={styles.orderDateTime}>
-                                        {order.Created_on
-                                            ? formatTime(order.Created_on)
-                                            : "--"}
-                                    </Text>
-                                </View>
-                            </View>
-                            <Text style={styles.orderAmount}>
-                                {formatCurrency(order.Total_Invoice_value)}
-                            </Text>
-                        </View>
-                        <View style={styles.orderBottomRow}>
-                            <View style={styles.retailerContainer}>
-                                <Icon
-                                    name="store"
-                                    size={14}
-                                    color={colors.primary}
-                                    style={styles.bottomRowIcon}
-                                />
-                                <Text
-                                    style={styles.retailerName}
-                                    numberOfLines={2}>
-                                    {order.Retailer_Name}
-                                </Text>
-                            </View>
-                            <View style={styles.salesPersonContainer}>
-                                <Icon
-                                    name="person"
-                                    size={14}
-                                    color={colors.textSecondary}
-                                    style={styles.bottomRowIcon}
-                                />
-                                <Text style={styles.salesPerson}>
-                                    {order.Sales_Person_Name}
-                                </Text>
-                            </View>
-                        </View>
-                    </View>
-                </TouchableOpacity>
-
-                {isExpanded && (
-                    <View style={styles.orderDetails}>
-                        {/* Essential Order Info */}
-                        <View style={styles.essentialInfo}>
-                            <View style={styles.infoGrid}>
-                                <View style={styles.infoItem}>
-                                    <Icon
-                                        name="business"
-                                        size={16}
-                                        color={colors.primary}
-                                    />
-                                    <View style={styles.infoContent}>
-                                        <Text style={styles.infoLabel}>
-                                            Branch
-                                        </Text>
-                                        <Text
-                                            style={styles.infoValue}
-                                            numberOfLines={1}>
-                                            {order.Branch_Name}
-                                        </Text>
-                                    </View>
-                                </View>
-                                <View style={styles.infoItem}>
-                                    <Icon
-                                        name="account-balance"
-                                        size={16}
-                                        color={colors.success}
-                                    />
-                                    <View style={styles.infoContent}>
-                                        <Text style={styles.infoLabel}>
-                                            Before Tax
-                                        </Text>
-                                        <Text style={styles.infoValue}>
-                                            {formatCurrency(
-                                                order.Total_Before_Tax,
-                                            )}
-                                        </Text>
-                                    </View>
-                                </View>
-                                <View style={styles.infoItem}>
-                                    <Icon
-                                        name="receipt"
-                                        size={16}
-                                        color={colors.warning}
-                                    />
-                                    <View style={styles.infoContent}>
-                                        <Text style={styles.infoLabel}>
-                                            Tax
-                                        </Text>
-                                        <Text style={styles.infoValue}>
-                                            {formatCurrency(order.Total_Tax)}
-                                        </Text>
-                                    </View>
-                                </View>
-                            </View>
-                        </View>
-
-                        {/* Products Table */}
-                        {order.Products_List && order.Products_List.length > 0 && (
-                            <View style={styles.productsTable}>
-                                <View style={styles.tableHeader}>
-                                    <Text
-                                        style={[
-                                            styles.tableCell,
-                                            styles.productNameCell,
-                                        ]}>
-                                        Product
-                                    </Text>
-                                    <Text style={styles.tableCell}>Qty</Text>
-                                    <Text style={styles.tableCell}>Rate</Text>
-                                    <Text style={styles.tableCell}>Amount</Text>
-                                </View>
-                                {order.Products_List.map(
-                                    (product: any, index: number) => (
-                                        <View key={index} style={styles.tableRow}>
-                                            <Text
-                                                style={[
-                                                    styles.tableCell,
-                                                    styles.productNameCell,
-                                                ]}
-                                                numberOfLines={4}>
-                                                {product.Product_Name}
-                                            </Text>
-                                            <Text style={styles.tableCell}>
-                                                {product.Bill_Qty ?? product.Total_Qty}
-                                            </Text>
-                                            <Text style={styles.tableCell}>
-                                                {formatCurrency(
-                                                    product.Item_Rate,
-                                                ).replace("₹", "")}
-                                            </Text>
-                                            <Text style={styles.tableCell}>
-                                                {formatCurrency(
-                                                    product.Final_Amo,
-                                                ).replace("₹", "")}
-                                            </Text>
-                                        </View>
-                                    ),
-                                )}
-                            </View>
-                        )}
-                    </View>
-                )}
-            </View>
-        );
+    const handleBrandPress = (brand: string) => {
+        setExpandedBrand(prev => (prev === brand ? null : brand));
     };
 
-    // Item-wise Card - displays product as requested
     const ItemWiseCard = ({ item }: { item: any }) => {
         const formatDate = (value: any) => {
             if (!value) return "—";
@@ -562,15 +387,21 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         );
     };
 
-
     const handleCloseModal = () => {
         setModalVisible(false);
+    };
+
+    const toggleBrand = (brand: string) => {
+        const set = new Set(expandedBrands);
+        if (set.has(brand)) set.delete(brand);
+        else set.add(brand);
+        setExpandedBrands(set);
     };
 
     return (
         <SafeAreaView style={styles.container}>
             <AppHeader
-                title="Sale Order Pending"
+                title="Sales Pending - Items"
                 navigation={navigation}
                 showRightIcon={true}
                 rightIconLibrary="MaterialIcon"
@@ -629,38 +460,6 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                 {/* Data Display */}
                 {!isLoading && !error && (saleOrder as any[]).length > 0 && (
                     <>
-                        {/* Toggle View Buttons */}
-                        <View style={styles.toggleContainer}>
-                            <TouchableOpacity
-                                style={[
-                                    styles.toggleButton,
-                                    viewMode === "order" && styles.toggleButtonActive,
-                                ]}
-                                onPress={() => setViewMode("order")}>
-                                <Text
-                                    style={[
-                                        styles.toggleText,
-                                        viewMode === "order" && styles.toggleTextActive,
-                                    ]}>
-                                    Order Wise
-                                </Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={[
-                                    styles.toggleButton,
-                                    viewMode === "item" && styles.toggleButtonActive,
-                                ]}
-                                onPress={() => setViewMode("item")}>
-                                <Text
-                                    style={[
-                                        styles.toggleText,
-                                        viewMode === "item" && styles.toggleTextActive,
-                                    ]}>
-                                    Item Wise
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
 
                         {/* Summary Cards */}
                         <SummaryCards />
@@ -694,13 +493,45 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                         </View>
 
                         {/* List */}
-                        {viewMode === "order"
-                            ? displayData.map((order: any) => (
-                                <SaleOrderCard key={order.S_Id} order={order} />
-                            ))
-                            : displayData.map((item: any, idx: number) => (
-                                <ItemWiseCard key={idx} item={item} />
-                            ))}
+                        {brandWiseUIData.map(({ brand, items }) => {
+                            const isOpen = expandedBrands.has(brand);
+
+                            return (
+                                <View key={brand} style={styles.brandCard}>
+                                    <TouchableOpacity
+                                        style={styles.brandBadge}
+                                        onPress={() => toggleBrand(brand)}
+                                        activeOpacity={0.8}
+                                    >
+                                        <View style={styles.brandHeader}>
+                                            <View style={styles.brandTitle}>
+                                                <Icon
+                                                    name="storefront"
+                                                    size={18}
+                                                    color={colors.text}
+                                                    style={{ marginRight: 8 }}
+                                                />
+                                                <Text style={styles.brandName}>{brand}</Text>
+                                            </View>
+                                            <Icon
+                                                name={isOpen ? "expand-less" : "expand-more"}
+                                                size={20}
+                                                color={colors.text}
+                                            />
+                                        </View>
+
+                                        <Text style={styles.brandItemCount}>Items: {items.length}</Text>
+                                    </TouchableOpacity>
+
+                                    {/* Pending Items List */}
+                                    {isOpen &&
+                                        items.map((item: Product, idx: number) => (
+                                            <ItemWiseCard key={`${brand}-${idx}`} item={item} />
+                                        ))}
+                                </View>
+                            );
+                        })}
+
 
                         {/* Pagination */}
                         {totalPages > 1 && (
@@ -744,7 +575,7 @@ const SaleOrderPending = ({ route }: { route: any }) => {
     );
 };
 
-export default SaleOrderPending;
+export default SalesPendingItemWise;
 
 const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
@@ -1156,11 +987,6 @@ const getStyles = (typography: any, colors: any) =>
             fontWeight: "700",
             color: "#339e38ff",
         },
-        brandName: {
-            fontSize: 13,
-            color: "#48693bff",
-            marginTop: 2,
-        },
         amountContainer: {
             alignItems: "flex-end",
         },
@@ -1191,6 +1017,72 @@ const getStyles = (typography: any, colors: any) =>
             fontWeight: "500",
             color: "#444",
             marginBottom: 4,
+        },
+        brandCard: {
+            backgroundColor: "#fff",
+            borderRadius: 12,
+            marginBottom: 12,
+            padding: 10,
+        },
+
+        brandHeaderTouchable: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+        },
+
+        brandCount: {
+            fontSize: 12,
+            color: "#666",
+        },
+        brandBadge: {
+            width: "100%",                // full width
+            paddingVertical: responsiveHeight(2),
+            paddingHorizontal: responsiveWidth(4),
+            borderRadius: 12,
+            backgroundColor: "#F9FAFB",
+            borderWidth: 1,
+            borderColor: "#E5E7EB",
+        },
+
+        brandBadgeActive: {
+            backgroundColor: colors.primary,
+            borderColor: colors.primary,
+        },
+
+        brandHeader: {
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+        },
+
+        brandTitle: {
+            flexDirection: "row",
+            alignItems: "center",
+            fontSize: 16,
+            fontWeight: "600",
+        },
+
+        brandName: {
+            fontSize: 16,
+            fontWeight: "700",
+            color: "#48693bff",
+            marginTop: 2,
+        },
+
+        brandNameActive: {
+            color: colors.white,
+        },
+
+        brandItemCount: {
+            marginTop: 4,
+            fontSize: 13,
+            color: colors.textSecondary,
+        },
+
+        brandItemCountActive: {
+            color: "rgba(255,255,255,0.85)",
         },
 
     });

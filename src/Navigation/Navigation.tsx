@@ -25,6 +25,8 @@ import DeliveryPending from "../Screens/Sales/DeliveryPending";
 import SaleOrderPending from "../Screens/Sales/SaleorderPending";
 import OpeningStockItemWise from "../Screens/Home/OpeningStockItemWise";
 import OpeningStockGodownWise from "../Screens/Home/OpeningStockGodownWise";
+import SalesPendingOrderWise from "../Screens/Sales/SalesPendingOrderWise";
+import SalesPendingItemWise from "../Screens/Sales/SalesPendingItemWise";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -106,8 +108,12 @@ const Navigation = () => {
                         component={DeliveryPending}
                     />
                     <Stack.Screen
-                        name="saleorderpend"
-                        component={SaleOrderPending}
+                        name="saleorderpendorder"
+                        component={SalesPendingOrderWise}
+                    />
+                    <Stack.Screen 
+                        name="saleorderpenditem"
+                        component={SalesPendingItemWise}
                     />
                     <Stack.Screen
                         name="Stockitem"

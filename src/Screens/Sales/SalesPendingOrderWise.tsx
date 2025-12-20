@@ -1,6 +1,6 @@
 import {
-    StyleSheet,
     Text,
+    StyleSheet,
     View,
     ScrollView,
     TouchableOpacity,
@@ -18,53 +18,60 @@ import AppHeader from "../../Components/AppHeader";
 import FilterModal from "../../Components/FilterModal";
 import { salesOrderPendingList } from "../../Api/Sales";
 import { RootStackParamList } from "../../Navigation/types";
-import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
 import { usePagination } from "../../hooks/usePagination";
 import PaginationControls from "../../Components/PaginationControls";
 import { MMKV } from "react-native-mmkv";
+import { responsiveWidth, responsiveHeight } from "../../constants/helper";
+import { API } from "../../constants/api";
 
-type Product = {
-    SO_St_Id?: string;
-    Product_Name?: string;
-    BrandGet?: string;
-    Bill_Qty?: number;
-    Total_Qty?: number;
-    Item_Rate?: number;
-    Final_Amo?: number;
-    Created_on?: string;
-    [k: string]: any;
-};
+interface ReportFilter {
+    FilterLevel: number | string;
+    filterType: number | string;
+    columnName: string;
+    isGroupFilter?: boolean;
+}
 
-const SaleOrderPending = ({ route }: { route: any }) => {
-    const item = route.params || {};
-    const branchIdProps = item.branchId;
+interface Level2Column {
+    Type: number;
+    Column_Name: string;
+    isGroupFilter: boolean;
+}
 
+const ITEMS_PER_PAGE = 15;
+
+const SalesPendingOrderWise = ({ route }: { route: any }) => {
+    const branchIdProps = route.params?.branchId;
     const { typography, colors } = useTheme();
-    const storage = new MMKV();
     const styles = getStyles(typography, colors);
-    const navigation =
-        useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const storage = new MMKV();
 
     const today = new Date();
     const last30 = new Date();
     last30.setDate(today.getDate() - 30);
 
-    const [fromDate, setFromDate] = React.useState<Date>(last30);
-    const [toDate, setToDate] = React.useState<Date>(today);
-
+    const [fromDate, setFromDate] = React.useState(last30);
+    const [toDate, setToDate] = React.useState(today);
     const [userId, setUserId] = React.useState("");
     const [branchId, setBranchId] = React.useState("");
     const [searchQuery, setSearchQuery] = React.useState("");
-    const [expandedOrders, setExpandedOrders] = React.useState<Set<string>>(
-        new Set(),
-    );
+    const [selectedBrand, setSelectedBrand] = React.useState("");
+    const [expandedOrders, setExpandedOrders] = React.useState<Set<string>>(new Set());
     const [modalVisible, setModalVisible] = React.useState(false);
     const [refreshing, setRefreshing] = React.useState(false);
-    const [selectedBrand, setSelectedBrand] = React.useState<string>("");
-    const [viewMode, setViewMode] = React.useState<"order" | "item">("order");
+    const [viewMode, setViewMode] = React.useState<"order">("order");
+    const [externalFilterTemplate, setExternalFilterTemplate] = React.useState<any[] | null>(null);
+    const [level2Columns, setLevel2Columns] = React.useState<Level2Column[]>([]);
+    const [level2TypesOrder, setLevel2TypesOrder] = React.useState<number[]>([]);
+    const [selectedValuesByType, setSelectedValuesByType] = React.useState<Record<number, string>>({});
+    const [appliedDynamicFilters, setAppliedDynamicFilters] = React.useState<Record<string, string>>({});
+    const [activeType, setActiveType] = React.useState<number | null>(null);
+    const [activeTypeValuesWithTotals, setActiveTypeValuesWithTotals] = React.useState<{ value: string; total: number }[]>([]);
+    const [secondLevelValues, setSecondLevelValues] = React.useState<{ value: string; total: number }[]>([]);
 
-    const ITEMS_PER_PAGE = 15;
+
+    const REPORT_NAME = "SalesReturn";
 
     React.useEffect(() => {
         const userId = storage.getString("userId");
@@ -79,170 +86,302 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         error,
         refetch,
     } = useQuery({
-        queryKey: ["saleOrder", fromDate, toDate],
+        queryKey: ["saleOrder", fromDate, toDate, appliedDynamicFilters],
+
         queryFn: () =>
-            salesOrderPendingList(fromDate, toDate, userId, branchIdProps),
+            salesOrderPendingList(fromDate, toDate, userId, branchIdProps, appliedDynamicFilters),
         enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
-    // Get unique brands and their totals from products (uses Products_List)
-    const getBrandsWithTotals = () => {
-        const brandTotals = new Map<string, { count: number; amount: number }>();
+    const loadExternalFilters = React.useCallback(async () => {
+        try {
+            const res = await fetch(API.getReportFilters(REPORT_NAME));
+            const json = await res.json();
+            setExternalFilterTemplate(Array.isArray(json?.data) ? json.data : []);
+        } catch (err) {
+            console.error("Failed to load filters", err);
+            setExternalFilterTemplate([]);
+        }
+    }, []);
 
-        (saleOrder as any[]).forEach((order: any) => {
-            order.Products_List?.forEach((product: any) => {
-                if (product.BrandGet) {
-                    const current = brandTotals.get(product.BrandGet) || {
-                        count: 0,
-                        amount: 0,
-                    };
-                    brandTotals.set(product.BrandGet, {
-                        count: current.count + 1,
-                        amount: current.amount + (product.Final_Amo || 0),
+    React.useEffect(() => {
+        if (modalVisible) loadExternalFilters();
+    }, [modalVisible, loadExternalFilters]);
+
+    const normalizeColumnKey = (colName: string) => {
+        if (!colName) return colName;
+
+        const key = colName.toLowerCase().replace(/\s+/g, "");
+
+        // TYPE-4
+        if (key.includes("brand")) return "BrandGet";
+
+        // TYPE-5 (VERY IMPORTANT)
+        if (key.includes("variant")) return "Item_Variant_Name";
+        if (key.includes("size")) return "Item_Variant_Name";
+        if (key.includes("pack")) return "Item_Variant_Name";
+
+        // PRODUCT
+        if (key.includes("product")) return "Product_Name";
+        if (key.includes("item")) return "Product_Name";
+        if (key.includes("party_nature")) return "Party_Nature";
+        if (key.includes("Party_Mailing_Address")) return "Party_Mailing_Address";
+
+        return colName;
+    };
+
+    const matchesFilter = (obj: any, key: string, value: string): boolean => {
+            if (!obj) return false;
+
+            // Check at this level
+            if (obj[key] === value) return true;
+
+            // Check nested arrays
+            return Object.values(obj).some((v: any) => {
+                if (Array.isArray(v)) {
+                    return v.some((item: any) => matchesFilter(item, key, value));
+                }
+                return false;
+            });
+        };
+
+    const computeValuesWithTotals = (
+        column: string,
+        parent?: { column: string; value: string }
+    ) => {
+        const map = new Map<string, number>();
+        const key = normalizeColumnKey(column);
+
+        const extractValues = (obj: any): any[] => {
+            let values: any[] = [];
+
+            if (!obj) return values;
+
+            // If key exists at this level
+            if (obj.hasOwnProperty(key)) {
+                values.push(obj[key]);
+            }
+
+            // Check nested arrays
+            Object.values(obj).forEach((v: any) => {
+                if (Array.isArray(v)) {
+                    v.forEach((item: any) => {
+                        values = values.concat(extractValues(item));
                     });
                 }
             });
+
+            return values;
+        };
+
+
+        saleOrder.forEach((order: any) => {
+            let includeOrder = true;
+
+            if (parent) {
+                const parentKey = normalizeColumnKey(parent.column);
+                includeOrder =
+                    order[parentKey] === parent.value ||
+                    (order.Products_List || []).some((p: any) => p[parentKey] === parent.value);
+            }
+
+            if (!includeOrder) return;
+
+            const values = extractValues(order);
+            values.forEach((val: any) => {
+                if (!val) return;
+                map.set(val, (map.get(val) || 0) + 1); // count occurrences
+            });
         });
 
-        return Array.from(brandTotals.entries()).map(([brand, totals]) => ({
-            brand,
-            count: totals.count,
-            amount: totals.amount,
-        }));
+        return [...map.entries()]
+            .map(([value, total]) => ({ value, total }))
+            .sort((a, b) => b.total - a.total);
     };
 
-    // Filter data by brand and search query
-    const getProcessedData = () => {
-        let filtered = [...(saleOrder as any[])];
 
-        // Filter by search query
+    React.useEffect(() => {
+        if (!saleOrder.length) return;
+
+        const type4Col = level2Columns.find(c => c.Type === 4);
+        const type5Col = level2Columns.find(c => c.Type === 5);
+
+        if (!type4Col) return;
+
+        // ✅ TYPE-4 VALUES (ALWAYS)
+        setActiveTypeValuesWithTotals(
+            computeValuesWithTotals(type4Col.Column_Name)
+        );
+
+        // ✅ TYPE-5 VALUES (ONLY WHEN TYPE-4 SELECTED)
+        if (selectedValuesByType[4] && type5Col) {
+            setSecondLevelValues(
+                computeValuesWithTotals(type5Col.Column_Name, {
+                    column: type4Col.Column_Name,
+                    value: selectedValuesByType[4],
+                })
+            );
+        } else {
+            setSecondLevelValues([]);
+        }
+    }, [saleOrder, selectedValuesByType[4]]);
+
+
+    const formatNumber = (n: number) =>
+        Number(n || 0).toLocaleString("en-IN");
+
+    const loadLevel2Filters = React.useCallback(async () => {
+        try {
+            const res = await fetch(API.getReportFilters("SalesReturn"));
+            const json = await res.json();
+
+            const raw: ReportFilter[] = Array.isArray(json?.data)
+                ? json.data
+                : [];
+
+            const lvl2: Level2Column[] = raw
+                .filter(
+                    (x) =>
+                        String(x.FilterLevel) === "2" &&
+                        x.filterType !== undefined
+                )
+                .map((x) => ({
+                    Type: Number(x.filterType),
+                    Column_Name: x.columnName,
+                    isGroupFilter: Boolean(x.isGroupFilter),
+                }))
+                .filter((x) => !Number.isNaN(x.Type));
+
+            const uniqTypes = Array.from(
+                new Set<number>(lvl2.map((x) => x.Type))
+            ).sort((a, b) => a - b);
+
+            setLevel2Columns(lvl2);
+            setLevel2TypesOrder(uniqTypes);
+        } catch (e) {
+            setLevel2Columns([]);
+            setLevel2TypesOrder([]);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        loadLevel2Filters();
+    }, [loadLevel2Filters]);
+
+    React.useEffect(() => {
+        if (level2TypesOrder.length > 0) {
+            setActiveType(level2TypesOrder[0]);
+        }
+    }, [level2TypesOrder]);
+
+    const filterMetaByColumn = React.useMemo(() => {
+        const map: Record<string, ReportFilter> = {};
+        (externalFilterTemplate || []).forEach((f: ReportFilter) => {
+            map[f.columnName] = f;
+        });
+        return map;
+    }, [externalFilterTemplate]);
+
+    const flatItems = React.useMemo(() => {
+        const rows: { order: any; item: any }[] = [];
+
+        (saleOrder as any[]).forEach((order) => {
+            // Push each product if exists
+            order.Products_List?.forEach((product: any) => {
+                rows.push({ order, item: product });
+            });
+
+            // Also push order-level data as a separate "item"
+            rows.push({ order, item: order });
+        });
+
+        return rows;
+    }, [saleOrder]);
+
+
+    const flatProductsForFilter = React.useMemo(() => {
+        const rows: any[] = [];
+        (saleOrder as any[]).forEach((order) => {
+            order.Products_List?.forEach((product: any) => {
+                rows.push({ order, product });
+            });
+        });
+        return rows;
+    }, [saleOrder]);
+
+
+    /* ---------- FILTER LOGIC (UNCHANGED) ---------- */
+    const filteredOrders = React.useMemo(() => {
+        let filtered = [...saleOrder];
+
+        // SEARCH
         if (searchQuery.trim()) {
-            filtered = filtered.filter((order: any) =>
+            filtered = filtered.filter((o: any) =>
                 (
-                    order.So_Inv_No?.toLowerCase() +
-                    " " +
-                    order.Retailer_Name?.toLowerCase() +
-                    " " +
-                    order.Sales_Person_Name?.toLowerCase() +
-                    " " +
-                    order.Branch_Name?.toLowerCase()
-                ).includes(searchQuery.toLowerCase()),
+                    o.So_Inv_No +
+                    o.Retailer_Name +
+                    o.Sales_Person_Name +
+                    o.Branch_Name
+                ).toLowerCase().includes(searchQuery.toLowerCase())
             );
         }
 
-        // Filter by selected brand
-        if (selectedBrand) {
+        // LEVEL2 FILTERS
+        if (Object.keys(selectedValuesByType).length) {
             filtered = filtered.filter((order: any) =>
-                order.Products_List?.some(
-                    (product: Product) => product.BrandGet === selectedBrand,
-                ),
+                Object.entries(selectedValuesByType).every(([type, val]) => {
+                    const col = level2Columns.find(c => c.Type === Number(type));
+                    if (!col) return true; // skip unknown type
+
+                    const key = normalizeColumnKey(col.Column_Name);
+
+                    return matchesFilter(order, key, val);
+                })
             );
         }
 
         return filtered;
+    }, [saleOrder, searchQuery, selectedValuesByType, level2TypesOrder, level2Columns]);
+
+    console.log("Type4 values", activeTypeValuesWithTotals);
+    console.log("Type5 values", secondLevelValues);
+    console.log("Selected", selectedValuesByType);
+
+
+    const isTypeEnabled = (type: number) => {
+        if (type === 4) return true;
+        return Boolean(selectedValuesByType[4]);
     };
 
-    const filteredData = React.useMemo(() => {
-    let filtered = [...(saleOrder as any[])];
-
-    if (searchQuery.trim()) {
-        filtered = filtered.filter((order: any) =>
-            (
-                order.So_Inv_No?.toLowerCase() +
-                " " +
-                order.Retailer_Name?.toLowerCase() +
-                " " +
-                order.Sales_Person_Name?.toLowerCase() +
-                " " +
-                order.Branch_Name?.toLowerCase()
-            ).includes(searchQuery.toLowerCase()),
-        );
-    }
-
-    if (selectedBrand) {
-        filtered = filtered.filter((order: any) =>
-            order.Products_List?.some(
-                (product: Product) => product.BrandGet === selectedBrand,
-            ),
-        );
-    }
-
-    return filtered;
-}, [saleOrder, searchQuery, selectedBrand]);
-
-
-    // Build item-wise list from Products_List
-    const itemWiseData = React.useMemo(() => {
-        const list: any[] = [];
-
-        (filteredData as any[]).forEach((order: any) => {
-            order.Products_List?.forEach((product: Product) => {
-                list.push({
-                    ...product,
-                    So_Inv_No: order.So_Inv_No,
-                    Retailer_Name: order.Retailer_Name,
-                    Sales_Person_Name: order.Sales_Person_Name,
-                    Created_on: order.Created_on,
-                    Branch_Name: order.Branch_Name,
-                    Total_Invoice_value: order.Total_Invoice_value,
-                });
-            });
-        });
-
-        return list;
-    }, [filteredData]);
-
-    // debug - shows itemWiseData after it's created (remove in production)
-    React.useEffect(() => {
-        // eslint-disable-next-line no-console
-        console.log("ItemWiseData generated:", itemWiseData.length, itemWiseData);
-    }, [itemWiseData]);
-
-    const totalAmount = filteredData.reduce(
-        (sum: number, order: any) => sum + (order.Total_Invoice_value || 0),
+    const totalAmount = filteredOrders.reduce(
+        (sum: number, o: any) => sum + (o.Total_Invoice_value || 0),
         0,
     );
 
     const {
+        currentData: displayData,
         currentPage,
         totalPages,
         totalItems,
         totalRecords,
-        currentData: displayData,
         setCurrentPage,
     } = usePagination({
-        data: viewMode === "order" ? filteredData : itemWiseData,
+        data: filteredOrders,
         itemsPerPage: ITEMS_PER_PAGE,
     });
 
-    // Toggle order expansion
-    const toggleOrder = (orderId: string) => {
-        const newExpanded = new Set(expandedOrders);
-        if (newExpanded.has(orderId)) {
-            newExpanded.delete(orderId);
-        } else {
-            newExpanded.add(orderId);
-        }
-        setExpandedOrders(newExpanded);
+    const toggleOrder = (id: string) => {
+        const copy = new Set(expandedOrders);
+        copy.has(id) ? copy.delete(id) : copy.add(id);
+        setExpandedOrders(copy);
     };
 
-    // Handle refresh
-    const onRefresh = React.useCallback(async () => {
+    const onRefresh = async () => {
         setRefreshing(true);
-        try {
-            await refetch();
-        } finally {
-            setRefreshing(false);
-        }
-    }, [refetch]);
+        await refetch();
+        setRefreshing(false);
+    };
 
-    // Reset pagination when filters change
-    React.useEffect(() => {
-        setCurrentPage(1);
-        setExpandedOrders(new Set());
-    }, [searchQuery, selectedBrand, viewMode, setCurrentPage]);
-
-    // Summary Cards Component
     const SummaryCards = () => (
         <View style={styles.summaryContainer}>
             <View style={styles.summaryCard}>
@@ -260,53 +399,129 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         </View>
     );
 
-    // Brand Filter Component
-    const BrandFilter = () => {
-        const brandsWithTotals = getBrandsWithTotals();
+    const Level2Filter = () => {
+        const parentSelected = selectedValuesByType[4];
 
         return (
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.brandFilterContainer}>
-                <TouchableOpacity
-                    style={[
-                        styles.brandFilterButton,
-                        !selectedBrand && styles.brandFilterButtonActive,
-                    ]}
-                    onPress={() => setSelectedBrand("")}>
-                    <Text
-                        style={[
-                            styles.brandFilterText,
-                            !selectedBrand && styles.brandFilterTextActive,
-                        ]}>
-                        All
-                    </Text>
-                </TouchableOpacity>
-                {brandsWithTotals.map(({ brand }) => (
+            <>
+                {/* ================= TYPE 4 (PARENT) ================= */}
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.level2FilterContainer}
+                >
                     <TouchableOpacity
-                        key={brand}
                         style={[
                             styles.brandFilterButton,
-                            selectedBrand === brand &&
-                            styles.brandFilterButtonActive,
+                            !parentSelected && styles.brandFilterButtonActive,
                         ]}
-                        onPress={() => setSelectedBrand(brand)}>
+                        onPress={() => setSelectedValuesByType({})}
+                    >
                         <Text
                             style={[
                                 styles.brandFilterText,
-                                selectedBrand === brand &&
-                                styles.brandFilterTextActive,
-                            ]}>
-                            {brand}
+                                !parentSelected && styles.brandFilterTextActive,
+                            ]}
+                        >
+                            All
                         </Text>
                     </TouchableOpacity>
-                ))}
-            </ScrollView>
+
+                    {activeTypeValuesWithTotals.map(({ value, total }) => {
+                        const selected = parentSelected === value;
+
+                        return (
+                            <TouchableOpacity
+                                key={value}
+                                style={[
+                                    styles.brandFilterButton,
+                                    selected && styles.brandFilterButtonActive,
+                                ]}
+                                onPress={() =>
+                                    setSelectedValuesByType({ 4: value })
+                                }
+                            >
+                                <Text
+                                    style={[
+                                        styles.brandFilterText,
+                                        selected && styles.brandFilterTextActive,
+                                    ]}
+                                >
+                                    {value} ({formatNumber(total)})
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+
+                {/* ================= TYPE 5 (CHILD) ================= */}
+                {parentSelected && (
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={[styles.level2FilterContainer, { marginTop: 6 }]}
+                    >
+                        {/* ALL CHIP — ALWAYS VISIBLE */}
+                        <TouchableOpacity
+                            style={[
+                                styles.brandFilterButton,
+                                !selectedValuesByType[5] &&
+                                styles.brandFilterButtonActive,
+                            ]}
+                            onPress={() =>
+                                setSelectedValuesByType({ 4: parentSelected })
+                            }
+                        >
+                            <Text
+                                style={[
+                                    styles.brandFilterText,
+                                    !selectedValuesByType[5] &&
+                                    styles.brandFilterTextActive,
+                                ]}
+                            >
+                                All
+                            </Text>
+                        </TouchableOpacity>
+
+                        {/* CHILD VALUES — ONLY IF EXISTS */}
+                        {secondLevelValues.map(({ value, total }) => {
+                            const selected = selectedValuesByType[5] === value;
+
+                            return (
+                                <TouchableOpacity
+                                    key={value}
+                                    style={[
+                                        styles.brandFilterButton,
+                                        selected &&
+                                        styles.brandFilterButtonActive,
+                                    ]}
+                                    onPress={() =>
+                                        setSelectedValuesByType({
+                                            4: parentSelected,
+                                            5: value,
+                                        })
+                                    }
+                                >
+                                    <Text
+                                        style={[
+                                            styles.brandFilterText,
+                                            selected &&
+                                            styles.brandFilterTextActive,
+                                        ]}
+                                    >
+                                        {value} ({formatNumber(total)})
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+                )}
+
+            </>
         );
     };
 
-    // Sales Order Card Component (unchanged logic)
+    /* ---------- ORDER CARD (ORIGINAL) ---------- */
     const SaleOrderCard = ({ order }: { order: any }) => {
         const isExpanded = expandedOrders.has(order.S_Id);
 
@@ -496,81 +711,15 @@ const SaleOrderPending = ({ route }: { route: any }) => {
         );
     };
 
-    // Item-wise Card - displays product as requested
-    const ItemWiseCard = ({ item }: { item: any }) => {
-        const formatDate = (value: any) => {
-            if (!value) return "—";
-            const d = new Date(value);
-            if (isNaN(d.getTime())) return "—";
-            return d.toLocaleDateString("en-IN");
-        };
-
-        return (
-            <View style={styles.cardContainer}>
-                {/* Header: Product + Brand */}
-                <View style={styles.cardHeader}>
-                    <View style={{ flex: 1 }}>
-                        <Text style={styles.productName}>
-                            {item.Product_Name || "--"}
-                        </Text>
-                        <Text style={styles.brandName}>
-                            {item.BrandGet || "--"}
-                        </Text>
-                    </View>
-
-                    <View style={styles.amountContainer}>
-                        <Text style={styles.amount}>
-                            {formatCurrency(item.Final_Amo)}
-                        </Text>
-                    </View>
-                </View>
-
-                {/* Divider */}
-                <View style={styles.divider} />
-
-                {/* Details Row */}
-                <View style={styles.detailsRow}>
-                    {/* Left Column */}
-                    <View style={styles.detailsColumn}>
-                        <Text style={styles.label}>Order No</Text>
-                        <Text style={styles.value}>{item.So_Inv_No || "--"}</Text>
-
-                        <Text style={styles.label}>Retailer</Text>
-                        <Text style={styles.value}>{item.Retailer_Name || "--"}</Text>
-
-                        <Text style={styles.label}>Qty</Text>
-                        <Text style={styles.value}>
-                            {item.Bill_Qty ?? item.Total_Qty ?? "--"}
-                        </Text>
-                    </View>
-
-                    {/* Right Column */}
-                    <View style={styles.detailsColumn}>
-                        <Text style={styles.label}>Sales Person</Text>
-                        <Text style={styles.value}>
-                            {item.Sales_Person_Name || "--"}
-                        </Text>
-
-                        <Text style={styles.label}>Date</Text>
-                        <Text style={styles.value}>{formatDate(item.Created_on)}</Text>
-
-                        <Text style={styles.label}>Branch</Text>
-                        <Text style={styles.value}>{item.Branch_Name || "--"}</Text>
-                    </View>
-                </View>
-            </View>
-        );
-    };
-
-
     const handleCloseModal = () => {
         setModalVisible(false);
     };
 
+
     return (
         <SafeAreaView style={styles.container}>
             <AppHeader
-                title="Sale Order Pending"
+                title="Sales Pending - Orders"
                 navigation={navigation}
                 showRightIcon={true}
                 rightIconLibrary="MaterialIcon"
@@ -584,13 +733,19 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                 toDate={toDate}
                 onFromDateChange={setFromDate}
                 onToDateChange={setToDate}
-                onApply={() => setModalVisible(false)}
-                enableDynamicFilter={true}
-                onClose={handleCloseModal}
-                showToDate={true}
+                showToDate
                 title="Filter Options"
-                fromLabel="From Date"
-                toLabel="To Date"
+                enableDynamicFilter
+                reportName={REPORT_NAME}
+                expectedReportName={REPORT_NAME}
+                externalFilters={externalFilterTemplate || undefined}
+                onApply={(selectedFilters) => {
+                    setAppliedDynamicFilters(selectedFilters || {});
+                    setSelectedValuesByType({});
+                    setModalVisible(false);
+                    refetch(); // ✅ ADD THIS
+                }}
+                onClose={() => setModalVisible(false)}
             />
 
             <ScrollView
@@ -629,44 +784,12 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                 {/* Data Display */}
                 {!isLoading && !error && (saleOrder as any[]).length > 0 && (
                     <>
-                        {/* Toggle View Buttons */}
-                        <View style={styles.toggleContainer}>
-                            <TouchableOpacity
-                                style={[
-                                    styles.toggleButton,
-                                    viewMode === "order" && styles.toggleButtonActive,
-                                ]}
-                                onPress={() => setViewMode("order")}>
-                                <Text
-                                    style={[
-                                        styles.toggleText,
-                                        viewMode === "order" && styles.toggleTextActive,
-                                    ]}>
-                                    Order Wise
-                                </Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={[
-                                    styles.toggleButton,
-                                    viewMode === "item" && styles.toggleButtonActive,
-                                ]}
-                                onPress={() => setViewMode("item")}>
-                                <Text
-                                    style={[
-                                        styles.toggleText,
-                                        viewMode === "item" && styles.toggleTextActive,
-                                    ]}>
-                                    Item Wise
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
 
                         {/* Summary Cards */}
                         <SummaryCards />
 
-                        {/* Brand Filter */}
-                        <BrandFilter />
+                        {/* LEVEL 2 FILTERS */}
+                        <Level2Filter />
 
                         {/* Search Bar */}
                         <View style={styles.searchContainer}>
@@ -694,13 +817,9 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                         </View>
 
                         {/* List */}
-                        {viewMode === "order"
-                            ? displayData.map((order: any) => (
-                                <SaleOrderCard key={order.S_Id} order={order} />
-                            ))
-                            : displayData.map((item: any, idx: number) => (
-                                <ItemWiseCard key={idx} item={item} />
-                            ))}
+                        {displayData.map((order: any) => (
+                            <SaleOrderCard key={order.S_Id} order={order} />
+                        ))}
 
                         {/* Pagination */}
                         {totalPages > 1 && (
@@ -744,7 +863,7 @@ const SaleOrderPending = ({ route }: { route: any }) => {
     );
 };
 
-export default SaleOrderPending;
+export default SalesPendingOrderWise;
 
 const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
@@ -1191,6 +1310,11 @@ const getStyles = (typography: any, colors: any) =>
             fontWeight: "500",
             color: "#444",
             marginBottom: 4,
+        },
+        level2FilterContainer: {
+            flexDirection: "row",
+            paddingVertical: 8,
+            paddingHorizontal: 5
         },
 
     });

@@ -23,7 +23,6 @@ import { API } from "../../constants/api";
 
 const ITEMS_PER_PAGE = 20;
 
-// Helper to build url with dynamic filterN params
 const buildUrlWithFilters = (baseUrl: string, from: string, to: string | null, filters: Record<string, string>) => {
   const params = new URLSearchParams();
   if (from) params.append("Fromdate", from);
@@ -127,21 +126,21 @@ const OpeningStockGodownWise = () => {
     if (key.includes("brand")) return "Brand";
     if (key.includes("group_st")) return "Group_ST";
     if (key.includes("product") || key.includes("product_name")) return "Product_Name";
-    if (key.includes("item") && key.includes("name")) return "stock_item_name";
+    if (key.includes("stock_item") && key.includes("name")) return "stock_item_name";
     if (key.includes("stock_group")) return "Stock_Group";
     if (key.includes("grade") && key.includes("item")) return "Grade_Item_Group";
     if (key.includes("s_sub") || key.includes("sub_group")) return "S_Sub_Group_1";
     if (key.includes("bag")) return "Bag";
+    if (key.includes("item_name_modified")) return "Item_Name_Modified"
     return colName;
   };
 
-  // --- compute totals for a column from itemWiseStockData (sums Bal_Qty or OB_Bal_Qty fallback) ---
+  // --- compute totals for a column from itemWiseStockData 
   const computeValuesWithTotals = (columnName: string, parentPair?: { column: string; value: string } | undefined) => {
     const totals = new Map<string, number>();
     const qtyFieldCandidates = ["Bal_Qty", "Act_Bal_Qty", "OB_Bal_Qty", "OB_Act_Qty"];
 
     (goDownWiseStockData || []).forEach((it: any) => {
-      // If parentPair exists, check parent's presence either on item or group
       if (parentPair) {
         const itemParentVal = it?.[parentPair.column];
         if (itemParentVal === undefined || itemParentVal === null || String(itemParentVal) === "") return;
@@ -151,7 +150,6 @@ const OpeningStockGodownWise = () => {
       let v = it?.[columnName];
       if (v === undefined || v === null || String(v).trim() === "") return;
       const valStr = String(v);
-      // choose a qty to sum: Bal_Qty preferred
       let qty = 0;
       for (const f of qtyFieldCandidates) {
         const candidate = it[f];
@@ -173,7 +171,7 @@ const OpeningStockGodownWise = () => {
     loadExternalFilters();
   }, []);
 
-  // --- Load level2 columns metadata from filter API (same endpoint used by SalesInvoice) ---
+  // --- Load level2 columns metadata from filter API 
   const loadLevel2Columns = React.useCallback(async () => {
     try {
       let resJson: any = null;
@@ -255,17 +253,14 @@ const OpeningStockGodownWise = () => {
     }
   }, []);
 
-  // Load level2 columns on mount and whenever dynamicFilters change (because Level-1 is dynamic from modal)
+  // Load level2 columns on mount and whenever dynamicFilters change 
   React.useEffect(() => {
     loadLevel2Columns();
-    // On level-1 (dynamicFilters) change we reset selected level2s (Option 1)
     setSelectedValuesByType({});
-    // reset pagination / expanded groups
     setCurrentPage(1);
     setExpandedGroups(new Set());
   }, [loadLevel2Columns, JSON.stringify(dynamicFilters)]);
 
-  // When the data or selectedValuesByType changes we may recompute some helper lists (optional)
   React.useEffect(() => {
     if (!level2TypesOrder.length) return;
 
@@ -306,12 +301,10 @@ const OpeningStockGodownWise = () => {
   }, [externalFilterTemplate]);
 
 
-  // ---- Filtering pipeline (grouping & search & level2 filter application) ----
+  // ---- Filtering pipeline 
   const applyLevel2FiltersToRaw = (rawData: any[]) => {
     if (!level2TypesOrder || level2TypesOrder.length === 0) return rawData;
     let filtered = [...rawData];
-
-    // For each type in order, if selected value exists, filter accordingly
     level2TypesOrder.forEach((t) => {
       const selVal = selectedValuesByType[t];
       if (!selVal) return;
@@ -321,11 +314,9 @@ const OpeningStockGodownWise = () => {
       const mappedCol = normalizeColumnKey(colName);
 
       filtered = filtered.filter((it: any) => {
-        // direct field match
         if (it && it[mappedCol] !== undefined && it[mappedCol] !== null) {
           if (String(it[mappedCol]) === selVal) return true;
         }
-        // fallback: no nested product list in itemWise data; so return false
         return false;
       });
     });
@@ -358,15 +349,12 @@ const OpeningStockGodownWise = () => {
           if (!cols || cols.length === 0) return null;
           const primaryCol = cols[0];
           const colName = primaryCol.Column_Name;
-
-          // Determine parent if exists
           const idx = level2TypesOrder.indexOf(typeNum);
           let parentPair: { column: string; value: string } | undefined;
           if (idx > 0) {
             const parentType = level2TypesOrder[idx - 1];
             const selParent = selectedValuesByType[parentType];
             if (!selParent) {
-              // Don't show child until parent is selected
               if (typeNum === 5) return null;
             } else {
               const parentCols = level2Columns.filter((c) => c.Type === parentType);
@@ -392,7 +380,6 @@ const OpeningStockGodownWise = () => {
                   onPress={() => {
                     const newSel = { ...selectedValuesByType };
                     delete newSel[typeNum];
-                    // Reset downstream types
                     level2TypesOrder.forEach((t) => { if (t > typeNum) delete newSel[t]; });
                     setSelectedValuesByType(newSel);
                   }}

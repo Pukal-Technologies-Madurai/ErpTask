@@ -180,7 +180,7 @@ const OpeningStockItemWise = () => {
         );
 
         if (!groupFilter?.columnName) {
-            console.warn("No GROUP_FILTER found, fallback to Stock_Group");
+            console.warn("No GROUP FILTER found, fallback to Stock_Group");
             setGroupByColumn("Stock_Group");
             return;
         }

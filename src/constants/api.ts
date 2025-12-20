@@ -1,8 +1,8 @@
 import { MMKV } from "react-native-mmkv";
 const storage = new MMKV();
 
-let baseURL = storage.getString("baseURL") || "https://erpsmt.in/";
-// export let baseURL = "http://192.168.3.118:9001/";
+// let baseURL = storage.getString("baseURL") || "https://erpsmt.in/";
+export let baseURL = "http://192.168.3.118:9001/";
 // export let baseURL = "https://erpsmt.in/"
 // const baseURL = "http://192.168.1.18:9001/api/";
 
@@ -34,7 +34,7 @@ export const API = {
         `${baseURL}api/delivery/deliveryOrderListDataMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
 
     saleorderPending: (from: string, to: string, userId: number | string, branchId?: number | string) =>
-        `${baseURL}api/reports/reportsNonconvert/sales?Fromdate=${from}&User_Id=${userId}&Todate=${to}&Branch_Id=${branchId || ''}`,
+        `${baseURL}api/reports/reportsNonconvert/salesMobile?Fromdate=${from}&User_Id=${userId}&Todate=${to}&Branch_Id=${branchId || ''}`,
 
     purchaseReport: (from: string, to: string) =>
         `${baseURL}api/reports/PurchaseOrderReportCard?Report_Type=2&Fromdate=${from}&Todate=${to}`,

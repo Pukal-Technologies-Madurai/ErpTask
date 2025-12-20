@@ -853,10 +853,24 @@ const Home = () => {
                 </View>
               </Pressable>
 
-              <Pressable onPress={() => navigation.navigate("saleorderpend", { branchId: branchId })}>
+              {/* <Pressable onPress={() => navigation.navigate("saleorderpend", { branchId: branchId })}>
                 <View style={styles.summaryCard}>
                   <Icon name="shopping-cart" size={32} color={colors.pen} />
                   <Text style={styles.summaryCardTitle}>Pending Sale Order</Text>
+                  <Text style={styles.summaryCardValue}>₹{formatNumber(totalSalesPend)}</Text>
+                  <View style={[styles.tonnageContainer, { backgroundColor: colors.pen + "15" }]}>
+                    <Icon name="scale" size={16} color={colors.pen} />
+                    <Text style={[styles.tonnageText, { color: colors.pen }]}>
+                      {formatTonnage(totalsalesPendingTonnage)} Tons
+                    </Text>
+                  </View>
+                </View>
+              </Pressable> */}
+
+                <Pressable onPress={() => navigation.navigate("saleorderpendorder", { branchId: branchId })}>
+                <View style={styles.summaryCard}>
+                  <Icon name="shopping-cart" size={32} color={colors.pen} />
+                  <Text style={styles.summaryCardTitle}>Sales Pending Order</Text>
                   <Text style={styles.summaryCardValue}>₹{formatNumber(totalSalesPend)}</Text>
                   <View style={[styles.tonnageContainer, { backgroundColor: colors.pen + "15" }]}>
                     <Icon name="scale" size={16} color={colors.pen} />
@@ -869,6 +883,20 @@ const Home = () => {
             </View>
 
              <View style={styles.summaryRow}>
+                <Pressable onPress={() => navigation.navigate("saleorderpenditem", { branchId: branchId })}>
+                <View style={styles.summaryCard}>
+                  <Icon name="shopping-cart" size={32} color={colors.pen} />
+                  <Text style={styles.summaryCardTitle}>Sales Pending Item</Text>
+                  <Text style={styles.summaryCardValue}>₹{formatNumber(totalSalesPend)}</Text>
+                  <View style={[styles.tonnageContainer, { backgroundColor: colors.pen + "15" }]}>
+                    <Icon name="scale" size={16} color={colors.pen} />
+                    <Text style={[styles.tonnageText, { color: colors.pen }]}>
+                      {formatTonnage(totalsalesPendingTonnage)} Tons
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+
               <Pressable onPress={() => navigation.navigate("ItemStack")}>
                 <View style={styles.summaryCard}>
                   <Icon name="inventory" size={32} color={colors.success} />
