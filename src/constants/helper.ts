@@ -53,6 +53,7 @@ export const customColors = {
         rec: "#9f18c9ff",
         pay: "#01220fd7",
         pen: "#941108d7",
+        peni:"#3f0674bd",
         del: "#ff1a0aff",
     },
     dark: {

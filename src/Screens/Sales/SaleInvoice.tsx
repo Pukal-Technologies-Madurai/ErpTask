@@ -142,12 +142,12 @@ const SaleInvoice = ({ route }: { route: any }) => {
     if (!colName) return colName;
     const key = colName.toLowerCase().replace(/\s+/g, "_");
     if (key.includes("brand")) return "BrandGet";
-    if (key.includes("product") || key.includes("product_name"))
-      return "Product_Name";
+    if (key.includes("product") || key.includes("product_name")) return "Product_Name";
     if (key.includes("item") && key.includes("name")) return "Item_Name";
     if (key.includes("stock_group")) return "Stock_Group";
     if (key.includes("ledger") || key.includes("ledger_name")) return "Ledger_Name";
     if (key.includes("ref") && key.includes("broker")) return "Ref_Brokers";
+    if (key.includes("Voucher_Type")) return "Voucher_Type";
     return colName;
   };
 
@@ -536,6 +536,12 @@ React.useEffect(() => {
                 <Icon name="receipt" size={14} color={colors.primary} />
                 <Text style={styles.invoiceIdText} numberOfLines={1}>
                   {invoice.Do_Inv_No || "--"}
+                </Text>
+              </View>
+              <View style={styles.invoiceIdRow}>
+                <Icon name="receipt" size={14} color={colors.primary} />
+                <Text style={styles.invoiceIdText} numberOfLines={1}>
+                  {invoice.VoucherTypeGet || "--"}
                 </Text>
               </View>
             </View>

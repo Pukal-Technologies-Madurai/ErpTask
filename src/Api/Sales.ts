@@ -213,6 +213,59 @@ export const salesOrderPendingList = async (
     }
 };
 
+export const salesOrderPendingItemList = async (
+    from: Date | string,
+    to: Date | string,
+    userId: any,
+    branchId: number | string,
+    filters?: Record<string, string>
+) => {
+    try {
+        const fromStr =
+            typeof from === "string" ? from : from.toISOString().split("T")[0];
+        const toStr =
+            typeof to === "string" ? to : to.toISOString().split("T")[0];
+
+        // Base URL (same as before)
+        let url = API.saleorderPendingItem(fromStr, toStr, userId, branchId);
+
+        // ✅ APPEND DYNAMIC FILTERS
+        if (filters) {
+            Object.entries(filters).forEach(([key, value]) => {
+                if (value) {
+                    url += `&${key}=${encodeURIComponent(value)}`;
+                }
+            });
+        }
+
+        console.log("API URL =", url);
+
+        const res = await fetch(url, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+
+        const json = await res.json();
+
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
+        if (!json.success) {
+            throw new Error(
+                json.message || "Failed to fetch sale order pending data"
+            );
+        }
+
+        return json.data || [];
+    } catch (error) {
+        console.error("Error fetching sale order pending data:", error);
+        throw error;
+    }
+};
+
 
 export const getFilterColumnName = async () => {
     try {

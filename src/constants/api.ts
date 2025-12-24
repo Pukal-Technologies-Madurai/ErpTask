@@ -36,6 +36,9 @@ export const API = {
     saleorderPending: (from: string, to: string, userId: number | string, branchId?: number | string) =>
         `${baseURL}api/reports/reportsNonconvert/salesMobile?Fromdate=${from}&User_Id=${userId}&Todate=${to}&Branch_Id=${branchId || ''}`,
 
+    saleorderPendingItem: (from: string, to: string, userId: number | string, branchId?: number | string) =>
+        `${baseURL}api/reports/reportsNonconvert/salesMobileItem?Fromdate=${from}&User_Id=${userId}&Todate=${to}&Branch_Id=${branchId || ''}`,
+
     purchaseReport: (from: string, to: string) =>
         `${baseURL}api/reports/PurchaseOrderReportCard?Report_Type=2&Fromdate=${from}&Todate=${to}`,
 

@@ -226,7 +226,7 @@ const Home = () => {
     data: SaleorderPendingData = [],
     refetch: refetchsalesOrderPendingList,
   } = useQuery({
-    queryKey: ["salesorderPendingList",pendingFromDate,pendingToDate,userId,branchId,],
+    queryKey: ["salesorderPendingList", pendingFromDate, pendingToDate, userId, branchId,],
     queryFn: () => salesOrderPendingList(pendingFromDate, pendingToDate, userId, branchId),
     enabled: !!pendingFromDate && !!pendingToDate && !!userId && !!branchId,
   });
@@ -779,7 +779,7 @@ const Home = () => {
               </Pressable>
             </View>
 
-              <View style={styles.summaryRow}>
+            <View style={styles.summaryRow}>
               <Pressable onPress={() => navigation.navigate("Stockitem")}>
                 <View style={styles.summaryCard}>
                   <Icon name="inventory" size={32} color={colors.success} />
@@ -867,7 +867,7 @@ const Home = () => {
                 </View>
               </Pressable> */}
 
-                <Pressable onPress={() => navigation.navigate("saleorderpendorder", { branchId: branchId })}>
+              <Pressable onPress={() => navigation.navigate("saleorderpendorder", { branchId: branchId })}>
                 <View style={styles.summaryCard}>
                   <Icon name="shopping-cart" size={32} color={colors.pen} />
                   <Text style={styles.summaryCardTitle}>Sales Pending Order</Text>
@@ -882,15 +882,15 @@ const Home = () => {
               </Pressable>
             </View>
 
-             <View style={styles.summaryRow}>
-                <Pressable onPress={() => navigation.navigate("saleorderpenditem", { branchId: branchId })}>
+            <View style={styles.summaryRow}>
+              <Pressable onPress={() => navigation.navigate("saleorderpenditem", { branchId: branchId })}>
                 <View style={styles.summaryCard}>
-                  <Icon name="shopping-cart" size={32} color={colors.pen} />
+                  <Icon name="pending-actions" size={32} color={colors.peni} />
                   <Text style={styles.summaryCardTitle}>Sales Pending Item</Text>
                   <Text style={styles.summaryCardValue}>₹{formatNumber(totalSalesPend)}</Text>
-                  <View style={[styles.tonnageContainer, { backgroundColor: colors.pen + "15" }]}>
-                    <Icon name="scale" size={16} color={colors.pen} />
-                    <Text style={[styles.tonnageText, { color: colors.pen }]}>
+                  <View style={[styles.tonnageContainer, { backgroundColor: colors.peni + "15" }]}>
+                    <Icon name="scale" size={16} color={colors.peni} />
+                    <Text style={[styles.tonnageText, { color: colors.peni }]}>
                       {formatTonnage(totalsalesPendingTonnage)} Tons
                     </Text>
                   </View>
@@ -899,7 +899,7 @@ const Home = () => {
 
               <Pressable onPress={() => navigation.navigate("ItemStack")}>
                 <View style={styles.summaryCard}>
-                  <Icon name="inventory" size={32} color={colors.success} />
+                  <Icon name="shopify" size={32} color={colors.success} />
                   <Text style={styles.summaryCardTitle}>Item Stock Value</Text>
                   <Text style={styles.summaryCardValue}>₹{formatNumber(totalStockValue)}</Text>
                   <View style={[styles.tonnageContainer, { backgroundColor: colors.success + "15" }]}>
