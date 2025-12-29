@@ -29,9 +29,7 @@ const SaleInvoice = ({ route }: { route: any }) => {
   const { colors, typography } = useTheme();
   const styles = getStyles(typography, colors);
   const storage = new MMKV();
-  const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-
+  const navigation =useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [fromDate, setFromDate] = React.useState<Date>(new Date());
   const [toDate, setToDate] = React.useState<Date>(new Date());
   const [userId, setUserId] = React.useState("");

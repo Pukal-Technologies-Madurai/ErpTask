@@ -190,7 +190,7 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
             const values = extractValues(order);
             values.forEach((val: any) => {
                 if (!val) return;
-                map.set(val, (map.get(val) || 0) + 1); // count occurrences
+                map.set(val, (map.get(val) || 0) + 1); 
             });
         });
 
@@ -342,11 +342,6 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
 
         return filtered;
     }, [saleOrder, searchQuery, selectedValuesByType, level2TypesOrder, level2Columns]);
-
-    console.log("Type4 values", activeTypeValuesWithTotals);
-    console.log("Type5 values", secondLevelValues);
-    console.log("Selected", selectedValuesByType);
-
 
     const isTypeEnabled = (type: number) => {
         if (type === 4) return true;
@@ -715,7 +710,6 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
         setModalVisible(false);
     };
 
-
     return (
         <SafeAreaView style={styles.container}>
             <AppHeader
@@ -743,7 +737,7 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                     setAppliedDynamicFilters(selectedFilters || {});
                     setSelectedValuesByType({});
                     setModalVisible(false);
-                    refetch(); // ✅ ADD THIS
+                    refetch();
                 }}
                 onClose={() => setModalVisible(false)}
             />

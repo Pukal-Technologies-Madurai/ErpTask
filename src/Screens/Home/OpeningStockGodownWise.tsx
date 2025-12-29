@@ -324,19 +324,19 @@ const OpeningStockGodownWise = () => {
     return filtered;
   };
 
-  const filterData = (grouped: any[]) => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return grouped;
+ const filterData = (grouped: any[]) => {
+  const q = searchQuery?.trim().toLowerCase();
+  if (!q) return grouped || [];
 
-    return grouped.filter(group =>
-      String(group.groupName).toLowerCase().includes(q) ||
-      group.items.some((item: any) =>
-        Object.values(item || {}).some(val =>
-          typeof val === "string" && val.toLowerCase().includes(q)
-        )
+  return (grouped || []).filter(group =>
+    String(group?.groupName || "").toLowerCase().includes(q) ||
+    Array.isArray(group?.items) && group.items.some((item: any) =>
+      Object.values(item || {}).some(val =>
+        typeof val === "string" && val.toLowerCase().includes(q)
       )
-    );
-  };
+    )
+  );
+};
 
   // --- Level2 Chip UI ---
   const Level2Filter = () => {
@@ -436,51 +436,50 @@ const OpeningStockGodownWise = () => {
   };
 
   // Grouping function for godown wise
-  const groupDataByGodownDynamic = (
-    data: any[],
-    groupColumn: string
-  ) => {
-    const godownMap: any = {};
+const groupDataByGodownDynamic = (
+  data: any[],
+  groupColumn: string
+) => {
+  const godownMap: Record<string, any> = {};
 
-    data.forEach((item: any) => {
-      const godown = item.Godown_Name || "Unknown Godown";
-      const groupValue = item[groupColumn] || "Unknown";
+  (data || []).forEach((item: any) => {
+    const godown = item?.Godown_Name || "Unknown Godown";
+    const groupValue = item?.[groupColumn] || "Unknown";
 
-      if (!godownMap[godown]) {
-        godownMap[godown] = {
-          groupName: godown,
-          groups: {},
-          count: 0,
-          totalBalance: 0,
-        };
-      }
+    if (!godownMap[godown]) {
+      godownMap[godown] = {
+        groupName: godown,
+        groups: {},
+        count: 0,
+        totalBalance: 0,
+      };
+    }
 
-      if (!godownMap[godown].groups[groupValue]) {
-        godownMap[godown].groups[groupValue] = {
-          groupValue,
-          items: [],
-          groupBalance: 0,
-        };
-      }
+    if (!godownMap[godown].groups[groupValue]) {
+      godownMap[godown].groups[groupValue] = {
+        groupValue,
+        items: [],
+        groupBalance: 0,
+      };
+    }
 
-      const qty = Number(item.Bal_Qty || 0);
+    const qty = Number(item?.Bal_Qty || 0);
 
-      godownMap[godown].groups[groupValue].items.push(item);
-      godownMap[godown].groups[groupValue].groupBalance += qty;
+    godownMap[godown].groups[groupValue].items.push(item || {});
+    godownMap[godown].groups[groupValue].groupBalance += qty;
 
-      godownMap[godown].count += 1;
-      godownMap[godown].totalBalance += qty;
-    });
+    godownMap[godown].count += 1;
+    godownMap[godown].totalBalance += qty;
+  });
 
-    return Object.values(godownMap).sort((a: any, b: any) => {
-      let cmp = 0;
-      if (sortBy === "name") cmp = a.groupName.localeCompare(b.groupName);
-      if (sortBy === "count") cmp = a.count - b.count;
-      if (sortBy === "balance") cmp = a.totalBalance - b.totalBalance;
-      return sortOrder === "asc" ? cmp : -cmp;
-    });
-  };
-
+  return Object.values(godownMap).sort((a: any, b: any) => {
+    let cmp = 0;
+    if (sortBy === "name") cmp = a.groupName.localeCompare(b.groupName);
+    if (sortBy === "count") cmp = a.count - b.count;
+    if (sortBy === "balance") cmp = a.totalBalance - b.totalBalance;
+    return sortOrder === "asc" ? cmp : -cmp;
+  });
+};
 
   const toggleGodown = (godownName: string) => {
     const s = new Set(expandedGroups);
@@ -525,8 +524,6 @@ const OpeningStockGodownWise = () => {
     const paginated = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
     return { data: paginated, totalPages, totalItems, totalRecords };
   };
-
-  // const { data: displayData = [], totalPages, totalItems, totalRecords } = getCurrentData();
 
   const memoizedData = React.useMemo(() => {
     return getCurrentData();

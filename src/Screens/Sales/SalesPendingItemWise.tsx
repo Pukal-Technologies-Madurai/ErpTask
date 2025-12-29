@@ -25,7 +25,7 @@ import { formatCurrency } from "../../constants/utils";
 import { usePagination } from "../../hooks/usePagination";
 import PaginationControls from "../../Components/PaginationControls";
 import { MMKV } from "react-native-mmkv";
-import { responsiveHeight,responsiveWidth } from "../../constants/helper";
+import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 import { API } from "../../constants/api";
 
 type Product = {
@@ -72,7 +72,6 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
     const [branchId, setBranchId] = React.useState("");
     const [searchQuery, setSearchQuery] = React.useState("");
     const [modalVisible, setModalVisible] = React.useState(false);
-    const [expandedBrands, setExpandedBrands] = React.useState<Set<string>>(new Set());
     const [refreshing, setRefreshing] = React.useState(false);
     const [level2Columns, setLevel2Columns] = React.useState<{ Type: number; Column_Name: string; isGroupFilter: boolean; }[]>([]);
     const [selectedValuesByType, setSelectedValuesByType] = React.useState<Record<number, string>>({});
@@ -81,15 +80,46 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
     const [externalFilterTemplate, setExternalFilterTemplate] = React.useState<any[] | null>(null);
     const [appliedDynamicFilters, setAppliedDynamicFilters] = React.useState<Record<string, string>>({});
     const [level2TypesOrder, setLevel2TypesOrder] = React.useState<number[]>([]);
+    const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
+    const [storageLoaded, setStorageLoaded] = React.useState(false);
 
     const REPORT_NAME = "SalesReturn_Item";
+
+    React.useEffect(() => {
+        const uId = storage.getString("userId");
+        const bId = storage.getString("branchId");
+        if (uId) setUserId(uId);
+        if (bId) setBranchId(bId);
+        setStorageLoaded(true); // mark storage as ready
+    }, []);
+
+    // --- useQuery will now be enabled only after storage loaded ---
+    const {
+        data: saleOrder = [],
+        isLoading,
+        error,
+        refetch,
+    } = useQuery({
+        queryKey: ["saleorder", fromDate, toDate, appliedDynamicFilters, userId, branchIdProps],
+        queryFn: () =>
+            salesOrderPendingItemList(fromDate, toDate, userId, branchIdProps, appliedDynamicFilters),
+        enabled: storageLoaded && !!userId && !!branchIdProps,
+    });
+
+    // --- Force refetch if userId or branchIdProps change ---
+    React.useEffect(() => {
+        if (storageLoaded && userId && branchIdProps) {
+            refetch();
+        }
+    }, [storageLoaded, userId, branchIdProps, refetch]);
 
     const loadExternalFilters = React.useCallback(async () => {
         try {
             const res = await fetch(API.getReportFilters(REPORT_NAME));
             const json = await res.json();
             setExternalFilterTemplate(Array.isArray(json?.data) ? json.data : []);
-        } catch {
+        } catch (err) {
+            console.error("Failed to load filters", err);
             setExternalFilterTemplate([]);
         }
     }, []);
@@ -99,34 +129,23 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
     }, [modalVisible, loadExternalFilters]);
 
     React.useEffect(() => {
-        const userId = storage.getString("userId");
-        const branchId = storage.getString("branchId");
-        if (userId) setUserId(userId);
-        if (branchId) setBranchId(branchId);
-    }, [branchId]);
+        loadExternalFilters();
+    }, [loadExternalFilters]);
 
-    const { data: saleOrder = [], isLoading, error, refetch } = useQuery({
-        queryKey: ["saleOrderItem", fromDate, toDate, appliedDynamicFilters],
-        queryFn: () =>
-            salesOrderPendingItemList(fromDate, toDate, userId, branchIdProps, appliedDynamicFilters),
-        enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
-    });
 
     const normalizeColumnKey = (colName: string) => {
+        if (!colName) return colName;
         const key = colName.toLowerCase().replace(/\s+/g, "");
         if (key.includes("brand")) return "BrandGet";
+        if (key.includes("variant") || key.includes("size") || key.includes("pack")) return "Item_Variant_Name";
         if (key.includes("product") || key.includes("item")) return "Product_Name";
-        if (key.includes("variant") || key.includes("size") || key.includes("pack"))
-            return "Item_Variant_Name";
         return colName;
     };
 
     const matchesFilter = (obj: any, key: string, value: string): boolean => {
         if (!obj) return false;
         if (obj[key] === value) return true;
-        return Object.values(obj).some(v =>
-            Array.isArray(v) && v.some(item => matchesFilter(item, key, value))
-        );
+        return Object.values(obj).some((v: any) => Array.isArray(v) && v.some((item: any) => matchesFilter(item, key, value)));
     };
 
     const computeValuesWithTotals = (column: string, parent?: { column: string; value: string }) => {
@@ -192,16 +211,20 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
     }, [saleOrder, selectedValuesByType[4], level2Columns]);
 
     const filteredOrders = React.useMemo(() => {
-        if (!Object.keys(selectedValuesByType).length) return saleOrder;
+        if (!saleOrder || saleOrder.length === 0) return [];
+
+        if (!appliedDynamicFilters || Object.keys(appliedDynamicFilters).length === 0) {
+            return saleOrder; // <- show all initially
+        }
+
         return saleOrder.filter((order: any) =>
-            Object.entries(selectedValuesByType).every(([type, value]) => {
-                const col = level2Columns.find(c => c.Type === Number(type));
+            Object.entries(appliedDynamicFilters).every(([key, value]) => {
+                const col = level2Columns.find(c => c.Column_Name === key);
                 if (!col) return true;
-                const key = normalizeColumnKey(col.Column_Name);
                 return matchesFilter(order, key, value);
             })
         );
-    }, [saleOrder, selectedValuesByType, level2Columns]);
+    }, [saleOrder, appliedDynamicFilters, level2Columns]);
 
     const itemWiseData = React.useMemo(() => {
         const list: any[] = [];
@@ -228,25 +251,37 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
         );
     }, [itemWiseData, searchQuery]);
 
-    const brandWiseUIData = React.useMemo(() => {
-        const map = new Map<string, any[]>();
-        filteredItems.forEach((item: any) => {
-            const brand = item.BrandGet?.trim() || "Others";
-            if (!map.has(brand)) map.set(brand, []);
-            map.get(brand)?.push(item);
-        });
-        return Array.from(map.entries()).map(([brand, items]) => ({ brand, items, count: items.length }));
-    }, [filteredItems]);
-
     const { currentData: displayData, currentPage, totalPages, totalItems, totalRecords, setCurrentPage } = usePagination({
         data: filteredItems,
         itemsPerPage: ITEMS_PER_PAGE,
     });
 
+    const getGroupFilterColumn = React.useCallback(() => {
+        const groupFilter = externalFilterTemplate?.find(
+            (f: any) =>
+                String(f.filterType) === "GROUP_FILTER" &&
+                f.isGroupFilter === true
+        );
+
+        if (!groupFilter?.columnName) return "";
+
+        const col = groupFilter.columnName.toLowerCase();
+
+        if (col.includes("brand")) return "BrandGet";
+        if (col.includes("bag")) return "Bag";
+        if (col.includes("product") || col.includes("item")) return "Product_Name";
+
+        return groupFilter.columnName;
+    }, [externalFilterTemplate]);
+
+
+    console.log("GROUP COLUMN:", getGroupFilterColumn());
+
     React.useEffect(() => {
         setCurrentPage(1);
-        setExpandedBrands(new Set());
-    }, [searchQuery, selectedValuesByType[4], setCurrentPage]);
+        setExpandedGroups(new Set());
+    }, [searchQuery, selectedValuesByType[4], getGroupFilterColumn, setCurrentPage]);
+
 
     const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
@@ -256,91 +291,174 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
     const formatNumber = (n: number) =>
         Number(n || 0).toLocaleString("en-IN");
 
-     const loadLevel2Filters = React.useCallback(async () => {
-            try {
-                const res = await fetch(API.getReportFilters("SalesReturn_Item"));
-                const json = await res.json();
-    
-                const raw: ReportFilter[] = Array.isArray(json?.data)
-                    ? json.data
-                    : [];
-    
-                const lvl2: Level2Column[] = raw
-                    .filter(
-                        (x) =>
-                            String(x.FilterLevel) === "2" &&
-                            x.filterType !== undefined
-                    )
-                    .map((x) => ({
-                        Type: Number(x.filterType),
-                        Column_Name: x.columnName,
-                        isGroupFilter: Boolean(x.isGroupFilter),
-                    }))
-                    .filter((x) => !Number.isNaN(x.Type));
-    
-                const uniqTypes = Array.from(
-                    new Set<number>(lvl2.map((x) => x.Type))
-                ).sort((a, b) => a - b);
-    
-                setLevel2Columns(lvl2);
-                setLevel2TypesOrder(uniqTypes);
-            } catch (e) {
-                setLevel2Columns([]);
-                setLevel2TypesOrder([]);
-            }
-        }, []);
-    
-        React.useEffect(() => {
-            loadLevel2Filters();
-        }, [loadLevel2Filters]);
+    const loadLevel2Filters = React.useCallback(async () => {
+        try {
+            const res = await fetch(API.getReportFilters("SalesReturn_Item"));
+            const json = await res.json();
+
+            const raw: ReportFilter[] = Array.isArray(json?.data)
+                ? json.data
+                : [];
+
+            const lvl2: Level2Column[] = raw
+                .filter(
+                    (x) =>
+                        String(x.FilterLevel) === "2" &&
+                        x.filterType !== undefined
+                )
+                .map((x) => ({
+                    Type: Number(x.filterType),
+                    Column_Name: x.columnName,
+                    isGroupFilter: Boolean(x.isGroupFilter),
+                }))
+                .filter((x) => !Number.isNaN(x.Type));
+
+            const uniqTypes = Array.from(
+                new Set<number>(lvl2.map((x) => x.Type))
+            ).sort((a, b) => a - b);
+
+            setLevel2Columns(lvl2);
+            setLevel2TypesOrder(uniqTypes);
+        } catch (e) {
+            setLevel2Columns([]);
+            setLevel2TypesOrder([]);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        loadLevel2Filters();
+    }, [loadLevel2Filters]);
+
+
+    const groupedData = React.useMemo(() => {
+        const groupColumn = getGroupFilterColumn();
+        if (!groupColumn) return [];
+
+        const map = new Map<string, any[]>();
+
+        filteredItems.forEach((item: any) => {
+            const key = item[groupColumn]?.trim() || "Others";
+
+            if (!map.has(key)) map.set(key, []);
+            map.get(key)!.push(item);
+        });
+
+        return Array.from(map.entries()).map(([groupName, items]) => ({
+            groupName,
+            items,
+        }));
+    }, [filteredItems, getGroupFilterColumn]);
+
 
     // ---------- Level2Filter Component ----------
     const Level2Filter = () => {
-            const parentSelected = selectedValuesByType[4];
-    
-            return (
-                <>
-                    {/* ================= TYPE 4 (PARENT) ================= */}
+        const parentSelected = selectedValuesByType[4];
+
+        return (
+            <>
+                {/* ================= TYPE 4 (PARENT) ================= */}
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.level2FilterContainer}
+                >
+                    <TouchableOpacity
+                        style={[
+                            styles.brandFilterButton,
+                            !parentSelected && styles.brandFilterButtonActive,
+                        ]}
+                        onPress={() => setSelectedValuesByType({})}
+                    >
+                        <Text
+                            style={[
+                                styles.brandFilterText,
+                                !parentSelected && styles.brandFilterTextActive,
+                            ]}
+                        >
+                            All
+                        </Text>
+                    </TouchableOpacity>
+
+                    {activeTypeValuesWithTotals.map(({ value, total }) => {
+                        const selected = parentSelected === value;
+
+                        return (
+                            <TouchableOpacity
+                                key={value}
+                                style={[
+                                    styles.brandFilterButton,
+                                    selected && styles.brandFilterButtonActive,
+                                ]}
+                                onPress={() =>
+                                    setSelectedValuesByType({ 4: value })
+                                }
+                            >
+                                <Text
+                                    style={[
+                                        styles.brandFilterText,
+                                        selected && styles.brandFilterTextActive,
+                                    ]}
+                                >
+                                    {value} ({formatNumber(total)})
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+
+                {/* ================= TYPE 5 (CHILD) ================= */}
+                {parentSelected && (
                     <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
-                        style={styles.level2FilterContainer}
+                        style={[styles.level2FilterContainer, { marginTop: 6 }]}
                     >
+                        {/* ALL CHIP — ALWAYS VISIBLE */}
                         <TouchableOpacity
                             style={[
                                 styles.brandFilterButton,
-                                !parentSelected && styles.brandFilterButtonActive,
+                                !selectedValuesByType[5] &&
+                                styles.brandFilterButtonActive,
                             ]}
-                            onPress={() => setSelectedValuesByType({})}
+                            onPress={() =>
+                                setSelectedValuesByType({ 4: parentSelected })
+                            }
                         >
                             <Text
                                 style={[
                                     styles.brandFilterText,
-                                    !parentSelected && styles.brandFilterTextActive,
+                                    !selectedValuesByType[5] &&
+                                    styles.brandFilterTextActive,
                                 ]}
                             >
                                 All
                             </Text>
                         </TouchableOpacity>
-    
-                        {activeTypeValuesWithTotals.map(({ value, total }) => {
-                            const selected = parentSelected === value;
-    
+
+                        {/* CHILD VALUES — ONLY IF EXISTS */}
+                        {secondLevelValues.map(({ value, total }) => {
+                            const selected = selectedValuesByType[5] === value;
+
                             return (
                                 <TouchableOpacity
                                     key={value}
                                     style={[
                                         styles.brandFilterButton,
-                                        selected && styles.brandFilterButtonActive,
+                                        selected &&
+                                        styles.brandFilterButtonActive,
                                     ]}
                                     onPress={() =>
-                                        setSelectedValuesByType({ 4: value })
+                                        setSelectedValuesByType({
+                                            4: parentSelected,
+                                            5: value,
+                                        })
                                     }
                                 >
                                     <Text
                                         style={[
                                             styles.brandFilterText,
-                                            selected && styles.brandFilterTextActive,
+                                            selected &&
+                                            styles.brandFilterTextActive,
                                         ]}
                                     >
                                         {value} ({formatNumber(total)})
@@ -349,80 +467,22 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                             );
                         })}
                     </ScrollView>
-    
-                    {/* ================= TYPE 5 (CHILD) ================= */}
-                    {parentSelected && (
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            style={[styles.level2FilterContainer, { marginTop: 6 }]}
-                        >
-                            {/* ALL CHIP — ALWAYS VISIBLE */}
-                            <TouchableOpacity
-                                style={[
-                                    styles.brandFilterButton,
-                                    !selectedValuesByType[5] &&
-                                    styles.brandFilterButtonActive,
-                                ]}
-                                onPress={() =>
-                                    setSelectedValuesByType({ 4: parentSelected })
-                                }
-                            >
-                                <Text
-                                    style={[
-                                        styles.brandFilterText,
-                                        !selectedValuesByType[5] &&
-                                        styles.brandFilterTextActive,
-                                    ]}
-                                >
-                                    All
-                                </Text>
-                            </TouchableOpacity>
-    
-                            {/* CHILD VALUES — ONLY IF EXISTS */}
-                            {secondLevelValues.map(({ value, total }) => {
-                                const selected = selectedValuesByType[5] === value;
-    
-                                return (
-                                    <TouchableOpacity
-                                        key={value}
-                                        style={[
-                                            styles.brandFilterButton,
-                                            selected &&
-                                            styles.brandFilterButtonActive,
-                                        ]}
-                                        onPress={() =>
-                                            setSelectedValuesByType({
-                                                4: parentSelected,
-                                                5: value,
-                                            })
-                                        }
-                                    >
-                                        <Text
-                                            style={[
-                                                styles.brandFilterText,
-                                                selected &&
-                                                styles.brandFilterTextActive,
-                                            ]}
-                                        >
-                                            {value} ({formatNumber(total)})
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </ScrollView>
-                    )}
-    
-                </>
-            );
-        };
+                )}
 
-    const toggleBrand = (brand: string) => {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        const set = new Set(expandedBrands);
-        set.has(brand) ? set.delete(brand) : set.add(brand);
-        setExpandedBrands(set);
+            </>
+        );
     };
+
+    const toggleGroup = (groupName: string) => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+
+        setExpandedGroups(prev => {
+            const set = new Set(prev);
+            set.has(groupName) ? set.delete(groupName) : set.add(groupName);
+            return set;
+        });
+    };
+
 
     const ItemWiseCard = ({ item }: { item: any }) => (
         <View style={styles.cardContainer}>
@@ -460,7 +520,6 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                     setAppliedDynamicFilters(selectedFilters || {});
                     setSelectedValuesByType({});
                     setModalVisible(false);
-                    refetch();
                 }}
                 onClose={() => setModalVisible(false)}
             />
@@ -490,27 +549,46 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                     )}
                 </View>
 
-                {brandWiseUIData.map(({ brand, items }) => {
-                    const isOpen = expandedBrands.has(brand);
+                {groupedData.map(({ groupName, items }) => {
+                    const isOpen = expandedGroups.has(groupName);
+
                     return (
-                        <View key={brand} style={styles.brandCard}>
+                        <View key={groupName} style={styles.brandCard}>
                             <TouchableOpacity
                                 style={styles.brandBadge}
-                                onPress={() => toggleBrand(brand)}
+                                onPress={() => toggleGroup(groupName)}
                                 activeOpacity={0.8}
                             >
                                 <View style={styles.brandHeader}>
                                     <View style={styles.brandTitle}>
-                                        <Icon name="storefront" size={18} color={colors.text} style={{ marginRight: 8 }} />
-                                        <Text style={styles.brandName}>{brand}</Text>
+                                        <Icon
+                                            name="storefront"
+                                            size={18}
+                                            color={colors.text}
+                                            style={{ marginRight: 8 }}
+                                        />
+                                        <Text style={styles.brandName}>{groupName}</Text>
                                     </View>
-                                    <Icon name={isOpen ? "expand-less" : "expand-more"} size={20} color={colors.text} />
+
+                                    <Icon
+                                        name={isOpen ? "expand-less" : "expand-more"}
+                                        size={20}
+                                        color={colors.text}
+                                    />
                                 </View>
-                                <Text style={styles.brandItemCount}>Items: {items.length}</Text>
+
+                                <Text style={styles.brandItemCount}>
+                                    Items: {items.length}
+                                </Text>
                             </TouchableOpacity>
-                            {isOpen && items.map((item, idx) => (
-                                <ItemWiseCard key={`${brand}-${idx}`} item={item} />
-                            ))}
+
+                            {isOpen &&
+                                items.map((item, idx) => (
+                                    <ItemWiseCard
+                                        key={`${groupName}-${idx}`}
+                                        item={item}
+                                    />
+                                ))}
                         </View>
                     );
                 })}
@@ -528,8 +606,8 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                 {!isLoading && !error && saleOrder.length === 0 && (
                     <View style={styles.noDataContainer}>
                         <Icon name="shopping-cart" size={48} color={colors.textSecondary} />
-                        <Text style={styles.noDataText}>No orders found</Text>
-                        <Text style={styles.noDataSubtext}> Please select a date range to view orders </Text>
+                        <Text style={styles.noDataText}>No Items found</Text>
+                        <Text style={styles.noDataSubtext}> Please select a date range to view Sales Pending Items </Text>
                     </View>
                 )}
 
@@ -1087,7 +1165,7 @@ const getStyles = (typography: any, colors: any) =>
             fontSize: 14,
             color: colors.text,
         },
-         level2FilterContainer: {
+        level2FilterContainer: {
             flexDirection: "row",
             paddingVertical: 8,
             paddingHorizontal: 5

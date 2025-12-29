@@ -38,6 +38,10 @@ interface salependitemparams {
     branchId:any;
 }
 
+interface transactionparams {
+    branchId:any;
+}
+
 export type BottomTabParamList = {
     Home: undefined;
     Attendance: undefined;
@@ -80,4 +84,6 @@ export type RootStackParamList = {
     saleorderpend: saleorderpendParams;
     saleorderpendorder: salependorderparams;
     saleorderpenditem: salependitemparams;
+    transaction: transactionparams;
+    transactionlist: undefined;
 };

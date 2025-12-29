@@ -262,6 +262,7 @@ const Home = () => {
       0,
     );
   }, [SaleorderPendingData]);
+  
 
   const totalReceipt = React.useMemo(() => {
     return (receiptList || []).reduce(
@@ -910,16 +911,30 @@ const Home = () => {
                   </View>
                 </View>
               </Pressable>
+            </View>
 
-              {/* <Pressable onPress={() => navigation.navigate("Stock")}>
+            <View style={styles.summaryRow}>
+              <Pressable onPress={() => navigation.navigate("transaction", { branchId: branchId })}>
                 <View style={styles.summaryCard}>
-                  <Icon name="warehouse" size={32} color={colors.sih} />
-                  <Text style={styles.summaryCardTitle}>Stock in Hand</Text>
-                  <Text style={styles.summaryCardValue}>₹{formatNumber(totalItemWise)}</Text>
-                  <View style={[styles.tonnageContainer, { backgroundColor: colors.sih + "15" }]}>
-                    <Icon name="scale" size={16} color={colors.sih} />
-                    <Text style={[styles.tonnageText, { color: colors.sih }]}>
-                      {formatTonnage(totalItemWiseTonnage)} Tons
+                  <Icon name="sync-alt" size={32} color={colors.tran} />
+                  <Text style={styles.summaryCardTitle}>Transaction</Text>
+                  <Text style={styles.summaryCardValue}>{formatNumber(totalSalesPend)}</Text>
+                  <View style={[styles.tonnageContainer, { backgroundColor: colors.tran + "15" }]}>
+                    <Icon name="scale" size={16} color={colors.tran} />
+
+                  </View>
+                </View>
+              </Pressable>
+
+              {/* <Pressable onPress={() => navigation.navigate("ItemStack")}>
+                <View style={styles.summaryCard}>
+                  <Icon name="shopify" size={32} color={colors.success} />
+                  <Text style={styles.summaryCardTitle}>Item Stock Value</Text>
+                  <Text style={styles.summaryCardValue}>₹{formatNumber(totalStockValue)}</Text>
+                  <View style={[styles.tonnageContainer, { backgroundColor: colors.success + "15" }]}>
+                    <Icon name="scale" size={16} color={colors.success} />
+                    <Text style={[styles.tonnageText, { color: colors.success }]}>
+                      {formatTonnage(totalStockTonnage)} Tons
                     </Text>
                   </View>
                 </View>

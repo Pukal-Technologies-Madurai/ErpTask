@@ -27,6 +27,8 @@ import OpeningStockItemWise from "../Screens/Home/OpeningStockItemWise";
 import OpeningStockGodownWise from "../Screens/Home/OpeningStockGodownWise";
 import SalesPendingOrderWise from "../Screens/Sales/SalesPendingOrderWise";
 import SalesPendingItemWise from "../Screens/Sales/SalesPendingItemWise";
+import Transaction from "../Screens/Payment/Transaction";
+import TransactionList from "../Screens/Payment/TransactionList";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -122,6 +124,14 @@ const Navigation = () => {
                     <Stack.Screen
                         name="Stockgodown"
                         component={OpeningStockGodownWise}
+                    />
+                    <Stack.Screen
+                        name="transaction"
+                        component={Transaction}
+                    />
+                    <Stack.Screen
+                        name="transactionlist"
+                        component={TransactionList}
                     />
                 </Stack.Navigator>
             </NavigationContainer>

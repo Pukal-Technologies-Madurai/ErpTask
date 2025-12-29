@@ -1,6 +1,4 @@
 import { API } from "../constants/api";
-import SaleInvoice from "../Screens/Sales/SaleInvoice";
-
 /**
  * Fetch Sales Invoice data with optional filters
  */
