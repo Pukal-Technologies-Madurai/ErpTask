@@ -18,8 +18,6 @@ import FilterModal from "../../Components/FilterModal";
 import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 import { fetchDebtorsCreditors } from "../../Api/debtorscreditors";
 
-/* ================= TYPES ================= */
-
 type DebtorCreditor = {
     Acc_Id: string;
     Retailer_Name: string;
@@ -42,25 +40,18 @@ const SundryDebtorsCreditors = () => {
     const { typography, colors } = useTheme();
     const styles = getStyles(typography, colors);
     const navigation = useNavigation<NativeStackNavigationProp<any>>();
-
     const [fromDate, setFromDate] = useState(new Date());
     const [toDate, setToDate] = useState(new Date());
-
     const [tempFromDate, setTempFromDate] = useState(fromDate);
     const [tempToDate, setTempToDate] = useState(toDate);
-
     const [searchQuery, setSearchQuery] = useState("");
     const [refreshing, setRefreshing] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [modalVisible, setModalVisible] = useState(false);
     const [activeTab, setActiveTab] =
         useState<"Debtor" | "Creditor">("Debtor");
-
     const [data, setData] = useState<DebtorCreditor[]>([]);
     const [expandedAccId, setExpandedAccId] = useState<string | null>(null);
-
-    /* ================= API ================= */
-
     const fetchData = async () => {
         setRefreshing(true);
         try {
@@ -83,8 +74,6 @@ const SundryDebtorsCreditors = () => {
         await fetchData();
         setRefreshing(false);
     };
-
-    /* ================= FILTERING ================= */
 
     const normalize = (v: string) =>
         v.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
@@ -119,9 +108,6 @@ const SundryDebtorsCreditors = () => {
             suffix: outstanding >= 0 ? "DR" : "CR",
         };
     }, [filteredData]);
-
-
-    /* ================= PAGINATION ================= */
 
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
     const displayData = filteredData.slice(
@@ -158,6 +144,9 @@ const SundryDebtorsCreditors = () => {
         }
     };
 
+    const formatApiDate = (d: Date) =>
+        d.toISOString().split("T")[0];
+
     /* ================= CARD ================= */
 
     const Card =
@@ -166,18 +155,41 @@ const SundryDebtorsCreditors = () => {
             const isDebtor = item.Account_Types === "Debtor";
             return (
                 <View style={styles.cardWrapper}>
-                    <TouchableOpacity activeOpacity={0.85}
+                    <TouchableOpacity
+                        activeOpacity={0.85}
                         onPress={() =>
-                            setExpandedAccId(expanded ? null : item.Acc_Id)} >
+                            setExpandedAccId(expanded ? null : item.Acc_Id)
+                        }
+                    >
                         {/* HEADER */}
-                        <Text
-                            style={styles.title}>{item.Retailer_Name}
-                        </Text>
                         <View style={styles.rowBetween}>
-                            <Text style={styles.subText}>
-                                {item.Group_Name}
+                            <Text style={styles.title}>
+                                {item.Retailer_Name}
                             </Text>
+
+                            {/* LIST ICON */}
+                            <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={() =>
+                                    navigation.navigate("transactionlist", {
+                                        retailer: item,
+                                        fromDate: formatApiDate(fromDate),
+                                        toDate: formatApiDate(toDate),
+                                        Acc_id: Number(item.Acc_Id),
+                                    })
+                                }
+                            >
+                                <Icon
+                                    name="list-alt"
+                                    size={25}
+                                    color="#555555ff"
+                                />
+                            </TouchableOpacity>
                         </View>
+
+                        <Text style={styles.subText}>
+                            {item.Group_Name}
+                        </Text>
                     </TouchableOpacity>
                     {/* EXPANDED GRID */}
                     {expanded && (<>
@@ -352,7 +364,6 @@ const getStyles = (typography: any, colors: any) =>
             flex: 1,
             backgroundColor: colors.primary,
         },
-
         scrollContainer: {
             backgroundColor: colors.white,
         },
@@ -731,12 +742,19 @@ const getStyles = (typography: any, colors: any) =>
             marginRight: 10,
             borderRadius: 4,
         },
-        toggleActive: { backgroundColor: colors.primary },
-        toggleText: { color: colors.primary, fontWeight: "600" },
-        toggleTextActive: { color: "#FFF" },
-
-        amount: { fontWeight: "700" },
-
+        toggleActive: {
+            backgroundColor: colors.primary
+        },
+        toggleText: {
+            color: colors.primary,
+            fontWeight: "600"
+        },
+        toggleTextActive: {
+            color: "#FFF"
+        },
+        amount: {
+            fontWeight: "700"
+        },
         pagination: {
             flexDirection: "row",
             justifyContent: "center",
@@ -762,18 +780,15 @@ const getStyles = (typography: any, colors: any) =>
             borderBottomWidth: 1,
             borderBottomColor: colors.borderColor,
         },
-
         ledgerRow: {
             flexDirection: "row",
             paddingVertical: 6,
         },
-
         ledgerCell: {
             flex: 1,
             ...typography.caption,
             color: colors.text,
         },
-
         ledgerCellRight: {
             flex: 1,
             textAlign: "right",
@@ -787,86 +802,69 @@ const getStyles = (typography: any, colors: any) =>
             borderRadius: responsiveWidth(1.5),
             padding: responsiveWidth(3),
         },
-
         cellLabel: {
             ...typography.caption,
             color: colors.textSecondary,
         },
-
         cellValue: {
             ...typography.body2,
             color: colors.text,
         },
-
         bold: {
             fontWeight: "700",
         },
-
         rowBetween: {
             flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "center",
         },
-
         title: {
             fontSize: 16,
             fontWeight: "600",
             color: colors.primary,
             flex: 1,
         },
-
         subText: {
             fontSize: 14,
             color: colors.textSecondary,
             marginTop: 8,
         },
-
-        /* TYPE BADGE */
         typeBadge: {
             paddingHorizontal: 10,
             paddingVertical: 4,
             borderRadius: 20,
         },
-
         debtorBadge: {
             backgroundColor: "#FFEBEE",
         },
-
         creditorBadge: {
             backgroundColor: "#E8F5E9",
         },
-
         typeText: {
             fontSize: 12,
             fontWeight: "600",
         },
-
-        /* GRID */
         gridWrapper: {
             marginTop: 12,
             borderTopWidth: 1,
             borderColor: colors.borderColor,
             paddingTop: 10,
         },
-
         gridHeader: {
             flexDirection: "row",
             justifyContent: "space-between",
         },
-
         gridRow: {
             flexDirection: "row",
             justifyContent: "space-between",
             marginTop: 6,
         },
-
         gridTitle: {
             width: "25%",
             textAlign: "center",
             fontSize: 12,
             color: colors.textSecondary,
         },
-
         gridValue: {
             width: "25%",
             textAlign: "center",
@@ -874,11 +872,9 @@ const getStyles = (typography: any, colors: any) =>
             fontWeight: "600",
             color: colors.text,
         },
-
         drText: {
             color: "#E53935",
         },
-
         crText: {
             color: "#2E7D32",
         },
@@ -894,7 +890,6 @@ const getStyles = (typography: any, colors: any) =>
             shadowRadius: 6,
             shadowOffset: { width: 0, height: 3 },
         },
-
         divider: {
             height: 1,
             backgroundColor: colors.borderColor,
@@ -924,17 +919,14 @@ const getStyles = (typography: any, colors: any) =>
             fontSize: 15,
             fontWeight: "700",
         },
-
         pageBtn: {
             padding: 8,
             borderRadius: 999,
             backgroundColor: "rgba(0,0,0,0.06)",
         },
-
         pageBtnDisabled: {
             opacity: 0.3,
         },
-
         pageBtnText: {
             color: colors.white,
             fontWeight: "600",

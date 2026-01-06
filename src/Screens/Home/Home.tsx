@@ -912,7 +912,7 @@ const Home = () => {
                 <View style={styles.summaryCard}>
                   <Icon name="sync-alt" size={32} color={colors.tran} />
                   <Text style={styles.summaryCardTitle}>Transaction</Text>
-                  <Text style={styles.summaryCardValue}>{formatNumber(totalSalesPend)}</Text>
+                  <Text style={styles.summaryCardValue}>--</Text>
                   <View style={[styles.tonnageContainer, { backgroundColor: colors.tran + "15" }]}>
                     <Icon name="scale" size={16} color={colors.tran} />
 
@@ -924,7 +924,7 @@ const Home = () => {
                 <View style={styles.summaryCard}>
                   <Icon name="credit-card-off" size={32} color={colors.deb} />
                   <Text style={styles.summaryCardTitle}>Sundry DEB & CRE</Text>
-                  <Text style={styles.summaryCardValue}>₹{formatNumber(totalStockValue)}</Text>
+                  <Text style={styles.summaryCardValue}>--</Text>
                   <View style={[styles.tonnageContainer, { backgroundColor: colors.deb + "15" }]}>
                     <Icon name="scale" size={16} color={colors.deb} />
                     

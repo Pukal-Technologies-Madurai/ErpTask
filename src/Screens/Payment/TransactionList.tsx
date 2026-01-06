@@ -41,8 +41,10 @@ const TransactionList = () => {
     const route = useRoute<any>();
 
     const retailer = route.params?.retailer;
-    const accId = retailer?.AC_Id ? Number(retailer.AC_Id) : undefined;
-
+    const DebtorCreditor = route.params?.retailer;
+    const accId = Number(
+        retailer?.AC_Id ?? DebtorCreditor?.Acc_Id
+    );
     const [fromDate, setFromDate] = useState<Date>(new Date());
     const [toDate, setToDate] = useState<Date>(new Date());
     const [modalVisible, setModalVisible] = useState(false);
@@ -53,12 +55,15 @@ const TransactionList = () => {
 
     // ---------------- FETCH API ----------------
     const fetchTransactions = useCallback(async () => {
-        if (!accId) return;
+        console.log("h",route.params)
+        // if (!accId) return;
 
         const from = formatAPIDate(fromDate);
         const to = formatAPIDate(toDate);
 
-        console.log("Transaction API →", { from, to, accId });
+        
+
+        // console.log("Transaction API →", { from, to, accId });
 
         setLoading(true);
         try {
@@ -76,6 +81,7 @@ const TransactionList = () => {
     }, [accId, fromDate, toDate]);
 
     useEffect(() => {
+        console.log("hiii")
         fetchTransactions();
     }, []);
 
@@ -168,7 +174,7 @@ const TransactionList = () => {
                         <Text style={[styles.tableHeaderText, styles.cellBorder, { flex: 1 }]}>Credit</Text>
                         <Text style={[styles.tableHeaderText, { flex: 1 }]}>Debit</Text>
                     </View>
-                    
+
                     {/* Rows */}
                     {transactions.map((t, index) => (
                         <View key={`${t.Trans_Id ?? "row"}-${index}`} style={styles.tableRow}>
@@ -208,7 +214,7 @@ const TransactionList = () => {
                     {transactions.length > 0 && (
                         <View style={styles.netTotalRow}>
                             <Text style={[styles.netText, { flex: 4.6 }]}>
-                                NET TOTAL 
+                                NET TOTAL
                             </Text>
 
                             <Text
