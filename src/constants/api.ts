@@ -1,13 +1,13 @@
 import { MMKV } from "react-native-mmkv";
 const storage = new MMKV();
 
-// let baseURL = storage.getString("baseURL") || "https://erpsmt.in/";
-export let baseURL = "http://192.168.3.106:9001/";
+let baseURL = storage.getString("baseURL") || "https://erpsmt.in/";
+// export let baseURL = "http://192.168.3.100:9001/";
 // export let baseURL = "https://erpsmt.in/"
 // const baseURL = "http://192.168.1.18:9001/api/";
 
 export const baseurl = (url: any) => {
-    // baseURL = url;
+    baseURL = url;
     console.log("baseurl", baseURL);
     storage.set("baseURL", url);
 };
@@ -72,7 +72,11 @@ export const API = {
     getTransactionReports: (from: string, to: string, AccId?: number) =>
         `${baseURL}api/payment/transactions?fromDate=${from}&toDate=${to}&Acc_Id=${AccId || ''}`,
 
+    getDebtorsCreditors: (from: string, to: string ) =>
+        `${baseURL}api/payment/getDebtorDetails?fromDate=${from}&toDate=${to}`,
+
     getReportFilters: (reportName: string) =>
         `${baseURL}api/sales/salesFilterDropdown?reportName=${encodeURIComponent(reportName)}`,
+
 
 };

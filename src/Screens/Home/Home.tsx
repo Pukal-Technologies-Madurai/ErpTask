@@ -231,6 +231,15 @@ const Home = () => {
     enabled: !!pendingFromDate && !!pendingToDate && !!userId && !!branchId,
   });
 
+  // const {
+  //   data: getRetailersList = [],
+  //   refetch: refetchgetRetailersList,
+  // } = useQuery ({
+  //   queryKey: ["retailerList", selectedDate, toDate],
+  //   queryFn: () => getRetailersList(selectedDate, toDate),
+  //   enabled: !!selectedDate &&toDate,
+  // });
+
   const { data: itemWiseStockData = [], refetch: refetchItemWise } = useQuery(
     {
       queryKey: ["itemWiseStock", selectedDate, toDate],
@@ -262,7 +271,6 @@ const Home = () => {
       0,
     );
   }, [SaleorderPendingData]);
-  
 
   const totalReceipt = React.useMemo(() => {
     return (receiptList || []).reduce(
@@ -854,20 +862,6 @@ const Home = () => {
                 </View>
               </Pressable>
 
-              {/* <Pressable onPress={() => navigation.navigate("saleorderpend", { branchId: branchId })}>
-                <View style={styles.summaryCard}>
-                  <Icon name="shopping-cart" size={32} color={colors.pen} />
-                  <Text style={styles.summaryCardTitle}>Pending Sale Order</Text>
-                  <Text style={styles.summaryCardValue}>₹{formatNumber(totalSalesPend)}</Text>
-                  <View style={[styles.tonnageContainer, { backgroundColor: colors.pen + "15" }]}>
-                    <Icon name="scale" size={16} color={colors.pen} />
-                    <Text style={[styles.tonnageText, { color: colors.pen }]}>
-                      {formatTonnage(totalsalesPendingTonnage)} Tons
-                    </Text>
-                  </View>
-                </View>
-              </Pressable> */}
-
               <Pressable onPress={() => navigation.navigate("saleorderpendorder", { branchId: branchId })}>
                 <View style={styles.summaryCard}>
                   <Icon name="shopping-cart" size={32} color={colors.pen} />
@@ -926,19 +920,17 @@ const Home = () => {
                 </View>
               </Pressable>
 
-              {/* <Pressable onPress={() => navigation.navigate("ItemStack")}>
+              <Pressable onPress={() =>navigation.navigate("debtors", { branchId: branchId })}>
                 <View style={styles.summaryCard}>
-                  <Icon name="shopify" size={32} color={colors.success} />
-                  <Text style={styles.summaryCardTitle}>Item Stock Value</Text>
+                  <Icon name="credit-card-off" size={32} color={colors.deb} />
+                  <Text style={styles.summaryCardTitle}>Sundry DEB & CRE</Text>
                   <Text style={styles.summaryCardValue}>₹{formatNumber(totalStockValue)}</Text>
-                  <View style={[styles.tonnageContainer, { backgroundColor: colors.success + "15" }]}>
-                    <Icon name="scale" size={16} color={colors.success} />
-                    <Text style={[styles.tonnageText, { color: colors.success }]}>
-                      {formatTonnage(totalStockTonnage)} Tons
-                    </Text>
+                  <View style={[styles.tonnageContainer, { backgroundColor: colors.deb + "15" }]}>
+                    <Icon name="scale" size={16} color={colors.deb} />
+                    
                   </View>
                 </View>
-              </Pressable> */}
+              </Pressable>
             </View>
 
           </View>
@@ -950,7 +942,6 @@ const Home = () => {
 
 export default Home;
 
-
 const getStyles = (typography: any, colors: any) =>
   StyleSheet.create({
     container: {
@@ -958,7 +949,6 @@ const getStyles = (typography: any, colors: any) =>
       backgroundColor: colors.primary,
     },
 
-    // Date Picker Section
     datePickerContainer: {
       paddingHorizontal: responsiveWidth(4),
       paddingVertical: responsiveWidth(2),

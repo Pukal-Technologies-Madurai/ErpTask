@@ -104,7 +104,6 @@ const Transaction = () => {
     return name.includes(search) || area.includes(search);
   });
 
-
   const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
   const displayData = filteredData.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,

@@ -56,6 +56,8 @@ export const customColors = {
         peni:"#3f0674bd",
         tran:"#395c56bd",
         del: "#ff1a0aff",
+        deb: "#184c77d3",
+        cre: "#3f0f25d3",
     },
     dark: {
         background: "#121212",
