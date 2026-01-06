@@ -74,7 +74,6 @@ const SundryDebtorsCreditors = () => {
         }
     };
 
-
     useEffect(() => {
         fetchData();
     }, []);
@@ -133,6 +132,11 @@ const SundryDebtorsCreditors = () => {
     useEffect(() => {
         setCurrentPage(1);
     }, [searchQuery, activeTab]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filteredData.length]);
+
 
     const handleApplyFilter = async () => {
         setModalVisible(false);
@@ -200,7 +204,7 @@ const SundryDebtorsCreditors = () => {
                                         item.CR_DR === "DR" ? styles.drText : styles.crText,
                                     ]}
                                 >
-                                    {item.Bal_Amount.toLocaleString()} {item.CR_DR}
+                                    {item.OB_Amount.toLocaleString()}
                                 </Text>
                             </View>
                         </View>
@@ -302,6 +306,39 @@ const SundryDebtorsCreditors = () => {
                 {displayData.map((item) => (
                     <Card key={item.Acc_Id} item={item} />
                 ))}
+
+                {/* PAGINATION */}
+
+                {filteredData.length > ITEMS_PER_PAGE && (
+                    <View style={styles.paginationContainer}>
+                        <TouchableOpacity
+                            disabled={currentPage === 1}
+                            style={[
+                                styles.pageBtn,
+                                currentPage === 1 && styles.pageBtnDisabled,
+                            ]}
+                            onPress={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        >
+                            <Icon name="chevron-left" size={28} color={colors.primary} />
+                        </TouchableOpacity>
+
+                        <Text style={styles.pageInfo}>
+                            Page {currentPage} of {totalPages}
+                        </Text>
+
+                        <TouchableOpacity
+                            disabled={currentPage === totalPages}
+                            style={[
+                                styles.pageBtn,
+                                currentPage === totalPages && styles.pageBtnDisabled,
+                            ]}
+                            onPress={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        >
+                            <Icon name="chevron-right" size={28} color={colors.primary} />
+                        </TouchableOpacity>
+                    </View>
+                )}
+
             </ScrollView>
         </SafeAreaView>
     );
@@ -521,7 +558,6 @@ const getStyles = (typography: any, colors: any) =>
         productNameCell: {
             flex: 2,
         },
-        // Brand Filter
         brandFilterContainer: {
             paddingHorizontal: responsiveWidth(4),
             marginVertical: responsiveHeight(1.5),
@@ -887,6 +923,21 @@ const getStyles = (typography: any, colors: any) =>
         summaryOutstanding: {
             fontSize: 15,
             fontWeight: "700",
+        },
+
+        pageBtn: {
+            padding: 8,
+            borderRadius: 999,
+            backgroundColor: "rgba(0,0,0,0.06)",
+        },
+
+        pageBtnDisabled: {
+            opacity: 0.3,
+        },
+
+        pageBtnText: {
+            color: colors.white,
+            fontWeight: "600",
         },
 
     });
