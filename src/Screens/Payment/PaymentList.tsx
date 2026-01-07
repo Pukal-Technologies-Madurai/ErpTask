@@ -53,11 +53,21 @@ const PaymentList = ({ route }: { route: any }) => {
         refetch,
     } = useQuery(
         {
-            queryKey: ["paymentList", formatDate, toDate],
+            queryKey: [
+                "paymentList",
+                formatDate(fromDate),
+                formatDate(toDate),
+                userId,
+                branchIdProps,
+            ],
             queryFn: () => fetchPaymentList(fromDate, toDate, userId, branchIdProps),
             enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
         }
     )
+
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [fromDate, toDate]);
 
     //get unique transaction types
     const getTransactionTypes = () => {
@@ -281,13 +291,17 @@ const PaymentList = ({ route }: { route: any }) => {
                 toDate={toDate}
                 onFromDateChange={setFromDate}
                 onToDateChange={setToDate}
-                onApply={() => setModalVisible(false)}
+                onApply={() => {
+                    setModalVisible(false);
+                    refetch();
+                }}
                 onClose={handleCloseModal}
                 showToDate={true}
                 title="Filter Options"
                 fromLabel="From Date"
                 toLabel="To Date"
             />
+
 
             <ScrollView
                 style={styles.scrollContainer}
