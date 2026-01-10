@@ -58,6 +58,7 @@ export const customColors = {
         del: "#ff1a0aff",
         deb: "#184c77d3",
         cre: "#3f0f25d3",
+        exp: "#944415d3",
     },
     dark: {
         background: "#121212",

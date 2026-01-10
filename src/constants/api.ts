@@ -75,6 +75,12 @@ export const API = {
     getDebtorsCreditors: (from: string, to: string ) =>
         `${baseURL}api/payment/getDebtorDetails?fromDate=${from}&toDate=${to}`,
 
+    getExpenses: (from: string, to: string ) =>
+        `${baseURL}api/reports/expenseReport?fromDate=${from}&toDate=${to}`,
+
+    expensesbyId: () =>
+        `${baseURL}/api/reports/expenseByAccId`,
+
     getReportFilters: (reportName: string) =>
         `${baseURL}api/sales/salesFilterDropdown?reportName=${encodeURIComponent(reportName)}`,
 

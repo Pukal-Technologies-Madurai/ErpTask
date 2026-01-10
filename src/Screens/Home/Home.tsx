@@ -933,6 +933,32 @@ const Home = () => {
               </Pressable>
             </View>
 
+            <View style={styles.summaryRow}>
+               <Pressable onPress={() => navigation.navigate("expenses", { branchId: branchId })}>
+                <View style={styles.summaryCard}>
+                  <Icon name="money" size={32} color={colors.exp} />
+                  <Text style={styles.summaryCardTitle}>Expenses</Text>
+                  <Text style={styles.summaryCardValue}>--</Text>
+                  <View style={[styles.tonnageContainer, { backgroundColor: colors.exp + "15" }]}>
+                    <Icon name="scale" size={16} color={colors.exp} />
+
+                  </View>
+                </View>
+              </Pressable>
+
+              {/* <Pressable onPress={() =>navigation.navigate("debtors", { branchId: branchId })}>
+                <View style={styles.summaryCard}>
+                  <Icon name="credit-card-off" size={32} color={colors.deb} />
+                  <Text style={styles.summaryCardTitle}>Sundry DEB & CRE</Text>
+                  <Text style={styles.summaryCardValue}>--</Text>
+                  <View style={[styles.tonnageContainer, { backgroundColor: colors.deb + "15" }]}>
+                    <Icon name="scale" size={16} color={colors.deb} />
+                    
+                  </View>
+                </View>
+              </Pressable> */}
+            </View> 
+
           </View>
         </View>
       </ScrollView>
