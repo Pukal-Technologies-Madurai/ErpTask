@@ -50,6 +50,13 @@ interface expensesparams {
     branchId: any;
 }
 
+interface itemtransactionparams {
+    ProductId: number;
+    productName: string;
+    fromDate: Date;
+    toDate: Date;
+}
+
 export type BottomTabParamList = {
     Home: undefined;
     Attendance: undefined;
@@ -97,4 +104,5 @@ export type RootStackParamList = {
     debtors: debtorsparams;
     expenses: expensesparams;
     transactionlistexp:undefined;
+    transactionlistitem:itemtransactionparams;
 };

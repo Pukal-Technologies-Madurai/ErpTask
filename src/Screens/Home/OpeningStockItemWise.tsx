@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     RefreshControl,
     TextInput,
+    ActivityIndicator 
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -571,6 +572,16 @@ const loadLevel2Columns = React.useCallback(async () => {
         const COL_WIDTH = 90;
         return (
             <View style={styles.tableRow}>
+                <TouchableOpacity
+                                style={styles.rowContainer}
+                                onPress={() =>
+                                    navigation.navigate("transactionlistitem", {
+                                        ProductId: item.Product_Id,
+                                        productName: item.stock_item_name,
+                                        fromDate, toDate
+                                    })
+                                }
+                            >
                 <Text style={[styles.rowCell, { width: COL_WIDTH * 2 }]} numberOfLines={2}>{item.stock_item_name || item.stock_item_name}</Text>
                 <Text style={[styles.rowCell, { width: COL_WIDTH, color: (item.Bal_Act_Qty ?? item.Act_Bal_Qty) >= 0 ? colors.primary : colors.accent }]}>
                     {item.Bal_Act_Qty ?? item.Act_Bal_Qty}
@@ -578,9 +589,12 @@ const loadLevel2Columns = React.useCallback(async () => {
                 <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.OB_Bal_Qty ?? item.OB_Act_Qty}</Text>
                 <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.Pur_Qty}</Text>
                 <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.Sal_Qty}</Text>
+                </TouchableOpacity>
             </View>
+            
         );
     };
+    
 
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
@@ -1215,5 +1229,11 @@ const getStyles = (typography: any, colors: any) =>
         },
         brandFilterTextActive: {
             color: colors.white,
+        },
+        rowContainer: {
+            flexDirection: "row",
+            alignItems: "center",
+            paddingVertical: responsiveHeight(1.2),
+            paddingHorizontal: responsiveWidth(4),
         },
     });

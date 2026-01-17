@@ -32,6 +32,7 @@ import TransactionList from "../Screens/Payment/TransactionList";
 import Debtors from "../Screens/Payment/Debtors";
 import Expenses from "../Screens/Payment/Expenses";
 import TransactionListExpenses from "../Screens/Payment/TransactionListExpenses";
+import ItemWiseTransaction from "../Screens/Home/ItemWiseTransaction";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -147,6 +148,10 @@ const Navigation = () => {
                     <Stack.Screen
                         name="transactionlistexp"
                         component={TransactionListExpenses}
+                    />
+                    <Stack.Screen
+                        name="transactionlistitem"
+                        component={ItemWiseTransaction}
                     />
                 </Stack.Navigator>
             </NavigationContainer>

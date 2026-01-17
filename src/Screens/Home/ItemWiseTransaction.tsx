@@ -4,78 +4,70 @@ import {
     View,
     ScrollView,
     RefreshControl,
+    ActivityIndicator
 } from "react-native";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import AppHeader from "../../Components/AppHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "../../Context/ThemeContext";
+import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import FilterModal from "../../Components/FilterModal";
-import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 import { API } from "../../constants/api";
-
-/* ---------------- TYPES ---------------- */
-type TransactionRow = {
-    invoice_no?: string;
-    Ledger_Date?: string;
-    Particulars?: string;
-    Credit_Amt?: number;
-    Debit_Amt?: number;
-    Trans_Id?: string;
-    Narration?: string;
-    Line_Naration?: string;
-};
 
 /* ---------------- HELPERS ---------------- */
 const formatAPIDate = (date: Date) =>
     date.toISOString().split("T")[0];
 
 const formatRowDate = (d?: string) =>
-    d ? new Date(d).toLocaleDateString("en-IN") : "--";
+    d ? new Date(d).toLocaleDateString("en-IN") : "";
 
 /* ---------------- SCREEN ---------------- */
-const TransactionListExpenses = () => {
+const ItemWiseTransaction = () => {
     const { typography, colors } = useTheme();
     const styles = getStyles(typography, colors);
+
     const navigation = useNavigation<NativeStackNavigationProp<any>>();
     const route = useRoute<any>();
 
-    const { accId, accName, fromDate: routeFromDate,
-        toDate: routeToDate, } = route.params ?? {};
+    const { ProductId, productName, fromDate: routeFromDate, toDate: routeToDate } = route.params;
+
     const [fromDate, setFromDate] = useState<Date>(
         routeFromDate ? new Date(routeFromDate) : new Date()
     );
     const [toDate, setToDate] = useState<Date>(
         routeToDate ? new Date(routeToDate) : new Date()
     );
+
     const [modalVisible, setModalVisible] = useState(false);
-    const [transactions, setTransactions] = useState<TransactionRow[]>([]);
+    const [transactions, setTransactions] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
     /* ---------------- FETCH ---------------- */
     const fetchTransactions = useCallback(async () => {
-        if (!accId) return;
-
-        const from = formatAPIDate(fromDate);
-        const to = formatAPIDate(toDate);
+        if (!ProductId) return;
 
         setLoading(true);
         try {
             const res = await fetch(
-                API.getTransactionReports(from, to, accId)
+                API.itemtransaction(
+                    formatAPIDate(fromDate),
+                    formatAPIDate(toDate),
+                    ProductId
+                )
             );
             const json = await res.json();
             setTransactions(Array.isArray(json?.data) ? json.data : []);
         } catch (e) {
-            console.error("Expense transaction fetch failed", e);
+            console.error("Item transaction fetch failed", e);
             setTransactions([]);
         } finally {
             setLoading(false);
         }
-    }, [accId, fromDate, toDate]);
+    }, [ProductId, fromDate, toDate]);
 
     useEffect(() => {
         fetchTransactions();
@@ -87,31 +79,38 @@ const TransactionListExpenses = () => {
         setRefreshing(false);
     };
 
-    const handleApplyFilter = () => {
-        setModalVisible(false);
-        fetchTransactions();
-    };
+    /* ---------------- RUNNING CLOSING (TALLY) ---------------- */
+    const ledgerRows = useMemo(() => {
+        let running = 0;
 
-    const formatDisplayDate = (date: Date) =>
-        date.toLocaleDateString("en-IN");
+        const sorted = [...transactions].sort(
+            (a, b) =>
+                new Date(a.Ledger_Date).getTime() -
+                new Date(b.Ledger_Date).getTime()
+        );
 
-    /* ---------------- TOTALS ---------------- */
-    const totals = transactions.reduce(
-        (acc, item) => {
-            acc.credit += item.Credit_Amt || 0;
-            acc.debit += item.Debit_Amt || 0;
-            return acc;
-        },
-        { credit: 0, debit: 0 }
-    );
+        return sorted.map((row, index) => {
+            running += (row.In_Qty || 0) - (row.Out_Qty || 0);
 
-    const netBal = totals.debit - totals.credit;
+            const next = sorted[index + 1];
+            const isLastOfDate =
+                !next ||
+                new Date(next.Ledger_Date).toDateString() !==
+                new Date(row.Ledger_Date).toDateString();
+
+            return {
+                ...row,
+                closing: isLastOfDate ? running : null,
+            };
+        });
+    }, [transactions]);
+
 
     /* ---------------- UI ---------------- */
     return (
         <SafeAreaView style={styles.container}>
             <AppHeader
-                title="Expenses Transaction Details"
+                title="Item Wise Transactions"
                 navigation={navigation}
                 showRightIcon
                 rightIconLibrary="MaterialIcon"
@@ -123,9 +122,12 @@ const TransactionListExpenses = () => {
                 visible={modalVisible}
                 fromDate={fromDate}
                 toDate={toDate}
-                onFromDateChange={routeFromDate}
-                onToDateChange={routeToDate}
-                onApply={handleApplyFilter}
+                onFromDateChange={setFromDate}
+                onToDateChange={setToDate}
+                onApply={() => {
+                    setModalVisible(false);
+                    fetchTransactions();
+                }}
                 onClose={() => setModalVisible(false)}
                 showToDate
             />
@@ -140,135 +142,83 @@ const TransactionListExpenses = () => {
                     />
                 }
             >
+
+                {loading && !refreshing && (
+                    <View style={styles.loaderContainer}>
+                        <ActivityIndicator size="large" color={colors.primary} />
+                    </View>
+                )}
+                {/* DATE → ITEM NAME */}
                 <View style={styles.reportHeader}>
                     <Text style={styles.reportTitle}>
-                        {accName || "Expense Ledger" || "--"}
+                        {productName}
                     </Text>
-
                     <Text style={styles.reportPeriod}>
-                        From: {formatDisplayDate(routeFromDate)}  –  {formatDisplayDate(routeToDate)}
+                        From {fromDate.toLocaleDateString("en-IN")} To{" "}
+                        {toDate.toLocaleDateString("en-IN")}
                     </Text>
                 </View>
 
                 {/* TABLE */}
-                <View style={styles.tableContainer}>
-                    {/* HEADER */}
-                    <View style={styles.tableHeader}>
-                        <Text style={[styles.tableHeaderText, styles.cellBorder, { flex: 1.3 }]}>Date</Text>
-                        <Text style={[styles.tableHeaderText, styles.cellBorder, { flex: 1.2 }]}>Inv No</Text>
-                        <Text style={[styles.tableHeaderText, styles.cellBorder, { flex: 2 }]}>Particular</Text>
-                        <Text style={[styles.tableHeaderText, styles.cellBorder, { flex: 1 }]}>Credit</Text>
-                        <Text style={[styles.tableHeaderText, { flex: 1 }]}>Debit</Text>
-                    </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {!loading && (
+                        <View style={styles.tableContainer}>
+                            {/* HEADER */}
+                            <View style={styles.tableRow}>
+                                <Text style={[styles.tableHeader, { width: 80 }]}>Date</Text>
+                                <Text style={[styles.tableHeader, { width: 60 }]}>Vch.Ty</Text>
+                                <Text style={[styles.tableHeader, { width: 100 }]}>Vch.No</Text>
+                                <Text style={[styles.tableHeader, { width: 70, textAlign: "right" }]}>In</Text>
+                                <Text style={[styles.tableHeader, { width: 70, textAlign: "right" }]}>Out</Text>
+                                <Text style={[styles.tableHeader, { width: 80, textAlign: "right" }]}>Cls</Text>
+                            </View>
 
-                    {/* ROWS */}
-                    {transactions.map((t, i) => {
-                        const showNarration =
-                            t.Narration && t.Narration.trim().length > 0;
 
-                        const showLineNarration =
-                            t.Line_Naration &&
-                            t.Line_Naration.trim().length > 0 &&
-                            t.Line_Naration !== t.Narration;
-
-                        return (
-                            <View key={`${t.Trans_Id}-${i}`} style={styles.rowWrapper}>
-
-                                {/* MAIN ROW */}
-                                <View style={styles.tableRow}>
-                                    <Text style={[styles.td, styles.cellBorder, { flex: 1.3 }]}>
+                            {/* ROWS */}
+                            {ledgerRows.map((t, i) => (
+                                <View key={i} style={styles.tableRow}>
+                                    <Text style={[styles.td, { width: 80 }]}>
                                         {formatRowDate(t.Ledger_Date)}
                                     </Text>
 
-                                    <Text style={[styles.td, styles.cellBorder, { flex: 1.2 }]}>
-                                        {t.invoice_no || "--"}
+                                    <Text style={[styles.td, { width: 60 }]}>
+                                        {t.voucher_name || "-"}
                                     </Text>
 
-                                    <Text style={[styles.td, styles.cellBorder, { flex: 2 }]}>
-                                        {t.Particulars || "--"}
+                                    <Text style={[styles.td, { width: 100 }]}>
+                                        {t.invoice_no || "-"}
                                     </Text>
 
-                                    <Text
-                                        style={[
-                                            styles.td,
-                                            styles.cellBorder,
-                                            { flex: 1, color: colors.success },
-                                        ]}
-                                    >
-                                        {t.Credit_Amt ? t.Credit_Amt.toLocaleString("en-IN") : "-"}
+                                    <Text style={[styles.td, styles.inCell, { width: 70 }]}>
+                                        {t.In_Qty || ""}
                                     </Text>
 
-                                    <Text style={[styles.td, { flex: 1, color: colors.error }]}>
-                                        {t.Debit_Amt ? t.Debit_Amt.toLocaleString("en-IN") : "-"}
+                                    <Text style={[styles.td, styles.outCell, { width: 70 }]}>
+                                        {t.Out_Qty || ""}
+                                    </Text>
+
+                                    <Text style={[styles.td, styles.closingCell, { width: 80 }]}>
+                                        {t.closing !== null ? t.closing : ""}
                                     </Text>
                                 </View>
-
-                                {/* NARRATION SECTION (FULL WIDTH, SAME ROW) */}
-                                {(showNarration || showLineNarration) && (
-                                    <View style={styles.narrationRow}>
-                                        {showNarration && (
-                                            <Text style={styles.narrationText}>
-                                                • {t.Narration}
-                                            </Text>
-                                        )}
-
-                                        {showLineNarration && (
-                                            <Text style={styles.narrationText2}>
-                                                • {t.Line_Naration}
-                                            </Text>
-                                        )}
-                                    </View>
-                                )}
-                            </View>
-                        );
-                    })}
+                            ))}
 
 
-                    {/* TOTAL */}
-                    {transactions.length > 0 && (
-                        <>
-                            <View style={styles.totalRow}>
-                                <Text style={[styles.totalText, { flex: 4.4 }]}>
-                                    TOTAL
-                                </Text>
-                                <Text style={[styles.totalText, { flex: 1, color: colors.success }]}>
-                                    {totals.credit.toLocaleString("en-IN")}
-                                </Text>
-                                <Text style={[styles.totalText, { flex: 1, color: colors.error }]}>
-                                    {totals.debit.toLocaleString("en-IN")}
-                                </Text>
-                            </View>
-
-                            <View style={styles.netTotalRow}>
-                                <Text style={[styles.netText, { flex: 5.4 }]}>
-                                    NET BALANCE
-                                </Text>
-                                <Text
-                                    style={[
-                                        styles.netText,
-                                        { color: netBal >= 0 ? colors.error : colors.success },
-                                    ]}
-                                >
-                                    ₹{Math.abs(netBal).toLocaleString("en-IN")}{" "}
-                                    {netBal >= 0 ? "DR" : "CR"}
-                                </Text>
-                            </View>
-                        </>
-                    )}
-
-                    {!loading && transactions.length === 0 && (
-                        <View style={styles.noDataContainer}>
-                            <Icon name="receipt-long" size={44} color={colors.textSecondary} />
-                            <Text>No transactions found</Text>
+                            {!loading && ledgerRows.length === 0 && (
+                                <View style={styles.noDataContainer}>
+                                    <Icon name="inventory" size={44} color={colors.textSecondary} />
+                                    <Text>No transactions found</Text>
+                                </View>
+                            )}
                         </View>
                     )}
-                </View>
+                </ScrollView>
             </ScrollView>
         </SafeAreaView>
     );
 };
 
-export default TransactionListExpenses;
+export default ItemWiseTransaction;
 
 const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
@@ -413,6 +363,32 @@ const getStyles = (typography: any, colors: any) =>
             color: "#830606ff",
             lineHeight: 16,
         },
+        openingRow: {
+            backgroundColor: colors.grey100,
+        },
+        inCell: {
+            textAlign: "right",
+            color: colors.success,
+        },
+        outCell: {
+            textAlign: "right",
+            color: colors.error,
+        },
+        closingCell: {
+            textAlign: "right",
+            fontWeight: "600",
+        },
+        loaderContainer: {
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            paddingVertical: responsiveHeight(8),
+        },
 
+        loaderText: {
+            marginTop: 10,
+            fontSize: 14,
+            color: colors.textSecondary,
+        },
 
     });

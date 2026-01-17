@@ -6,8 +6,10 @@ import {
     RefreshControl,
     TextInput,
     ScrollView,
+    AppState
 } from "react-native";
 import React, { useEffect, useMemo, useState } from "react";
+import { MMKV } from "react-native-mmkv";
 import AppHeader from "../../Components/AppHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -45,6 +47,10 @@ export interface Invoice {
     Balance: number;
 }
 
+export const filterStorage = new MMKV({
+    id: "expense-filters",
+});
+
 /* ================= SCREEN ================= */
 
 const Expenses = () => {
@@ -57,7 +63,6 @@ const Expenses = () => {
     const [tempFromDate, setTempFromDate] = useState(fromDate);
     const [tempToDate, setTempToDate] = useState(toDate);
     const [modalVisible, setModalVisible] = useState(false);
-
     const [activeTab, setActiveTab] =
         useState<"DIRECT" | "INDIRECT">("DIRECT");
 
@@ -71,12 +76,9 @@ const Expenses = () => {
         setRefreshing(true);
         try {
             const res = await fetchExpenses(f, t);
-
-            // API returns: [{ group_id: "0", children: [...] }]
             const root = res?.[0]?.children || [];
 
             setData(root);
-            // ❌ NO expanded state handling here anymore
         } catch (err) {
             console.error("Expenses fetch error:", err);
             setData([]);
@@ -85,9 +87,24 @@ const Expenses = () => {
         }
     };
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+ useEffect(() => {
+    filterStorage.delete("fromDate");
+    filterStorage.delete("toDate");
+
+    fetchData();
+}, []);
+
+
+useEffect(() => {
+    const sub = AppState.addEventListener("change", state => {
+        if (state === "inactive" || state === "background") {
+            sessionStorage.delete("active");
+        }
+    });
+
+    return () => sub.remove();
+}, []);
+
 
     /* ================= HELPERS ================= */
 
@@ -140,10 +157,16 @@ const Expenses = () => {
 
     const handleApplyFilter = async () => {
         setModalVisible(false);
+
         setFromDate(tempFromDate);
         setToDate(tempToDate);
+
+        filterStorage.set("fromDate", tempFromDate.toISOString());
+        filterStorage.set("toDate", tempToDate.toISOString());
+
         await fetchData(tempFromDate, tempToDate);
     };
+
 
     /* ================= UI ================= */
     const ExpenseTreeNode = ({
@@ -248,6 +271,7 @@ const Expenses = () => {
                     navigation.navigate("transactionlistexp", {
                         accId: account.Acc_Id,
                         accName: account.Account_Name,
+                        fromDate, toDate
                     })
                 }
             >
