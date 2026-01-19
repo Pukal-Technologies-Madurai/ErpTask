@@ -1,8 +1,8 @@
 import { MMKV } from "react-native-mmkv";
 const storage = new MMKV();
 
-// let baseURL = storage.getString("baseURL") || "https://erpsmt.in/";
-export let baseURL = "http://192.168.3.106:9001/";
+let baseURL = storage.getString("baseURL") || "https://erpsmt.in/";
+// export let baseURL = "http://192.168.3.106:9001/";
 // export let baseURL = "https://erpsmt.in/"
 // const baseURL = "http://192.168.1.18:9001/api/";
 

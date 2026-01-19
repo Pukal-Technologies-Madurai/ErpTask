@@ -324,19 +324,19 @@ const OpeningStockGodownWise = () => {
     return filtered;
   };
 
- const filterData = (grouped: any[]) => {
-  const q = searchQuery?.trim().toLowerCase();
-  if (!q) return grouped || [];
+  const filterData = (grouped: any[]) => {
+    const q = searchQuery?.trim().toLowerCase();
+    if (!q) return grouped || [];
 
-  return (grouped || []).filter(group =>
-    String(group?.groupName || "").toLowerCase().includes(q) ||
-    Array.isArray(group?.items) && group.items.some((item: any) =>
-      Object.values(item || {}).some(val =>
-        typeof val === "string" && val.toLowerCase().includes(q)
+    return (grouped || []).filter(group =>
+      String(group?.groupName || "").toLowerCase().includes(q) ||
+      Array.isArray(group?.items) && group.items.some((item: any) =>
+        Object.values(item || {}).some(val =>
+          typeof val === "string" && val.toLowerCase().includes(q)
+        )
       )
-    )
-  );
-};
+    );
+  };
 
   // --- Level2 Chip UI ---
   const Level2Filter = () => {
@@ -436,50 +436,50 @@ const OpeningStockGodownWise = () => {
   };
 
   // Grouping function for godown wise
-const groupDataByGodownDynamic = (
-  data: any[],
-  groupColumn: string
-) => {
-  const godownMap: Record<string, any> = {};
+  const groupDataByGodownDynamic = (
+    data: any[],
+    groupColumn: string
+  ) => {
+    const godownMap: Record<string, any> = {};
 
-  (data || []).forEach((item: any) => {
-    const godown = item?.Godown_Name || "Unknown Godown";
-    const groupValue = item?.[groupColumn] || "Unknown";
+    (data || []).forEach((item: any) => {
+      const godown = item?.Godown_Name || "Unknown Godown";
+      const groupValue = item?.[groupColumn] || "Unknown";
 
-    if (!godownMap[godown]) {
-      godownMap[godown] = {
-        groupName: godown,
-        groups: {},
-        count: 0,
-        totalBalance: 0,
-      };
-    }
+      if (!godownMap[godown]) {
+        godownMap[godown] = {
+          groupName: godown,
+          groups: {},
+          count: 0,
+          totalBalance: 0,
+        };
+      }
 
-    if (!godownMap[godown].groups[groupValue]) {
-      godownMap[godown].groups[groupValue] = {
-        groupValue,
-        items: [],
-        groupBalance: 0,
-      };
-    }
+      if (!godownMap[godown].groups[groupValue]) {
+        godownMap[godown].groups[groupValue] = {
+          groupValue,
+          items: [],
+          groupBalance: 0,
+        };
+      }
 
-    const qty = Number(item?.Bal_Qty || 0);
+      const qty = Number(item?.Bal_Qty || 0);
 
-    godownMap[godown].groups[groupValue].items.push(item || {});
-    godownMap[godown].groups[groupValue].groupBalance += qty;
+      godownMap[godown].groups[groupValue].items.push(item || {});
+      godownMap[godown].groups[groupValue].groupBalance += qty;
 
-    godownMap[godown].count += 1;
-    godownMap[godown].totalBalance += qty;
-  });
+      godownMap[godown].count += 1;
+      godownMap[godown].totalBalance += qty;
+    });
 
-  return Object.values(godownMap).sort((a: any, b: any) => {
-    let cmp = 0;
-    if (sortBy === "name") cmp = a.groupName.localeCompare(b.groupName);
-    if (sortBy === "count") cmp = a.count - b.count;
-    if (sortBy === "balance") cmp = a.totalBalance - b.totalBalance;
-    return sortOrder === "asc" ? cmp : -cmp;
-  });
-};
+    return Object.values(godownMap).sort((a: any, b: any) => {
+      let cmp = 0;
+      if (sortBy === "name") cmp = a.groupName.localeCompare(b.groupName);
+      if (sortBy === "count") cmp = a.count - b.count;
+      if (sortBy === "balance") cmp = a.totalBalance - b.totalBalance;
+      return sortOrder === "asc" ? cmp : -cmp;
+    });
+  };
 
   const toggleGodown = (godownName: string) => {
     const s = new Set(expandedGroups);
@@ -577,18 +577,58 @@ const groupDataByGodownDynamic = (
   };
 
   const GodownWiseRow = ({ item }: { item: any }) => {
-    const COL_WIDTH = 90;
-    return (
-      <View style={styles.tableRow}>
-        <Text style={[styles.rowCell, { width: COL_WIDTH * 2 }]} numberOfLines={2}>{item.Group_Name || item.stock_item_name}</Text>
-        <Text style={[styles.rowCell, { width: COL_WIDTH, color: (item.Act_Bal_Qty) >= 0 ? colors.primary : colors.accent }]}>{item.Act_Bal_Qty}</Text>
-        <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.OB_Bal_Qty}</Text>
-        <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.Pur_Qty}</Text>
-        <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.Sal_Qty}</Text>
-        <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.Bag}</Text>
-      </View>
-    );
-  };
+  const COL_WIDTH = 90;
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.7}
+      style={styles.tableRow}   // 🔴 SAME ROW STYLE AS HEADER
+      onPress={() =>
+        navigation.navigate("transactionlistitem", {
+          ProductId: item.Product_Id,
+          productName: item.stock_item_name,
+          fromDate,
+          toDate,
+        })
+      }
+    >
+      <Text style={[styles.rowCell, { width: COL_WIDTH * 2 }]} numberOfLines={2}>
+        {item.Group_Name || item.stock_item_name}
+      </Text>
+
+      <Text
+        style={[
+          styles.rowCell,
+          {
+            width: COL_WIDTH,
+            color:
+              (item.Bal_Act_Qty ?? item.Act_Bal_Qty) >= 0
+                ? colors.primary
+                : colors.accent,
+          },
+        ]}
+      >
+        {item.Bal_Act_Qty ?? item.Act_Bal_Qty}
+      </Text>
+
+      <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+        {item.OB_Bal_Qty ?? item.OB_Act_Qty}
+      </Text>
+
+      <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+        {item.Pur_Qty}
+      </Text>
+
+      <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+        {item.Sal_Qty}
+      </Text>
+
+      <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+        {item.Bag}
+      </Text>
+    </TouchableOpacity>
+  );
+};
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -1288,6 +1328,12 @@ const getStyles = (typography: any, colors: any) =>
     },
     brandFilterTextActive: {
       color: colors.white,
+    },
+    rowContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: responsiveHeight(1.2),
+      paddingHorizontal: responsiveWidth(4),
     },
 
   });
