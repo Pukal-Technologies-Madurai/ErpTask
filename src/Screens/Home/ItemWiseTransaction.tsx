@@ -168,6 +168,7 @@ const ItemWiseTransaction = () => {
                                 <Text style={[styles.tableHeader, { width: 80 }]}>Date</Text>
                                 <Text style={[styles.tableHeader, { width: 60 }]}>Vch.Ty</Text>
                                 <Text style={[styles.tableHeader, { width: 100 }]}>Vch.No</Text>
+                                <Text style={[styles.tableHeader, { width: 100}]}>Retailer</Text>
                                 <Text style={[styles.tableHeader, { width: 70, textAlign: "right" }]}>In</Text>
                                 <Text style={[styles.tableHeader, { width: 70, textAlign: "right" }]}>Out</Text>
                                 <Text style={[styles.tableHeader, { width: 80, textAlign: "right" }]}>Cls</Text>
@@ -187,6 +188,10 @@ const ItemWiseTransaction = () => {
 
                                     <Text style={[styles.td, { width: 100 }]}>
                                         {t.invoice_no || "-"}
+                                    </Text>
+
+                                    <Text style={[styles.td, { width: 100 }]}>
+                                        {t.Retailer_Name || "-"}
                                     </Text>
 
                                     <Text style={[styles.td, styles.inCell, { width: 70 }]}>

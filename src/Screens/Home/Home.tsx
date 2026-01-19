@@ -937,7 +937,7 @@ const Home = () => {
                <Pressable onPress={() => navigation.navigate("expenses", { branchId: branchId })}>
                 <View style={styles.summaryCard}>
                   <Icon name="money" size={32} color={colors.exp} />
-                  <Text style={styles.summaryCardTitle}>ExpensesSS</Text>
+                  <Text style={styles.summaryCardTitle}>Expenses</Text>
                   <Text style={styles.summaryCardValue}>--</Text>
                   <View style={[styles.tonnageContainer, { backgroundColor: colors.exp + "15" }]}>
                     <Icon name="scale" size={16} color={colors.exp} />
