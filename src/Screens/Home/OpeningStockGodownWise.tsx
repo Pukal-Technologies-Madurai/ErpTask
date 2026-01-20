@@ -582,7 +582,7 @@ const OpeningStockGodownWise = () => {
   return (
     <TouchableOpacity
       activeOpacity={0.7}
-      style={styles.tableRow}   // 🔴 SAME ROW STYLE AS HEADER
+      style={styles.tableRow}   
       onPress={() =>
         navigation.navigate("transactionlistitem", {
           ProductId: item.Product_Id,

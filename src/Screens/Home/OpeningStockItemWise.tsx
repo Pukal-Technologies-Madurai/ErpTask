@@ -7,7 +7,6 @@ import {
     TouchableOpacity,
     RefreshControl,
     TextInput,
-    ActivityIndicator 
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -193,90 +192,90 @@ const OpeningStockItemWise = () => {
     }, [externalFilterTemplate]);
 
     React.useEffect(() => {
-    loadExternalFilters();
-}, []);
+        loadExternalFilters();
+    }, []);
 
     // --- Load level2 columns metadata from filter API (same endpoint used by SalesInvoice) ---
-const loadLevel2Columns = React.useCallback(async () => {
-    try {
-        let resJson: any = null;
+    const loadLevel2Columns = React.useCallback(async () => {
+        try {
+            let resJson: any = null;
 
-        if (!API.getReportFilters) {
-            console.error("API.getReportFilters is not defined");
+            if (!API.getReportFilters) {
+                console.error("API.getReportFilters is not defined");
+                setLevel2Columns([]);
+                setLevel2TypesOrder([]);
+                return;
+            }
+
+            const url = API.getReportFilters(REPORT_NAME);
+            const resp = await fetch(url);
+            const txt = await resp.text();
+
+            try {
+                resJson = JSON.parse(txt);
+            } catch {
+                console.warn("Level2 filter API returned non-JSON");
+                resJson = [];
+            }
+
+            const arr = Array.isArray(resJson) ? resJson : resJson?.data || [];
+
+            const lvl2Raw = arr.filter(
+                (f: any) =>
+                    Number(f?.FilterLevel) === 2 ||
+                    Number(f?.Filter_Level) === 2 ||
+                    Number(f?.Filterlevel) === 2
+            );
+
+            const lvl2 = lvl2Raw.map((f: any) => {
+                const columnName =
+                    f?.Column_Name ||
+                    f?.columnName ||
+                    f?.ColumnName ||
+                    f?.column_name ||
+                    f?.Column ||
+                    "";
+
+                const rawType =
+                    f?.Type ??
+                    f?.type ??
+                    f?.filterType ??
+                    f?.FilterType ??
+                    f?.filter_type;
+
+                const typeNum = rawType !== undefined ? Number(rawType) : NaN;
+
+                return {
+                    ...f,
+                    Column_Name: String(columnName),
+                    Type: Number.isNaN(typeNum) ? null : typeNum,
+                    options: Array.isArray(f?.options) ? f.options : [],
+                };
+            });
+
+            setLevel2Columns(lvl2);
+
+            const uniqTypes = Array.from(
+                new Set(
+                    lvl2
+                        .map((x: any) => Number(x.Type))
+                        .filter((t: number) => !isNaN(t))
+                )
+            ) as number[];
+
+            uniqTypes.sort((a, b) => a - b);
+            setLevel2TypesOrder(uniqTypes);
+
+            setActiveTypeValuesWithTotals([]);
+            setSecondLevelValues([]);
+        } catch (err) {
+            console.error("loadLevel2Columns error:", err);
             setLevel2Columns([]);
             setLevel2TypesOrder([]);
-            return;
+            setActiveTypeValuesWithTotals([]);
+            setSecondLevelValues([]);
         }
-
-        const url = API.getReportFilters(REPORT_NAME);
-        const resp = await fetch(url);
-        const txt = await resp.text();
-
-        try {
-            resJson = JSON.parse(txt);
-        } catch {
-            console.warn("Level2 filter API returned non-JSON");
-            resJson = [];
-        }
-
-        const arr = Array.isArray(resJson) ? resJson : resJson?.data || [];
-
-        const lvl2Raw = arr.filter(
-            (f: any) =>
-                Number(f?.FilterLevel) === 2 ||
-                Number(f?.Filter_Level) === 2 ||
-                Number(f?.Filterlevel) === 2
-        );
-
-        const lvl2 = lvl2Raw.map((f: any) => {
-            const columnName =
-                f?.Column_Name ||
-                f?.columnName ||
-                f?.ColumnName ||
-                f?.column_name ||
-                f?.Column ||
-                "";
-
-            const rawType =
-                f?.Type ??
-                f?.type ??
-                f?.filterType ??
-                f?.FilterType ??
-                f?.filter_type;
-
-            const typeNum = rawType !== undefined ? Number(rawType) : NaN;
-
-            return {
-                ...f,
-                Column_Name: String(columnName),
-                Type: Number.isNaN(typeNum) ? null : typeNum,
-                options: Array.isArray(f?.options) ? f.options : [],
-            };
-        });
-
-        setLevel2Columns(lvl2);
-
-        const uniqTypes = Array.from(
-            new Set(
-                lvl2
-                    .map((x: any) => Number(x.Type))
-                    .filter((t: number) => !isNaN(t))
-            )
-        ) as number[];
-
-        uniqTypes.sort((a, b) => a - b);
-        setLevel2TypesOrder(uniqTypes);
-
-        setActiveTypeValuesWithTotals([]);
-        setSecondLevelValues([]);
-    } catch (err) {
-        console.error("loadLevel2Columns error:", err);
-        setLevel2Columns([]);
-        setLevel2TypesOrder([]);
-        setActiveTypeValuesWithTotals([]);
-        setSecondLevelValues([]);
-    }
-}, []);
+    }, []);
 
     // Load level2 columns on mount and whenever dynamicFilters change (because Level-1 is dynamic from modal)
     React.useEffect(() => {
@@ -554,47 +553,96 @@ const loadLevel2Columns = React.useCallback(async () => {
         return String(num);
     };
 
+    const COL_WIDTH = 80;
+
+    const COLS = {
+        date: COL_WIDTH * 0.6,
+        name: COL_WIDTH * 2,
+        cls: COL_WIDTH * 0.8,
+        ob: COL_WIDTH * 0.8,
+        in: COL_WIDTH * 0.8,
+        out: COL_WIDTH * 0.8,
+    };
+
+    const formatDateDDMM = (dateStr?: string) => {
+        if (!dateStr) return "";
+        const d = new Date(dateStr);
+        const dd = String(d.getDate()).padStart(2, "0");
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        return `${dd}-${mm}`;
+    };
+
     // --- Row components (unchanged) ---
     const ItemWiseHeader = () => {
-        const COL_WIDTH = 90;
         return (
-            <View style={[styles.tableRow, { backgroundColor: "#eee", paddingVertical: 6 }]}>
-                <Text style={[styles.rowCell, { width: COL_WIDTH * 2, fontWeight: "bold" }]}>Name</Text>
-                <Text style={[styles.rowCell, { width: COL_WIDTH, fontWeight: "bold" }]}>Cls</Text>
-                <Text style={[styles.rowCell, { width: COL_WIDTH, fontWeight: "bold" }]}>OB</Text>
-                <Text style={[styles.rowCell, { width: COL_WIDTH, fontWeight: "bold" }]}>In</Text>
-                <Text style={[styles.rowCell, { width: COL_WIDTH, fontWeight: "bold" }]}>Out</Text>
+            <View style={[styles.tableRow, { backgroundColor: "#eee" }]}>
+                <View style={styles.rowContainer}>
+                    <Text style={[styles.rowCell, { width: COLS.date, fontWeight: "bold" }]}>Date</Text>
+                    <Text style={[styles.rowCell, { width: COLS.name, fontWeight: "bold" }]}>Name</Text>
+                    <Text style={[styles.rowCell, { width: COLS.cls, fontWeight: "bold" }]}>Cls</Text>
+                    <Text style={[styles.rowCell, { width: COLS.ob, fontWeight: "bold" }]}>OB</Text>
+                    <Text style={[styles.rowCell, { width: COLS.in, fontWeight: "bold" }]}>In</Text>
+                    <Text style={[styles.rowCell, { width: COLS.out, fontWeight: "bold" }]}>Out</Text>
+                </View>
             </View>
         );
     };
 
     const ItemWiseRow = ({ item }: { item: any }) => {
-        const COL_WIDTH = 90;
         return (
             <View style={styles.tableRow}>
                 <TouchableOpacity
-                                style={styles.rowContainer}
-                                onPress={() =>
-                                    navigation.navigate("transactionlistitem", {
-                                        ProductId: item.Product_Id,
-                                        productName: item.stock_item_name,
-                                        fromDate, toDate
-                                    })
-                                }
-                            >
-                <Text style={[styles.rowCell, { width: COL_WIDTH * 2 }]} numberOfLines={2}>{item.stock_item_name || item.stock_item_name}</Text>
-                <Text style={[styles.rowCell, { width: COL_WIDTH, color: (item.Bal_Act_Qty ?? item.Act_Bal_Qty) >= 0 ? colors.primary : colors.accent }]}>
-                    {item.Bal_Act_Qty ?? item.Act_Bal_Qty}
-                </Text>
-                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.OB_Bal_Qty ?? item.OB_Act_Qty}</Text>
-                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.Pur_Qty}</Text>
-                <Text style={[styles.rowCell, { width: COL_WIDTH }]}>{item.Sal_Qty}</Text>
+                    style={styles.rowContainer}
+                    onPress={() =>
+                        navigation.navigate("transactionlistitem", {
+                            ProductId: item.Product_Id,
+                            productName: item.stock_item_name,
+                            fromDate,
+                            toDate,
+                        })
+                    }
+                >
+                    <Text style={[styles.rowCell, { width: COLS.date }]}>
+                        {formatDateDDMM(item.Trans_Date)}
+                    </Text>
+
+                    <Text
+                        style={[styles.rowCell, { width: COLS.name }]}
+                        numberOfLines={2}
+                    >
+                        {item.stock_item_name}
+                    </Text>
+
+                    <Text
+                        style={[
+                            styles.rowCell,
+                            {
+                                width: COLS.cls,
+                                color:
+                                    (item.Bal_Act_Qty ?? item.Act_Bal_Qty) >= 0
+                                        ? colors.primary
+                                        : colors.accent,
+                            },
+                        ]}
+                    >
+                        {item.Bal_Act_Qty ?? item.Act_Bal_Qty}
+                    </Text>
+
+                    <Text style={[styles.rowCell, { width: COLS.ob }]}>
+                        {item.OB_Bal_Qty ?? item.OB_Act_Qty}
+                    </Text>
+
+                    <Text style={[styles.rowCell, { width: COLS.in }]}>
+                        {item.Pur_Qty}
+                    </Text>
+
+                    <Text style={[styles.rowCell, { width: COLS.out }]}>
+                        {item.Sal_Qty}
+                    </Text>
                 </TouchableOpacity>
             </View>
-            
         );
     };
-    
 
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
