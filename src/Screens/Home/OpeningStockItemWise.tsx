@@ -558,7 +558,7 @@ const OpeningStockItemWise = () => {
     const COLS = {
         date: COL_WIDTH * 0.6,
         name: COL_WIDTH * 2,
-        cls: COL_WIDTH * 0.8,
+        cls: COL_WIDTH * 1.5,
         ob: COL_WIDTH * 0.8,
         in: COL_WIDTH * 0.8,
         out: COL_WIDTH * 0.8,
@@ -570,6 +570,15 @@ const OpeningStockItemWise = () => {
         const dd = String(d.getDate()).padStart(2, "0");
         const mm = String(d.getMonth() + 1).padStart(2, "0");
         return `${dd}-${mm}`;
+    };
+
+    const getBagCount = (qty?: number, bag?: string) => {
+        if (!qty || !bag) return null;
+
+        const bagSize = parseInt(bag.replace(/[^0-9]/g, ""), 10);
+        if (!bagSize) return null;
+
+        return Math.floor(qty / bagSize);
     };
 
     // --- Row components (unchanged) ---
@@ -625,7 +634,14 @@ const OpeningStockItemWise = () => {
                             },
                         ]}
                     >
-                        {item.Bal_Act_Qty ?? item.Act_Bal_Qty}
+                        {(() => {
+                            const qty = item.Bal_Act_Qty ?? item.Act_Bal_Qty;
+                            const bagCount = getBagCount(qty, item.Bag);
+
+                            return bagCount
+                                ? `${qty} (${bagCount} nos)`
+                                : qty;
+                        })()}
                     </Text>
 
                     <Text style={[styles.rowCell, { width: COLS.ob }]}>

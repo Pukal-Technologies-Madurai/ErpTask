@@ -25,14 +25,14 @@ const formatRowDate = (d?: string) =>
     d ? new Date(d).toLocaleDateString("en-IN") : "";
 
 /* ---------------- SCREEN ---------------- */
-const ItemWiseTransaction = () => {
+const GodownItemWiseTransaction = () => {
     const { typography, colors } = useTheme();
     const styles = getStyles(typography, colors);
 
     const navigation = useNavigation<NativeStackNavigationProp<any>>();
     const route = useRoute<any>();
 
-    const { ProductId, productName, fromDate: routeFromDate, toDate: routeToDate } = route.params;
+    const { ProductId, GodownId, productName, fromDate: routeFromDate, toDate: routeToDate } = route.params;
 
     const [fromDate, setFromDate] = useState<Date>(
         routeFromDate ? new Date(routeFromDate) : new Date()
@@ -53,10 +53,10 @@ const ItemWiseTransaction = () => {
         setLoading(true);
         try {
             const res = await fetch(
-                API.itemtransaction(
+                API.godownitemwisetransaction(
                     formatAPIDate(fromDate),
                     formatAPIDate(toDate),
-                    ProductId
+                    ProductId, GodownId
                 )
             );
             const json = await res.json();
@@ -67,7 +67,7 @@ const ItemWiseTransaction = () => {
         } finally {
             setLoading(false);
         }
-    }, [ProductId, fromDate, toDate]);
+    }, [ProductId, GodownId, fromDate, toDate]);
 
     useEffect(() => {
         fetchTransactions();
@@ -231,7 +231,7 @@ const ItemWiseTransaction = () => {
     );
 };
 
-export default ItemWiseTransaction;
+export default GodownItemWiseTransaction;
 
 const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({

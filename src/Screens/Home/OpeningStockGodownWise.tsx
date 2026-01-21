@@ -561,6 +561,15 @@ const OpeningStockGodownWise = () => {
     setExpandedGroups(new Set());
   }, [searchQuery, sortBy, sortOrder, dynamicFilters]);
 
+  const getBagCount = (qty?: number, bag?: string) => {
+    if (!qty || !bag) return null;
+
+    const bagSize = parseInt(bag.replace(/[^0-9]/g, ""), 10);
+    if (!bagSize) return null;
+
+    return Math.floor(qty / bagSize);
+  };
+
   // Row components
   const GodownWiseHeader = () => {
     const COL_WIDTH = 90;
@@ -577,58 +586,66 @@ const OpeningStockGodownWise = () => {
   };
 
   const GodownWiseRow = ({ item }: { item: any }) => {
-  const COL_WIDTH = 90;
+    const COL_WIDTH = 90;
 
-  return (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      style={styles.tableRow}   
-      onPress={() =>
-        navigation.navigate("transactionlistitem", {
-          ProductId: item.Product_Id,
-          productName: item.stock_item_name,
-          fromDate,
-          toDate,
-        })
-      }
-    >
-      <Text style={[styles.rowCell, { width: COL_WIDTH * 2 }]} numberOfLines={2}>
-        {item.Group_Name || item.stock_item_name}
-      </Text>
-
-      <Text
-        style={[
-          styles.rowCell,
-          {
-            width: COL_WIDTH,
-            color:
-              (item.Bal_Act_Qty ?? item.Act_Bal_Qty) >= 0
-                ? colors.primary
-                : colors.accent,
-          },
-        ]}
+    return (
+      <TouchableOpacity
+        activeOpacity={0.7}
+        style={styles.tableRow}
+        onPress={() =>
+          navigation.navigate("transactionlistgodownitem", {
+            ProductId: item.Product_Id,
+            GodownId: item.Godown_Id,
+            productName: item.stock_item_name,
+            fromDate,
+            toDate,
+          })
+        }
       >
-        {item.Bal_Act_Qty ?? item.Act_Bal_Qty}
-      </Text>
+        <Text style={[styles.rowCell, { width: COL_WIDTH * 2 }]} numberOfLines={2}>
+          {item.Group_Name || item.stock_item_name}
+        </Text>
 
-      <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
-        {item.OB_Bal_Qty ?? item.OB_Act_Qty}
-      </Text>
+        <Text
+          style={[
+            styles.rowCell,
+            {
+              width: COL_WIDTH,
+              color:
+                (item.Bal_Act_Qty ?? item.Act_Bal_Qty) >= 0
+                  ? colors.primary
+                  : colors.accent,
+            },
+          ]}
+        >
+          {(() => {
+            const qty = item.Bal_Act_Qty ?? item.Act_Bal_Qty;
+            const bagCount = getBagCount(qty, item.Bag);
 
-      <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
-        {item.Pur_Qty}
-      </Text>
+            return bagCount
+              ? `${qty} (${bagCount} nos)`
+              : qty;
+          })()}
+        </Text>
 
-      <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
-        {item.Sal_Qty}
-      </Text>
+        <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+          {item.OB_Bal_Qty ?? item.OB_Act_Qty}
+        </Text>
 
-      <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
-        {item.Bag}
-      </Text>
-    </TouchableOpacity>
-  );
-};
+        <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+          {item.Pur_Qty}
+        </Text>
+
+        <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+          {item.Sal_Qty}
+        </Text>
+
+        <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
+          {item.Bag}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>

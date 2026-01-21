@@ -84,6 +84,9 @@ export const API = {
     itemtransaction: (from: string, to: string, Product_Id?: number) =>
         `${baseURL}api/reports/itemexpenseReport?fromDate=${from}&toDate=${to}&Product_Id=${Product_Id}`,
 
+    godownitemwisetransaction: (from: string, to: string, Product_Id?: number, Godown_Id?: number) =>
+        `${baseURL}api/reports/godownexpenseReport?fromDate=${from}&toDate=${to}&Product_Id=${Product_Id}&Godown_Id=${Godown_Id}`,
+
     getReportFilters: (reportName: string) =>
         `${baseURL}api/sales/salesFilterDropdown?reportName=${encodeURIComponent(reportName)}`,
 

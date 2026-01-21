@@ -57,6 +57,14 @@ interface itemtransactionparams {
     toDate: Date;
 }
 
+interface godownitemparams {
+    ProductId: number;
+    GodownId: number;
+    productName: string;
+    fromDate: Date;
+    toDate: Date;
+}
+
 export type BottomTabParamList = {
     Home: undefined;
     Attendance: undefined;
@@ -105,4 +113,5 @@ export type RootStackParamList = {
     expenses: expensesparams;
     transactionlistexp:undefined;
     transactionlistitem:itemtransactionparams;
+    transactionlistgodownitem:godownitemparams;
 };
