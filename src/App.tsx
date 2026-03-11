@@ -12,10 +12,10 @@ const queryClient = new QueryClient();
 const App = () => {
     useEffect(() => {
         const storage = new MMKV();
-        // const storedBaseURL = storage.getString("baseURL");
-        // if (storedBaseURL) {
-        //     baseurl(storedBaseURL);
-        // }
+        const storedBaseURL = storage.getString("baseURL");
+        if (storedBaseURL) {
+            baseurl(storedBaseURL);
+        }
     }, []);
 
     return (

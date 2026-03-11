@@ -70,6 +70,7 @@ const OpeningStockGodownWise = () => {
   const [selectedValuesByType, setSelectedValuesByType] = React.useState<Record<number, string>>({});
   const [activeTypeValuesWithTotals, setActiveTypeValuesWithTotals] = React.useState<{ value: string; total: number }[]>([]);
   const [secondLevelValues, setSecondLevelValues] = React.useState<{ value: string; total: number }[]>([]);
+  const [groupLevels, setGroupLevels] = React.useState<any[]>([]);
 
   const fromStr = React.useMemo(() => formatApiDate(fromDate), [fromDate]);
   const toStr = React.useMemo(() => formatApiDate(toDate), [toDate]);
@@ -286,18 +287,25 @@ const OpeningStockGodownWise = () => {
   ]);
 
 
-  const getGroupFilterColumn = React.useCallback(() => {
-    if (!externalFilterTemplate) return null;
+  React.useEffect(() => {
+    if (!externalFilterTemplate?.length) return;
 
-    const groupFilter = externalFilterTemplate.find(
-      (f: any) =>
-        f.filterType === "GROUP_FILTER" ||
-        f.FilterType === "GROUP_FILTER"
-    );
+    const groupFilters = externalFilterTemplate
+      .filter((f: any) => f.filterType === "GROUP_FILTER" || f.isGroupFilter)
+      .sort((a: any, b: any) => Number(a.Level_Id) - Number(b.Level_Id));
 
-    if (!groupFilter?.columnName) return null;
+    if (!groupFilters.length) {
+      setGroupLevels([{ columnName: "Brand", Level_Id: 1 }]);
+      return;
+    }
 
-    return normalizeColumnKey(groupFilter.columnName);
+    const normalized = groupFilters.map((g: any) => ({
+      ...g,
+      columnName: normalizeColumnKey(g.columnName),
+    }));
+
+    setGroupLevels(normalized);
+
   }, [externalFilterTemplate]);
 
 
@@ -324,18 +332,39 @@ const OpeningStockGodownWise = () => {
     return filtered;
   };
 
-  const filterData = (grouped: any[]) => {
+  const searchRecursive = (groups: any[]): any[] => {
     const q = searchQuery?.trim().toLowerCase();
-    if (!q) return grouped || [];
+    if (!q) return groups;
 
-    return (grouped || []).filter(group =>
-      String(group?.groupName || "").toLowerCase().includes(q) ||
-      Array.isArray(group?.items) && group.items.some((item: any) =>
-        Object.values(item || {}).some(val =>
-          typeof val === "string" && val.toLowerCase().includes(q)
-        )
-      )
-    );
+    return groups
+      .map((grp) => {
+        const nameMatch = grp.groupName?.toLowerCase().includes(q);
+
+        if (!Array.isArray(grp.children)) return null;
+
+        if (grp.children[0]?.Product_Id) {
+          const filteredItems = grp.children.filter((it: any) =>
+            Object.values(it).some(
+              (v) =>
+                typeof v === "string" &&
+                v.toLowerCase().includes(q)
+            )
+          );
+
+          if (nameMatch || filteredItems.length)
+            return { ...grp, children: filteredItems };
+
+          return null;
+        }
+
+        const nested = searchRecursive(grp.children);
+
+        if (nameMatch || nested.length)
+          return { ...grp, children: nested };
+
+        return null;
+      })
+      .filter(Boolean);
   };
 
   // --- Level2 Chip UI ---
@@ -344,29 +373,40 @@ const OpeningStockGodownWise = () => {
 
     return (
       <>
-        {level2TypesOrder.map((typeNum) => {
+        {level2TypesOrder.map((typeNum, idx) => {
+
+          // Show next level only if previous level selected
+          if (idx > 0) {
+            const prevType = level2TypesOrder[idx - 1];
+            const prevSelected = selectedValuesByType[prevType];
+
+            if (!prevSelected) return null;
+          }
+
           const cols = level2Columns.filter((c) => c.Type === typeNum);
           if (!cols || cols.length === 0) return null;
+
           const primaryCol = cols[0];
           const colName = primaryCol.Column_Name;
-          const idx = level2TypesOrder.indexOf(typeNum);
+
           let parentPair: { column: string; value: string } | undefined;
+
           if (idx > 0) {
             const parentType = level2TypesOrder[idx - 1];
             const selParent = selectedValuesByType[parentType];
-            if (!selParent) {
-              if (typeNum === 5) return null;
-            } else {
+
+            if (selParent) {
               const parentCols = level2Columns.filter((c) => c.Type === parentType);
               if (parentCols.length > 0) {
-                parentPair = { column: parentCols[0].Column_Name, value: selParent };
+                parentPair = {
+                  column: parentCols[0].Column_Name,
+                  value: selParent
+                };
               }
             }
           }
 
           const mappedCol = normalizeColumnKey(colName);
-
-          // Compute values & totals based on parent selection
           const valuesWithTotals = computeValuesWithTotals(mappedCol, parentPair);
 
           const selectedForThisType = selectedValuesByType[typeNum] || "";
@@ -374,30 +414,42 @@ const OpeningStockGodownWise = () => {
           return (
             <View key={`lvl2-type-${typeNum}`} style={{ marginVertical: 6 }}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.level2FilterContainer}>
-                {/* All button */}
+
                 <TouchableOpacity
                   style={[styles.brandFilterButton, !selectedForThisType && styles.brandFilterButtonActive]}
                   onPress={() => {
                     const newSel = { ...selectedValuesByType };
                     delete newSel[typeNum];
-                    level2TypesOrder.forEach((t) => { if (t > typeNum) delete newSel[t]; });
+
+                    level2TypesOrder.forEach((t) => {
+                      if (t > typeNum) delete newSel[t];
+                    });
+
                     setSelectedValuesByType(newSel);
                   }}
                 >
-                  <Text style={[styles.brandFilterText, !selectedForThisType && styles.brandFilterTextActive]}>All</Text>
+                  <Text style={[styles.brandFilterText, !selectedForThisType && styles.brandFilterTextActive]}>
+                    All
+                  </Text>
                 </TouchableOpacity>
 
-                {/* Individual options */}
                 {valuesWithTotals.map(({ value, total }) => {
                   const isSelected = selectedForThisType === value;
+
                   return (
                     <TouchableOpacity
                       key={`${typeNum}-${value}`}
                       style={[styles.brandFilterButton, isSelected && styles.brandFilterButtonActive]}
                       onPress={() => {
-                        const newSel: Record<number, string> = { ...selectedValuesByType, [typeNum]: value };
-                        // Reset downstream types
-                        level2TypesOrder.forEach((t) => { if (t > typeNum) delete newSel[t]; });
+                        const newSel: Record<number, string> = {
+                          ...selectedValuesByType,
+                          [typeNum]: value
+                        };
+
+                        level2TypesOrder.forEach((t) => {
+                          if (t > typeNum) delete newSel[t];
+                        });
+
                         setSelectedValuesByType(newSel);
                       }}
                     >
@@ -411,6 +463,7 @@ const OpeningStockGodownWise = () => {
             </View>
           );
         })}
+
       </>
     );
   };
@@ -435,50 +488,51 @@ const OpeningStockGodownWise = () => {
     setModalVisible(false);
   };
 
+  type GroupNode = {
+    groupName: string;
+    count: number;
+    totalBalance: number;
+    children: GroupNode[] | any[];
+  };
+
   // Grouping function for godown wise
-  const groupDataByGodownDynamic = (
-    data: any[],
-    groupColumn: string
-  ) => {
-    const godownMap: Record<string, any> = {};
+  const groupItemsRecursive = (
+    items: any[],
+    levelIndex: number = 0
+  ): GroupNode[] | any[] => {
+    if (levelIndex >= groupLevels.length) {
+      return items;
+    }
 
-    (data || []).forEach((item: any) => {
-      const godown = item?.Godown_Name || "Unknown Godown";
-      const groupValue = item?.[groupColumn] || "Unknown";
+    const column = groupLevels[levelIndex]?.columnName;
 
-      if (!godownMap[godown]) {
-        godownMap[godown] = {
-          groupName: godown,
-          groups: {},
-          count: 0,
-          totalBalance: 0,
-        };
-      }
+    const grouped: Record<string, any[]> = {};
 
-      if (!godownMap[godown].groups[groupValue]) {
-        godownMap[godown].groups[groupValue] = {
-          groupValue,
-          items: [],
-          groupBalance: 0,
-        };
-      }
+    items.forEach((item: any) => {
+      const key = item?.[column] || "Others";
 
-      const qty = Number(item?.Bal_Qty || 0);
+      if (!grouped[key]) grouped[key] = [];
 
-      godownMap[godown].groups[groupValue].items.push(item || {});
-      godownMap[godown].groups[groupValue].groupBalance += qty;
-
-      godownMap[godown].count += 1;
-      godownMap[godown].totalBalance += qty;
+      grouped[key].push(item);
     });
 
-    return Object.values(godownMap).sort((a: any, b: any) => {
-      let cmp = 0;
-      if (sortBy === "name") cmp = a.groupName.localeCompare(b.groupName);
-      if (sortBy === "count") cmp = a.count - b.count;
-      if (sortBy === "balance") cmp = a.totalBalance - b.totalBalance;
-      return sortOrder === "asc" ? cmp : -cmp;
-    });
+    return Object.keys(grouped)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .map((key: string) => {
+        const groupItems = grouped[key];
+
+        const totalBalance = groupItems.reduce(
+          (sum: number, it: any) => sum + (Number(it?.Bal_Qty) || 0),
+          0
+        );
+
+        return {
+          groupName: key,
+          count: groupItems.length,
+          totalBalance,
+          children: groupItemsRecursive(groupItems, levelIndex + 1),
+        };
+      });
   };
 
   const toggleGodown = (godownName: string) => {
@@ -500,8 +554,7 @@ const OpeningStockGodownWise = () => {
     setExpandedGroups(s);
   };
 
-  const toggleBrand = (godown: string, brand: string) => {
-    const key = `${godown}|${brand}`;
+  const toggleBrand = (key: string) => {
     const s = new Set(expandedBrands);
 
     if (s.has(key)) s.delete(key);
@@ -514,9 +567,29 @@ const OpeningStockGodownWise = () => {
   const getCurrentData = () => {
     const rawData = Array.isArray(goDownWiseStockData) ? goDownWiseStockData : [];
     const afterLevel2 = applyLevel2FiltersToRaw(rawData);
-    const groupColumn = getGroupFilterColumn() || "Brand";
-    const grouped = groupDataByGodownDynamic(afterLevel2, groupColumn);
-    const filtered = filterData(grouped);
+    const godownMap: Record<string, any[]> = {};
+    afterLevel2.forEach((item: any) => {
+      const godown = item?.Godown_Name || "Unknown";
+
+      if (!godownMap[godown]) godownMap[godown] = [];
+
+      godownMap[godown].push(item);
+    });
+    const grouped = Object.keys(godownMap).map((godown) => {
+      const items = godownMap[godown];
+      const totalBalance = items.reduce(
+        (sum: number, it: any) =>
+          sum + (Number(it?.Bal_Qty) || 0),
+        0
+      );
+      return {
+        groupName: godown,
+        totalBalance,
+        count: items.length,
+        children: groupItemsRecursive(items, 0),
+      };
+    });
+    const filtered = searchRecursive(grouped);
     const totalItems = filtered.length;
     const totalRecords = rawData.length;
     const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
@@ -569,6 +642,8 @@ const OpeningStockGodownWise = () => {
 
     return Math.floor(qty / bagSize);
   };
+
+
 
   // Row components
   const GodownWiseHeader = () => {
@@ -646,6 +721,60 @@ const OpeningStockGodownWise = () => {
       </TouchableOpacity>
     );
   };
+
+  const renderGroupLevel = (groups: any[], godown: string, level = 0) => {
+
+    return groups.map((grp: any) => {
+
+      const key = `${godown}-${level}-${grp.groupName}`;
+
+      const expanded = expandedBrands.has(key);
+
+      return (
+        <View key={key} style={{ marginLeft: level * 10, marginBottom: 10 }}>
+
+          <TouchableOpacity
+            style={styles.brandHeader}
+            onPress={() => toggleBrand(key)}
+          >
+            <Icon
+              name={expanded ? "expand-less" : "expand-more"}
+              size={20}
+            />
+
+            <Text style={styles.brandName}>{grp.groupName}</Text>
+
+            <Text style={styles.brandBalance}>
+              {formatNumber(grp.totalBalance)}
+            </Text>
+          </TouchableOpacity>
+
+          {expanded && Array.isArray(grp.children) && (() => {
+
+            const isItemLevel =
+              grp.children.length > 0 &&
+              grp.children[0]?.Product_Id !== undefined;
+
+            return isItemLevel ? (
+              <ScrollView horizontal>
+                <View>
+                  <GodownWiseHeader />
+                  {grp.children.map((item: any, i: number) => (
+                    <GodownWiseRow key={i} item={item} />
+                  ))}
+                </View>
+              </ScrollView>
+            ) : (
+              renderGroupLevel(grp.children, godown, level + 1)
+            );
+
+          })()}
+
+        </View>
+      );
+    });
+  };
+
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -774,57 +903,7 @@ const OpeningStockGodownWise = () => {
                 {expandedGroups.has(group.groupName) && (
                   <View style={{ marginTop: 8 }}>
 
-                    {Object.values(group.groups).map((grp: any) => {
-                      const groupKey = `${group.groupName}|${grp.groupValue}`;
-                      const groupExpanded = expandedBrands.has(groupKey);
-
-                      return (
-                        <View key={grp.groupValue} style={{ marginBottom: 12 }}>
-
-                          {/* 🔹 BRAND ROW (clickable) */}
-                          <TouchableOpacity
-                            style={styles.brandHeader}
-                            onPress={() => toggleBrand(group.groupName, grp.groupValue)}
-                            activeOpacity={0.8}
-                          >
-                            <Icon
-                              name={groupExpanded ? "expand-less" : "expand-more"}
-                              size={20}
-                              color={colors.textSecondary}
-                            />
-
-                            <Text style={styles.brandName}>
-                              {grp.groupValue}
-                            </Text>
-
-                            <Text
-                              style={[
-                                styles.brandBalance,
-                                { color: grp.groupBalance >= 0 ? colors.primary : colors.accent }
-                              ]}
-                            >
-                              {formatNumber(grp.groupBalance)}
-                            </Text>
-                          </TouchableOpacity>
-
-                          {/* 🔹 ITEMS (only when brand touched) */}
-                          {groupExpanded && (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                              <View>
-                                <GodownWiseHeader />
-                                {grp.items.map((item: any, i: number) => (
-                                  <GodownWiseRow
-                                    key={`${item.Product_Id}-${i}`}
-                                    item={item}
-                                  />
-                                ))}
-                              </View>
-                            </ScrollView>
-                          )}
-
-                        </View>
-                      );
-                    })}
+                    {renderGroupLevel(group.children, group.groupName)}
 
                   </View>
                 )}

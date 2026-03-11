@@ -28,7 +28,7 @@ export const API = {
         `${baseURL}api/sales/salesInvoiceMobileFilter?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
 
     salesOrderInvoice: (from: string, to: string, userId: number, branchId?: number) =>
-        `${baseURL}api/sales/saleOrderMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
+        `${baseURL}api/sales/saleOrder?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
 
     deliveryPending: (from: string, to: string, userId: number, branchId?: number) =>
         `${baseURL}api/delivery/deliveryOrderListDataMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,

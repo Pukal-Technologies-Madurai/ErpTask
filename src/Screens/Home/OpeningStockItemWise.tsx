@@ -70,6 +70,7 @@ const OpeningStockItemWise = () => {
     const [activeTypeValuesWithTotals, setActiveTypeValuesWithTotals] = React.useState<{ value: string; total: number }[]>([]);
     const [secondLevelValues, setSecondLevelValues] = React.useState<{ value: string; total: number }[]>([]);
     const [groupByColumn, setGroupByColumn] = React.useState<string>("Stock_Group");
+    const [groupLevels, setGroupLevels] = React.useState<any[]>([]);
 
 
     const fromStr = React.useMemo(() => formatApiDate(fromDate), [fromDate]);
@@ -173,22 +174,29 @@ const OpeningStockItemWise = () => {
     React.useEffect(() => {
         if (!externalFilterTemplate?.length) return;
 
-        const groupFilter = externalFilterTemplate.find(
-            (f: any) =>
-                f.filterType === "GROUP_FILTER" ||
-                f.isGroupFilter === true
-        );
+        const groupFilters = (externalFilterTemplate || [])
+            .filter((f: any) => f.filterType === "GROUP_FILTER" || f.isGroupFilter === true)
+            .sort((a: any, b: any) => Number(a.Level_Id) - Number(b.Level_Id));
 
-        if (!groupFilter?.columnName) {
-            console.warn("No GROUP FILTER found, fallback to Stock_Group");
+        if (!groupFilters.length) {
+            setGroupLevels([{ columnName: "Stock_Group", Level_Id: 1 }]);
             setGroupByColumn("Stock_Group");
             return;
         }
 
-        const normalized = normalizeColumnKey(groupFilter.columnName);
-        console.log("✅ Grouping by backend column:", normalized);
+        const normalized = groupFilters.map((g: any) => ({
+            ...g,
+            columnName: normalizeColumnKey(g.columnName),
 
-        setGroupByColumn(normalized);
+            // ✅ Sort options alphabetically
+            options: (g.options || []).sort((a: any, b: any) =>
+                a.label.localeCompare(b.label)
+            ),
+        }));
+
+        setGroupLevels(normalized);
+        setGroupByColumn(normalized[0].columnName);
+
     }, [externalFilterTemplate]);
 
     React.useEffect(() => {
@@ -342,54 +350,50 @@ const OpeningStockItemWise = () => {
     }, [itemWiseStockData, level2Columns, level2TypesOrder, JSON.stringify(selectedValuesByType)]);
 
     // ---- Filtering pipeline (grouping & search & level2 filter application) ----
-    const groupDataByDynamicColumn = (data: any[]) => {
-        const grouped = data.reduce((acc: any, item: any) => {
-            const rawValue = item?.[groupByColumn];
-            const groupKey = rawValue !== undefined && rawValue !== null && String(rawValue).trim() !== ""
-                ? String(rawValue)
-                : "Others";
 
-            if (!acc[groupKey]) acc[groupKey] = [];
-            acc[groupKey].push(item);
+    const groupDataMultiLevel = (data: any[], levelIndex = 0) => {
+        if (!groupLevels.length) return [];
+
+        const column = groupLevels[levelIndex]?.columnName;
+
+        const grouped = data.reduce((acc: any, item: any) => {
+            const rawValue = item?.[column];
+            const key =
+                rawValue !== undefined && rawValue !== null && String(rawValue).trim() !== ""
+                    ? String(rawValue)
+                    : "Others";
+
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(item);
             return acc;
         }, {});
 
-        const groupArray = Object.keys(grouped).map((group) => {
-            const items = grouped[group];
+        const groups = Object.keys(grouped).map((key) => {
+            const items = grouped[key];
+
             const totalBalance = items.reduce(
                 (sum: number, it: any) =>
                     sum + (it.Bal_Qty || it.Act_Bal_Qty || it.OB_Bal_Qty || 0),
                 0
             );
 
-            return {
-                groupName: group,
-                items,
+            const node: any = {
+                groupName: key,
                 count: items.length,
                 totalBalance,
             };
-        });
 
-        return groupArray.sort((a, b) => {
-            const nameA = String(a.groupName ?? "");
-            const nameB = String(b.groupName ?? "");
-
-            let comparison = 0;
-            switch (sortBy) {
-                case "name":
-                    comparison = nameA.localeCompare(nameB);
-                    break;
-                case "count":
-                    comparison = a.count - b.count;
-                    break;
-                case "balance":
-                    comparison = a.totalBalance - b.totalBalance;
-                    break;
+            if (levelIndex < groupLevels.length - 1) {
+                node.children = groupDataMultiLevel(items, levelIndex + 1);
+            } else {
+                node.items = items;
             }
-            return sortOrder === "asc" ? comparison : -comparison;
-        });
-    };
 
+            return node;
+        });
+
+        return groups;
+    };
 
     const applyLevel2FiltersToRaw = (rawData: any[]) => {
         if (!level2TypesOrder || level2TypesOrder.length === 0) return rawData;
@@ -417,25 +421,56 @@ const OpeningStockItemWise = () => {
         return filtered;
     };
 
-    const filterData = (grouped: any[]) => {
+    const filterData = (groups: any[]) => {
         const q = searchQuery.trim().toLowerCase();
-        if (!q) return grouped;
+        if (!q) return groups;
 
-        return grouped.filter(group =>
-            String(group.groupName).toLowerCase().includes(q) ||
-            group.items.some((item: any) =>
-                Object.values(item || {}).some(val =>
-                    typeof val === "string" && val.toLowerCase().includes(q)
-                )
-            )
-        );
+        const filterGroup = (group: any): any | null => {
+
+            // Check group name
+            const groupMatch = String(group.groupName).toLowerCase().includes(q);
+
+            // Check items
+            let matchedItems = [];
+            if (group.items) {
+                matchedItems = group.items.filter((item: any) =>
+                    Object.values(item || {}).some(val =>
+                        typeof val === "string" &&
+                        val.toLowerCase().includes(q)
+                    )
+                );
+            }
+
+            // Check children recursively
+            let matchedChildren: any[] = [];
+            if (group.children) {
+                matchedChildren = group.children
+                    .map((child: any) => filterGroup(child))
+                    .filter(Boolean);
+            }
+
+            // If any match exists keep the group
+            if (groupMatch || matchedItems.length > 0 || matchedChildren.length > 0) {
+                return {
+                    ...group,
+                    items: matchedItems.length ? matchedItems : group.items,
+                    children: matchedChildren.length ? matchedChildren : group.children
+                };
+            }
+
+            return null;
+        };
+
+        return groups
+            .map((g) => filterGroup(g))
+            .filter(Boolean);
     };
 
     const getCurrentData = () => {
         const rawData = Array.isArray(itemWiseStockData) ? itemWiseStockData : [];
         // Apply level2 client-side filters on raw data before grouping
         const afterLevel2 = applyLevel2FiltersToRaw(rawData);
-        const grouped = groupDataByDynamicColumn(afterLevel2);
+        const grouped = groupDataMultiLevel(afterLevel2);
         const filtered = filterData(grouped);
         const totalItems = filtered.length;
         const totalRecords = rawData.length;
@@ -586,7 +621,6 @@ const OpeningStockItemWise = () => {
         return (
             <View style={[styles.tableRow, { backgroundColor: "#eee" }]}>
                 <View style={styles.rowContainer}>
-                    <Text style={[styles.rowCell, { width: COLS.date, fontWeight: "bold" }]}>Date</Text>
                     <Text style={[styles.rowCell, { width: COLS.name, fontWeight: "bold" }]}>Name</Text>
                     <Text style={[styles.rowCell, { width: COLS.cls, fontWeight: "bold" }]}>Cls</Text>
                     <Text style={[styles.rowCell, { width: COLS.ob, fontWeight: "bold" }]}>OB</Text>
@@ -611,10 +645,6 @@ const OpeningStockItemWise = () => {
                         })
                     }
                 >
-                    <Text style={[styles.rowCell, { width: COLS.date }]}>
-                        {formatDateDDMM(item.Trans_Date)}
-                    </Text>
-
                     <Text
                         style={[styles.rowCell, { width: COLS.name }]}
                         numberOfLines={2}
@@ -658,6 +688,98 @@ const OpeningStockItemWise = () => {
                 </TouchableOpacity>
             </View>
         );
+    };
+
+    const renderGroup = (groups: any[], level = 0) => {
+
+        return groups.map((grp: any) => {
+
+            const key = `${level}-${grp.groupName}`;
+            const expanded = expandedGroups.has(key);
+
+            return (
+                <View key={key} style={{ marginLeft: level * 10, marginBottom: 10 }}>
+
+                    {/* LEVEL 1 HEADER (Original Style) */}
+                    {level === 0 ? (
+
+                        <TouchableOpacity
+                            style={styles.groupHeader}
+                            onPress={() => toggleGroup(key)}
+                            activeOpacity={0.8}
+                        >
+                            <View style={styles.groupHeaderLeft}>
+
+                                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                    <Icon
+                                        name={expanded ? "expand-less" : "expand-more"}
+                                        size={20}
+                                        style={{ marginRight: 4 }}
+                                    />
+
+                                    <Text style={styles.groupName}>
+                                        {grp.groupName}
+                                    </Text>
+                                </View>
+
+                                <View style={styles.groupStats}>
+                                    <Text style={styles.groupCount}>
+                                        Items: {grp.count}
+                                    </Text>
+
+                                    <Text style={styles.groupBalance}>
+                                        Balance: {formatNumber(grp.totalBalance)}
+                                    </Text>
+                                </View>
+
+                            </View>
+                        </TouchableOpacity>
+
+                    ) : (
+
+                        /* NESTED LEVEL HEADER (Godown Style) */
+
+                        <TouchableOpacity
+                            style={styles.brandHeader}
+                            onPress={() => toggleGroup(key)}
+                        >
+                            <Icon
+                                name={expanded ? "expand-less" : "expand-more"}
+                                size={20}
+                            />
+
+                            <Text style={styles.brandName}>
+                                {grp.groupName}
+                            </Text>
+
+                            <Text style={styles.brandBalance}>
+                                {formatNumber(grp.totalBalance)}
+                            </Text>
+                        </TouchableOpacity>
+
+                    )}
+
+                    {/* CHILD GROUPS */}
+                    {expanded && grp.children && renderGroup(grp.children, level + 1)}
+
+                    {/* ITEMS TABLE */}
+                    {expanded && grp.items && (
+                        <ScrollView horizontal>
+                            <View>
+
+                                <ItemWiseHeader />
+
+                                {grp.items.map((item: any, i: number) => (
+                                    <ItemWiseRow key={i} item={item} />
+                                ))}
+
+                            </View>
+                        </ScrollView>
+                    )}
+
+                </View>
+            );
+        });
     };
 
     return (
@@ -767,38 +889,7 @@ const OpeningStockItemWise = () => {
                             </Text>
                         </View>
 
-                        {displayData.map((group: any, idx: number) => (
-                            <View key={`${group.groupName}-${idx}`} style={styles.groupCard}>
-                                <TouchableOpacity style={styles.groupHeader} onPress={() => toggleGroup(group.groupName)} activeOpacity={0.8}>
-                                    <View style={styles.groupHeaderLeft}>
-                                        <View style={styles.groupNameContainer}>
-                                            <Icon name={getGroupIcon()} size={18} color={colors.primary} />
-                                            <Text style={styles.groupName}>{group.groupName}</Text>
-                                        </View>
-                                        <View style={styles.groupStats}>
-                                            <Text style={styles.groupCount}>Items: {group.count}</Text>
-                                            <Text style={[styles.groupBalance, { color: group.totalBalance >= 0 ? colors.primary : colors.accent }]}>Balance: {formatNumber(group.totalBalance)}</Text>
-                                        </View>
-                                    </View>
-                                    <Icon name={expandedGroups.has(group.groupName) ? "expand-less" : "expand-more"} size={24} color={colors.textSecondary} />
-                                </TouchableOpacity>
-
-                                {expandedGroups.has(group.groupName) && (
-                                    <View style={{ marginTop: 8 }}>
-                                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                            <View>
-                                                <ItemWiseHeader />
-                                                {group.items.map((item: any, i: number) => (
-                                                    <View key={`${item.Item_Group_Id ?? item.Product_Id}-${i}`} style={styles.tableRow}>
-                                                        <ItemWiseRow item={item} />
-                                                    </View>
-                                                ))}
-                                            </View>
-                                        </ScrollView>
-                                    </View>
-                                )}
-                            </View>
-                        ))}
+                        {renderGroup(displayData)}
 
                         {totalPages > 1 && (
                             <PaginationControls
@@ -1299,5 +1390,24 @@ const getStyles = (typography: any, colors: any) =>
             alignItems: "center",
             paddingVertical: responsiveHeight(1.2),
             paddingHorizontal: responsiveWidth(4),
+        },
+        brandHeader: {
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            paddingVertical: 6,
+            paddingHorizontal: 8,
+            backgroundColor: "#f2f2f2",
+            borderRadius: 6,
+            marginBottom: 6,
+        },
+        brandName: {
+            fontSize: 14,
+            fontWeight: "600",
+            flex: 1,
+        },
+        brandBalance: {
+            fontSize: 13,
+            fontWeight: "600",
         },
     });

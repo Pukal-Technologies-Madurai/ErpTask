@@ -108,7 +108,7 @@ const LoginScreen = () => {
             });
 
             const data = await response.json();
-            console.log("data:",data)
+            console.log("data:", data)
 
             if (data.success) {
                 getUserAuth(
@@ -129,7 +129,7 @@ const LoginScreen = () => {
 
     const getUserAuth = async (userAuth: string, webApi: string) => {
         try {
-            // baseurl(webApi);
+            baseurl(webApi);
             const url = `${API.getUserAuthMob()}`;
             const response = await fetch(url, {
                 method: "GET",
