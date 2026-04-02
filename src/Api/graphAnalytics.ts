@@ -58,7 +58,7 @@ export const fetchGraphicalAnalysis = async (
                 item?.date ||
                 item?.Invoice_Date ||
                 item?.invoice_date ||
-                item?.Trans_Date; // ✅ for Stock API
+                item?.Trans_Date; 
 
             if (!rawDate) return;
 
@@ -77,14 +77,14 @@ export const fetchGraphicalAnalysis = async (
             map[key].Invoice_Count += Number(
                 item?.Invoice_Count ??
                 item?.invoice_count ??
-                item?.Group_Count ?? // ✅ for Stock API
+                item?.Group_Count ?? 
                 0
             );
 
             /* ✅ VALUE */
             map[key].Invoice_Value += Number(
-                item?.Total_Invoice_value ?? // ✅ Sales/Purchase
-                item?.Total_value ??         // ✅ Stock
+                item?.Total_Invoice_value ?? 
+                item?.Total_value ??         
                 item?.Invoice_Value ??
                 item?.invoice_value ??
                 item?.Value ??
@@ -99,7 +99,7 @@ export const fetchGraphicalAnalysis = async (
                 item?.Date ||
                 item?.date ||
                 item?.Invoice_Date ||
-                item?.Trans_Date; // ✅ for Stock API
+                item?.Trans_Date; 
 
             if (!rawDate) return;
 
@@ -116,7 +116,7 @@ export const fetchGraphicalAnalysis = async (
 
             /* ✅ TONNAGE */
             map[key].Tonnage += Number(
-                item?.Total_Tons ??   // ✅ MAIN FIX
+                item?.Total_Tons ??   
                 item?.Tonnage ??
                 item?.tonnage ??
                 0
@@ -128,8 +128,6 @@ export const fetchGraphicalAnalysis = async (
         const finalData = Object.values(map).sort(
             (a, b) => dayjs(a.Date).unix() - dayjs(b.Date).unix()
         );
-
-        console.log("✅ FINAL GRAPH DATA 👉", finalData);
 
         return finalData;
 

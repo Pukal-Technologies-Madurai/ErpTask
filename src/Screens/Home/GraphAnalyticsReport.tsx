@@ -102,6 +102,21 @@ const GraphicalAnalysisReport = () => {
         );
     }, [data]);
 
+    const handleMonthChange = (date: Date) => {
+        const selected = dayjs(date);
+        const today = dayjs();
+
+        const start = selected.startOf("month");
+
+        // ✅ KEY LOGIC
+        const end = selected.isSame(today, "month")
+            ? today
+            : selected.endOf("month");
+
+        setFromDate(start.toDate());
+        setToDate(end.toDate());
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             <AppHeader
@@ -116,8 +131,7 @@ const GraphicalAnalysisReport = () => {
                 visible={modalVisible}
                 fromDate={fromDate}
                 toDate={toDate}
-                onFromDateChange={setFromDate}
-                onToDateChange={setToDate}
+                onFromDateChange={handleMonthChange}
                 onApply={(selected) => {
                     const mapped: Record<string, string> = {};
                     let index = 1;
@@ -133,18 +147,6 @@ const GraphicalAnalysisReport = () => {
                         index++;
                     });
 
-                    // ✅ IMPORTANT: Auto set full month
-                    const start = dayjs(selected.fromDate || new Date())
-                        .startOf("month")
-                        .toDate();
-
-                    const end = dayjs(selected.fromDate || new Date())
-                        .endOf("month")
-                        .toDate();
-
-                    setFromDate(start);
-                    setToDate(end);
-
                     setDynamicFilters(mapped);
                     setModalVisible(false);
                 }}
@@ -152,7 +154,6 @@ const GraphicalAnalysisReport = () => {
                 showToDate={false}
                 title="Filter Options"
                 fromLabel="From Date"
-                toLabel="To Date"
             />
 
             <ScrollView
