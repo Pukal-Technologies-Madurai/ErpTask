@@ -34,6 +34,7 @@ import Expenses from "../Screens/Payment/Expenses";
 import TransactionListExpenses from "../Screens/Payment/TransactionListExpenses";
 import ItemWiseTransaction from "../Screens/Home/ItemWiseTransaction";
 import GodownItemWiseTransaction from "../Screens/Home/GodownitemTransaction";
+import GraphicalAnalysisReport from "../Screens/Home/GraphAnalyticsReport";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -157,6 +158,10 @@ const Navigation = () => {
                     <Stack.Screen
                         name="transactionlistgodownitem"
                         component={GodownItemWiseTransaction}
+                    />
+                    <Stack.Screen 
+                        name="graphicalanalysis"
+                        component={GraphicalAnalysisReport}
                     />
                 </Stack.Navigator>
             </NavigationContainer>

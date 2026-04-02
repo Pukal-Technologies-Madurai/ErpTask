@@ -95,6 +95,7 @@ export type RootStackParamList = {
     Stockitem:undefined;
     Stockgodown:undefined;
     receiptList: receiptListParams;
+    graphicalanalysis: undefined;
 
     invoiceSale: SaleInvoiceParams;
     saleOrderInvoice: SaleOrderInvoiceParams;

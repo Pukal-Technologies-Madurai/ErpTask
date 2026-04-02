@@ -72,10 +72,10 @@ export const API = {
     getTransactionReports: (from: string, to: string, AccId?: number) =>
         `${baseURL}api/payment/transactions?fromDate=${from}&toDate=${to}&Acc_Id=${AccId || ''}`,
 
-    getDebtorsCreditors: (from: string, to: string ) =>
+    getDebtorsCreditors: (from: string, to: string) =>
         `${baseURL}api/payment/getDebtorDetails?fromDate=${from}&toDate=${to}`,
 
-    getExpenses: (from: string, to: string ) =>
+    getExpenses: (from: string, to: string) =>
         `${baseURL}api/reports/expenseReport?fromDate=${from}&toDate=${to}`,
 
     expensesbyId: () =>
@@ -86,6 +86,15 @@ export const API = {
 
     godownitemwisetransaction: (from: string, to: string, Product_Id?: number, Godown_Id?: number) =>
         `${baseURL}api/reports/godownexpenseReport?fromDate=${from}&toDate=${to}&Product_Id=${Product_Id}&Godown_Id=${Godown_Id}`,
+
+    dashboardsalesgraph: (from: string, to: string, Company_Id?: number) =>
+        `${baseURL}api/reports/externalAPI/SalesGraph?Fromdate=${from}&Todate=${to}&Company_Id=${Company_Id}`,
+
+    dashboardpurchasegraph: (from: string, to: string, Company_Id?: number) =>
+        `${baseURL}api/reports/externalAPI/PurchaseGraph?Fromdate=${from}&Todate=${to}&Company_Id=${Company_Id}`,
+
+    dashboardstockvaluegraph: (from: string, to: string, Company_Id?: number) =>
+        `${baseURL}api/reports/externalAPI/StockValueGraph?Fromdate=${from}&Todate=${to}&Company_Id=${Company_Id}`,
 
     getReportFilters: (reportName: string) =>
         `${baseURL}api/sales/salesFilterDropdown?reportName=${encodeURIComponent(reportName)}`,

@@ -27,6 +27,9 @@ import { getpurchaseInvoiceEntry, getPurchaseOrderEntry, getPurchaseReport } fro
 import { API } from "../../constants/api";
 import { fetchPaymentList } from "../../Api/payment";
 import { DeliveryPendingList } from "../../Api/Sales";
+import { getSalesGraph } from "../../Api/Dashboard";
+import { Dimensions } from "react-native";
+import { LineChart } from "react-native-chart-kit";
 
 type Branch = {
   id: number;
@@ -114,6 +117,25 @@ const Home = () => {
     if (u.includes("g") && !u.includes("kg")) return qty / 1000000;
     return qty / 1000;
   }, []);
+
+  const getMonthRange = () => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date();
+
+    return {
+      from: firstDay.toISOString().split("T")[0],
+      to: lastDay.toISOString().split("T")[0],
+    };
+  };
+
+  const { from, to } = getMonthRange();
+
+  const { data: salesGraphData = [], isLoading: salesGraphLoading } = useQuery({
+    queryKey: ["salesGraph", from, to, companyId],
+    queryFn: () => getSalesGraph(from, to, Number(companyId)),
+    enabled: !!companyId,
+  });
 
   // --- Branch fetch on mount (unchanged, but cancellable) ---
   React.useEffect(() => {
@@ -247,6 +269,22 @@ const Home = () => {
       enabled: !!selectedDate && !!toDate,
     },
   );
+
+  const dayWiseData = React.useMemo(() => {
+    if (!salesGraphData?.DayWise) return [];
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    return salesGraphData.DayWise.filter((item: any) => {
+      const d = new Date(item.Invoice_Date);
+      return (
+        d.getMonth() === currentMonth &&
+        d.getFullYear() === currentYear
+      );
+    });
+  }, [salesGraphData]);
 
   const totalSales = React.useMemo(() => {
     return (saleOrderData || []).reduce(
@@ -473,6 +511,37 @@ const Home = () => {
     return tons.toFixed(1);
   }, []);
 
+  const totalGraphValue = React.useMemo(() => {
+    return dayWiseData.reduce(
+      (acc: number, item: any) =>
+        acc + (item.Total_Invoice_value || 0),
+      0
+    );
+  }, [dayWiseData]);
+
+  const totalInvoiceCountMonth = React.useMemo(() => {
+    return dayWiseData.reduce(
+      (acc: number, item: any) =>
+        acc + (item.Invoice_Count || 0),
+      0
+    );
+  }, [dayWiseData]);
+
+  const chartData = React.useMemo(() => {
+    return {
+      labels: dayWiseData.map((item: any) =>
+        new Date(item.Invoice_Date).getDate().toString()
+      ),
+      datasets: [
+        {
+          data: dayWiseData.map(
+            (item: any) => item.Total_Invoice_value || 0
+          ),
+        },
+      ],
+    };
+  }, [dayWiseData]);
+
   const toggleBranchSelection = React.useCallback((branch: Branch) => {
     setSelectedBranches(prev => {
       const exists = prev.some(b => b.id === branch.id);
@@ -631,6 +700,26 @@ const Home = () => {
               <Icon name="refresh" size={22} color={colors.white} />
             </TouchableOpacity>
           </View>
+        </View>
+
+        <View style={styles.graphCardContainer}>
+          <Pressable
+            onPress={() => navigation.navigate("graphicalanalysis")}
+          >
+            <View style={styles.graphCard}>
+              <View style={{ marginBottom: 10 }}>
+                <Text style={styles.graphTitle}>This Month Sales</Text>
+
+                <Text style={styles.graphValue}>
+                  ₹{formatNumber(totalGraphValue)}
+                </Text>
+
+                <Text style={styles.graphSub}>
+                  {totalInvoiceCountMonth} Invoices
+                </Text>
+              </View>
+            </View>
+          </Pressable>
         </View>
 
         {/* Branch Selection Section */}
@@ -920,21 +1009,21 @@ const Home = () => {
                 </View>
               </Pressable>
 
-              <Pressable onPress={() =>navigation.navigate("debtors", { branchId: branchId })}>
+              <Pressable onPress={() => navigation.navigate("debtors", { branchId: branchId })}>
                 <View style={styles.summaryCard}>
                   <Icon name="credit-card-off" size={32} color={colors.deb} />
                   <Text style={styles.summaryCardTitle}>Sundry DEB & CRE</Text>
                   <Text style={styles.summaryCardValue}>--</Text>
                   <View style={[styles.tonnageContainer, { backgroundColor: colors.deb + "15" }]}>
                     <Icon name="scale" size={16} color={colors.deb} />
-                    
+
                   </View>
                 </View>
               </Pressable>
             </View>
 
             <View style={styles.summaryRow}>
-               <Pressable onPress={() => navigation.navigate("expenses", { branchId: branchId })}>
+              <Pressable onPress={() => navigation.navigate("expenses", { branchId: branchId })}>
                 <View style={styles.summaryCard}>
                   <Icon name="money" size={32} color={colors.exp} />
                   <Text style={styles.summaryCardTitle}>Expenses</Text>
@@ -957,7 +1046,7 @@ const Home = () => {
                   </View>
                 </View>
               </Pressable> */}
-            </View> 
+            </View>
 
           </View>
         </View>
@@ -1235,6 +1324,35 @@ const getStyles = (typography: any, colors: any) =>
       borderRadius: 8,
       justifyContent: "center",
       alignItems: "center",
+    },
+
+    graphCardContainer: {
+      paddingHorizontal: 16,
+      marginTop: 10,
+    },
+
+    graphCard: {
+      backgroundColor: colors.cardBackground || "#fff",
+      borderRadius: 20,
+      padding: 16,
+      borderWidth: 2,
+      borderColor: colors.border || "#e0e0e0",
+    },
+
+    graphTitle: {
+      fontSize: 14,
+      color: colors.textSecondary,
+    },
+
+    graphValue: {
+      fontSize: 22,
+      fontWeight: "bold",
+      color: colors.primary,
+    },
+
+    graphSub: {
+      fontSize: 12,
+      color: colors.textSecondary,
     },
 
   });
