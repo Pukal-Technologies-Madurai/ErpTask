@@ -1,19 +1,23 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React from "react";
 import AppHeader from "../../Components/AppHeader";
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "../../Context/ThemeContext";
-import { MMKV } from 'react-native-mmkv';
-import { useQuery } from '@tanstack/react-query';
-import { fetchPaymentList } from '../../Api/payment';
-import { usePagination } from '../../hooks/usePagination';
+import { storage } from "../../constants/storage";
+import { useQuery } from "@tanstack/react-query";
+import { fetchPaymentList } from "../../Api/payment";
+import { usePagination } from "../../hooks/usePagination";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
-import { RefreshControl, ScrollView, TextInput } from 'react-native-gesture-handler';
-import FilterModal from '../../Components/FilterModal';
-import { responsiveHeight, responsiveWidth } from '../../constants/helper';
+import {
+    RefreshControl,
+    ScrollView,
+    TextInput,
+} from "react-native-gesture-handler";
+import FilterModal from "../../Components/FilterModal";
+import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 
 const PaymentList = ({ route }: { route: any }) => {
     const item = route.params || {};
@@ -21,20 +25,20 @@ const PaymentList = ({ route }: { route: any }) => {
 
     const { typography, colors } = useTheme();
     const styles = getStyles(typography, colors);
-    const navigation =
-        useNavigation<NativeStackNavigationProp<any>>();
-
-    const storage = new MMKV();
+    const navigation = useNavigation<NativeStackNavigationProp<any>>();
 
     const [fromDate, setFromDate] = React.useState<Date>(new Date());
     const [toDate, setToDate] = React.useState<Date>(new Date());
     const [userId, setUserId] = React.useState("");
     const [branchId, setBranchId] = React.useState("");
     const [searchQuery, setSearchQuery] = React.useState("");
-    const [expandedPayments, setExpandedPayments] = React.useState<Set<string>>(new Set());
+    const [expandedPayments, setExpandedPayments] = React.useState<Set<string>>(
+        new Set(),
+    );
     const [modalVisible, setModalVisible] = React.useState(false);
     const [refreshing, setRefreshing] = React.useState(false);
-    const [selectedTransactionType, setSelectedTransactionType] = React.useState<string>("");
+    const [selectedTransactionType, setSelectedTransactionType] =
+        React.useState<string>("");
 
     const ITEMS_PER_PAGE = 15;
 
@@ -51,19 +55,18 @@ const PaymentList = ({ route }: { route: any }) => {
         isLoading,
         error,
         refetch,
-    } = useQuery(
-        {
-            queryKey: [
-                "paymentList",
-                formatDate(fromDate),
-                formatDate(toDate),
-                userId,
-                branchIdProps,
-            ],
-            queryFn: () => fetchPaymentList(fromDate, toDate, userId, branchIdProps),
-            enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
-        }
-    )
+    } = useQuery({
+        queryKey: [
+            "paymentList",
+            formatDate(fromDate),
+            formatDate(toDate),
+            userId,
+            branchIdProps,
+        ],
+        queryFn: () =>
+            fetchPaymentList(fromDate, toDate, userId, branchIdProps),
+        enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
+    });
 
     React.useEffect(() => {
         setCurrentPage(1);
@@ -83,36 +86,47 @@ const PaymentList = ({ route }: { route: any }) => {
         let filtered = [...payments];
 
         if (branchIdProps) {
-            const branchIds = Array.isArray(branchIdProps) ? branchIdProps.map(id => Number(id)) : [Number(branchIdProps)];
-            filtered = filtered.filter(invoice => branchIds.includes(invoice.Branch_Id));
+            const branchIds = Array.isArray(branchIdProps)
+                ? branchIdProps.map(id => Number(id))
+                : [Number(branchIdProps)];
+            filtered = filtered.filter(invoice =>
+                branchIds.includes(invoice.Branch_Id),
+            );
         }
 
         if (searchQuery.trim()) {
             filtered = filtered.filter(
                 p =>
-                    p.payment_invoice_no?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    p.credit_ledger_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    p.debit_ledger_name?.toLowerCase().includes(searchQuery.toLowerCase())
+                    p.payment_invoice_no
+                        ?.toLowerCase()
+                        .includes(searchQuery.toLowerCase()) ||
+                    p.credit_ledger_name
+                        ?.toLowerCase()
+                        .includes(searchQuery.toLowerCase()) ||
+                    p.debit_ledger_name
+                        ?.toLowerCase()
+                        .includes(searchQuery.toLowerCase()),
             );
         }
 
         if (selectedTransactionType) {
             filtered = filtered.filter(
-                p => p.transaction_type === selectedTransactionType
-            )
+                p => p.transaction_type === selectedTransactionType,
+            );
         }
 
         return filtered;
     };
 
-    const filteredData = React.useMemo(() => getProcessedData(), [
-        payments,
-        searchQuery,
-        selectedTransactionType,
-        branchIdProps
-    ]);
+    const filteredData = React.useMemo(
+        () => getProcessedData(),
+        [payments, searchQuery, selectedTransactionType, branchIdProps],
+    );
 
-    const totalAmount = filteredData.reduce((sum, r) => sum + (r.credit_amount || 0), 0);
+    const totalAmount = filteredData.reduce(
+        (sum, r) => sum + (r.credit_amount || 0),
+        0,
+    );
 
     const {
         currentPage,
@@ -129,7 +143,6 @@ const PaymentList = ({ route }: { route: any }) => {
     React.useEffect(() => {
         setCurrentPage(1);
     }, [searchQuery, selectedTransactionType, branchIdProps]);
-
 
     const togglePayment = (paymentId: string) => {
         const newExpanded = new Set(expandedPayments);
@@ -151,7 +164,7 @@ const PaymentList = ({ route }: { route: any }) => {
         setExpandedPayments(new Set());
     }, [searchQuery, selectedTransactionType]);
 
-    //summary Cards 
+    //summary Cards
     const SummaryCards = () => (
         <View style={styles.summaryContainer}>
             <View style={styles.summaryCard}>
@@ -174,12 +187,26 @@ const PaymentList = ({ route }: { route: any }) => {
         const types = getTransactionTypes();
 
         return (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.brandFilterContainer}>
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.brandFilterContainer}
+            >
                 <TouchableOpacity
-                    style={[styles.brandFilterButton, !selectedTransactionType && styles.brandFilterButtonActive]}
+                    style={[
+                        styles.brandFilterButton,
+                        !selectedTransactionType &&
+                            styles.brandFilterButtonActive,
+                    ]}
                     onPress={() => setSelectedTransactionType("")}
                 >
-                    <Text style={[styles.brandFilterText, !selectedTransactionType && styles.brandFilterTextActive]}>
+                    <Text
+                        style={[
+                            styles.brandFilterText,
+                            !selectedTransactionType &&
+                                styles.brandFilterTextActive,
+                        ]}
+                    >
                         All
                     </Text>
                 </TouchableOpacity>
@@ -187,10 +214,20 @@ const PaymentList = ({ route }: { route: any }) => {
                 {types.map(type => (
                     <TouchableOpacity
                         key={type}
-                        style={[styles.brandFilterButton, selectedTransactionType === type && styles.brandFilterButtonActive]}
+                        style={[
+                            styles.brandFilterButton,
+                            selectedTransactionType === type &&
+                                styles.brandFilterButtonActive,
+                        ]}
                         onPress={() => setSelectedTransactionType(type)}
                     >
-                        <Text style={[styles.brandFilterText, selectedTransactionType === type && styles.brandFilterTextActive]}>
+                        <Text
+                            style={[
+                                styles.brandFilterText,
+                                selectedTransactionType === type &&
+                                    styles.brandFilterTextActive,
+                            ]}
+                        >
                             {type}
                         </Text>
                     </TouchableOpacity>
@@ -222,17 +259,25 @@ const PaymentList = ({ route }: { route: any }) => {
                     <View style={styles.orderHeaderLeft}>
                         <View style={styles.orderTopRow}>
                             <View style={styles.orderNumberContainer}>
-                                <Text style={styles.orderNumber}>{payment.credit_ledger_name}</Text>
+                                <Text style={styles.orderNumber}>
+                                    {payment.credit_ledger_name}
+                                </Text>
                                 <Text>--</Text>
-                                <Text style={styles.orderNumber1}>{payment.debit_ledger_name}</Text>
+                                <Text style={styles.orderNumber1}>
+                                    {payment.debit_ledger_name}
+                                </Text>
                                 <View style={styles.dateTimeContainer}>
-                                    <Icon name="event"
+                                    <Icon
+                                        name="event"
                                         size={12}
                                         color={colors.textSecondary}
-                                        style={styles.dateTimeIcon} />
+                                        style={styles.dateTimeIcon}
+                                    />
                                     <Text style={styles.orderDateTime}>
                                         {payment.created_on
-                                            ? getFormattedDate(payment.created_on)
+                                            ? getFormattedDate(
+                                                  payment.created_on,
+                                              )
                                             : "--"}
                                     </Text>
                                 </View>
@@ -247,8 +292,16 @@ const PaymentList = ({ route }: { route: any }) => {
                         </View>
                         <View style={styles.orderBottomRow}>
                             <View style={styles.retailerContainer}>
-                                <Icon name="currency-exchange" size={14} color={colors.primary} style={styles.bottomRowIcon} />
-                                <Text style={styles.retailerName} numberOfLines={2}>
+                                <Icon
+                                    name="currency-exchange"
+                                    size={14}
+                                    color={colors.primary}
+                                    style={styles.bottomRowIcon}
+                                />
+                                <Text
+                                    style={styles.retailerName}
+                                    numberOfLines={2}
+                                >
                                     {payment.transaction_type}
                                 </Text>
                             </View>
@@ -257,13 +310,10 @@ const PaymentList = ({ route }: { route: any }) => {
                                 <Text style={styles.salesPerson}>{payment.CreatedByGet}</Text>
                             </View> */}
                         </View>
-
                     </View>
-
                 </TouchableOpacity>
-
             </View>
-        )
+        );
     };
 
     const handleCloseModal = () => {
@@ -280,8 +330,8 @@ const PaymentList = ({ route }: { route: any }) => {
                 rightIconLibrary="MaterialIcon"
                 rightIconName="filter-list"
                 onRightPress={() => {
-                    console.log(modalVisible)
-                    setModalVisible(true)
+                    console.log(modalVisible);
+                    setModalVisible(true);
                 }}
             />
 
@@ -302,7 +352,6 @@ const PaymentList = ({ route }: { route: any }) => {
                 toLabel="To Date"
             />
 
-
             <ScrollView
                 style={styles.scrollContainer}
                 refreshControl={
@@ -317,17 +366,34 @@ const PaymentList = ({ route }: { route: any }) => {
             >
                 {isLoading && (
                     <View style={styles.loadingContainer}>
-                        <Text style={styles.loadingText}>Loading payments...</Text>
+                        <Text style={styles.loadingText}>
+                            Loading payments...
+                        </Text>
                     </View>
                 )}
 
                 {!isLoading && error && (
                     <View style={styles.errorContainer}>
-                        <Icon name="error-outline" size={48} color={colors.accent} />
-                        <Text style={styles.errorText}>Error loading payments</Text>
-                        <Text style={styles.errorSubtext}>{error.message || "Please try again later"}</Text>
-                        <TouchableOpacity style={styles.retryButton} onPress={onRefresh}>
-                            <Icon name="refresh" size={20} color={colors.white} />
+                        <Icon
+                            name="error-outline"
+                            size={48}
+                            color={colors.accent}
+                        />
+                        <Text style={styles.errorText}>
+                            Error loading payments
+                        </Text>
+                        <Text style={styles.errorSubtext}>
+                            {error.message || "Please try again later"}
+                        </Text>
+                        <TouchableOpacity
+                            style={styles.retryButton}
+                            onPress={onRefresh}
+                        >
+                            <Icon
+                                name="refresh"
+                                size={20}
+                                color={colors.white}
+                            />
                             <Text style={styles.retryButtonText}>Retry</Text>
                         </TouchableOpacity>
                     </View>
@@ -338,7 +404,11 @@ const PaymentList = ({ route }: { route: any }) => {
                         <TransactionTypeFilter />
 
                         <View style={styles.searchContainer}>
-                            <Icon name="search" size={20} color={colors.textSecondary} />
+                            <Icon
+                                name="search"
+                                size={20}
+                                color={colors.textSecondary}
+                            />
                             <TextInput
                                 style={styles.searchInput}
                                 placeholder="Search by invoice, credit ledger name, or ..."
@@ -347,35 +417,54 @@ const PaymentList = ({ route }: { route: any }) => {
                                 onChangeText={setSearchQuery}
                             />
                             {searchQuery.length > 0 && (
-                                <TouchableOpacity onPress={() => setSearchQuery("")}>
-                                    <Icon name="clear" size={20} color={colors.textSecondary} />
+                                <TouchableOpacity
+                                    onPress={() => setSearchQuery("")}
+                                >
+                                    <Icon
+                                        name="clear"
+                                        size={20}
+                                        color={colors.textSecondary}
+                                    />
                                 </TouchableOpacity>
                             )}
                         </View>
                         <View style={styles.resultsContainer}>
                             <Text style={styles.resultsText}>
-                                Showing {displayData.length} receipts ({totalItems} filtered, {totalRecords} total)
+                                Showing {displayData.length} receipts (
+                                {totalItems} filtered, {totalRecords} total)
                             </Text>
                         </View>
 
                         {displayData.map(payments => (
-                            <PaymentCard key={payments.pay_id} payment={payments} />
+                            <PaymentCard
+                                key={payments.pay_id}
+                                payment={payments}
+                            />
                         ))}
                     </>
                 )}
 
                 {!isLoading && !error && payments.length === 0 && (
                     <View style={styles.noDataContainer}>
-                        <Icon name="receipt" size={48} color={colors.textSecondary} />
+                        <Icon
+                            name="receipt"
+                            size={48}
+                            color={colors.textSecondary}
+                        />
                         <Text style={styles.noDataText}>No payments found</Text>
-                        <Text style={styles.noDataSubtext}>Please select a date range to view receipts</Text>
+                        <Text style={styles.noDataSubtext}>
+                            Please select a date range to view receipts
+                        </Text>
                     </View>
                 )}
                 {/* Arrow Pagination Controls */}
                 {totalPages > 1 && (
                     <View style={styles.paginationContainer}>
                         <TouchableOpacity
-                            style={[styles.arrowButton, currentPage === 1 && styles.arrowButtonDisabled]}
+                            style={[
+                                styles.arrowButton,
+                                currentPage === 1 && styles.arrowButtonDisabled,
+                            ]}
                             disabled={currentPage === 1}
                             onPress={() => setCurrentPage(currentPage - 1)}
                         >
@@ -387,7 +476,11 @@ const PaymentList = ({ route }: { route: any }) => {
                         </Text>
 
                         <TouchableOpacity
-                            style={[styles.arrowButton, currentPage === totalPages && styles.arrowButtonDisabled]}
+                            style={[
+                                styles.arrowButton,
+                                currentPage === totalPages &&
+                                    styles.arrowButtonDisabled,
+                            ]}
                             disabled={currentPage === totalPages}
                             onPress={() => setCurrentPage(currentPage + 1)}
                         >
@@ -397,8 +490,8 @@ const PaymentList = ({ route }: { route: any }) => {
                 )}
             </ScrollView>
         </SafeAreaView>
-    )
-}
+    );
+};
 
 export default PaymentList;
 
@@ -745,6 +838,4 @@ const getStyles = (typography: any, colors: any) =>
             fontSize: typography.fontSizeLarge,
             fontWeight: "bold",
         },
-
     });
-

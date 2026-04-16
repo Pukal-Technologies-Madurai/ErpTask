@@ -8,7 +8,7 @@ import {
     Text,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { MMKV } from "react-native-mmkv";
+import { storage } from "./constants/storage";
 import { useTheme } from "./Context/ThemeContext";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "./Navigation/types";
@@ -19,7 +19,6 @@ const SplashScreen = () => {
     const { colors, typography } = useTheme();
     const styles = getStyles(colors, typography);
     const [loading, setLoading] = useState(true);
-    const storage = new MMKV();
 
     useEffect(() => {
         (async () => {

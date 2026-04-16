@@ -22,7 +22,7 @@ import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
 import { usePagination } from "../../hooks/usePagination";
 import PaginationControls from "../../Components/PaginationControls";
-import { MMKV } from "react-native-mmkv";
+import { storage } from "../../constants/storage";
 
 const DeliveryPending = ({ route }: { route: any }) => {
     const item = route.params || {};
@@ -30,7 +30,6 @@ const DeliveryPending = ({ route }: { route: any }) => {
     //   console.log("branchId", branchIdProps);
 
     const { typography, colors } = useTheme();
-    const storage = new MMKV();
     const styles = getStyles(typography, colors);
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -46,13 +45,15 @@ const DeliveryPending = ({ route }: { route: any }) => {
     const [modalVisible, setModalVisible] = React.useState(false);
     const [refreshing, setRefreshing] = React.useState(false);
     const [selectedBrand, setSelectedBrand] = React.useState<string>("");
-    const [selectedTab, setSelectedTab] = React.useState<"All" | "Delivered" | "Pending">("All");
+    const [selectedTab, setSelectedTab] = React.useState<
+        "All" | "Delivered" | "Pending"
+    >("All");
 
     const ITEMS_PER_PAGE = 15;
 
     React.useEffect(() => {
-        const userId = storage.getString("userId")
-        const branchId = storage.getString("branchId")
+        const userId = storage.getString("userId");
+        const branchId = storage.getString("branchId");
         if (userId) setUserId(userId);
         if (branchId) setBranchId(branchId);
     }, [branchId]);
@@ -64,13 +65,17 @@ const DeliveryPending = ({ route }: { route: any }) => {
         refetch,
     } = useQuery({
         queryKey: ["saleOrder", fromDate, toDate],
-        queryFn: () => DeliveryPendingList(fromDate, toDate, userId, branchIdProps),
+        queryFn: () =>
+            DeliveryPendingList(fromDate, toDate, userId, branchIdProps),
         enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
     // Get unique brands and their totals from products
     const getBrandsWithTotals = (data: any[]) => {
-        const brandTotals = new Map<string, { count: number; amount: number }>();
+        const brandTotals = new Map<
+            string,
+            { count: number; amount: number }
+        >();
 
         data.forEach((order: any) => {
             order.Products_List?.forEach((product: any) => {
@@ -94,17 +99,19 @@ const DeliveryPending = ({ route }: { route: any }) => {
         }));
     };
 
-
-
     // Filter data by brand and search query
     const getProcessedData = () => {
         let filtered = [...saleOrder];
 
         // 1️⃣ APPLY TOGGLE FILTER
         if (selectedTab === "Delivered") {
-            filtered = filtered.filter(o => o.DeliveryStatusName === "Delivered");
+            filtered = filtered.filter(
+                o => o.DeliveryStatusName === "Delivered",
+            );
         } else if (selectedTab === "Pending") {
-            filtered = filtered.filter(o => o.DeliveryStatusName !== "Delivered");
+            filtered = filtered.filter(
+                o => o.DeliveryStatusName !== "Delivered",
+            );
         }
         // All = do nothing
 
@@ -112,17 +119,27 @@ const DeliveryPending = ({ route }: { route: any }) => {
         if (searchQuery.trim()) {
             filtered = filtered.filter(
                 order =>
-                    order.Do_Inv_No?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    order.Retailer_Name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    order.Delivery_Person_Name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    order.Branch_Name?.toLowerCase().includes(searchQuery.toLowerCase())
+                    order.Do_Inv_No?.toLowerCase().includes(
+                        searchQuery.toLowerCase(),
+                    ) ||
+                    order.Retailer_Name?.toLowerCase().includes(
+                        searchQuery.toLowerCase(),
+                    ) ||
+                    order.Delivery_Person_Name?.toLowerCase().includes(
+                        searchQuery.toLowerCase(),
+                    ) ||
+                    order.Branch_Name?.toLowerCase().includes(
+                        searchQuery.toLowerCase(),
+                    ),
             );
         }
 
         // 3️⃣ Brand filter
         if (selectedBrand) {
             filtered = filtered.filter(order =>
-                order.Products_List?.some((p: any) => p.BrandGet === selectedBrand)
+                order.Products_List?.some(
+                    (p: any) => p.BrandGet === selectedBrand,
+                ),
             );
         }
 
@@ -131,7 +148,7 @@ const DeliveryPending = ({ route }: { route: any }) => {
 
     const filteredData: any[] = React.useMemo(
         () => getProcessedData(),
-        [saleOrder, searchQuery, selectedBrand, selectedTab]
+        [saleOrder, searchQuery, selectedBrand, selectedTab],
     );
 
     const totalAmount = filteredData.reduce(
@@ -205,18 +222,21 @@ const DeliveryPending = ({ route }: { route: any }) => {
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                style={styles.brandFilterContainer}>
+                style={styles.brandFilterContainer}
+            >
                 <TouchableOpacity
                     style={[
                         styles.brandFilterButton,
                         !selectedBrand && styles.brandFilterButtonActive,
                     ]}
-                    onPress={() => setSelectedBrand("")}>
+                    onPress={() => setSelectedBrand("")}
+                >
                     <Text
                         style={[
                             styles.brandFilterText,
                             !selectedBrand && styles.brandFilterTextActive,
-                        ]}>
+                        ]}
+                    >
                         All
                     </Text>
                 </TouchableOpacity>
@@ -226,15 +246,17 @@ const DeliveryPending = ({ route }: { route: any }) => {
                         style={[
                             styles.brandFilterButton,
                             selectedBrand === brand &&
-                            styles.brandFilterButtonActive,
+                                styles.brandFilterButtonActive,
                         ]}
-                        onPress={() => setSelectedBrand(brand)}>
+                        onPress={() => setSelectedBrand(brand)}
+                    >
                         <Text
                             style={[
                                 styles.brandFilterText,
                                 selectedBrand === brand &&
-                                styles.brandFilterTextActive,
-                            ]}>
+                                    styles.brandFilterTextActive,
+                            ]}
+                        >
                             {brand}
                         </Text>
                     </TouchableOpacity>
@@ -261,7 +283,8 @@ const DeliveryPending = ({ route }: { route: any }) => {
                 <TouchableOpacity
                     style={styles.orderHeader}
                     onPress={() => toggleOrder(order.Do_Inv_No)}
-                    activeOpacity={0.7}>
+                    activeOpacity={0.7}
+                >
                     <View style={styles.orderHeaderLeft}>
                         <View style={styles.orderTopRow}>
                             <View style={styles.orderNumberContainer}>
@@ -299,14 +322,17 @@ const DeliveryPending = ({ route }: { route: any }) => {
                                         styles.badge,
                                         {
                                             backgroundColor:
-                                                order.DeliveryStatusName === "New" || order.DeliveryStatusName == null
+                                                order.DeliveryStatusName ===
+                                                    "New" ||
+                                                order.DeliveryStatusName == null
                                                     ? "#FF9800"
                                                     : "red",
                                         },
                                     ]}
                                 >
                                     <Text style={styles.badgeText}>
-                                        {order.DeliveryStatusName === "New" || order.DeliveryStatusName == null
+                                        {order.DeliveryStatusName === "New" ||
+                                        order.DeliveryStatusName == null
                                             ? "Pending"
                                             : order.DeliveryStatusName}
                                     </Text>
@@ -326,7 +352,8 @@ const DeliveryPending = ({ route }: { route: any }) => {
                                 />
                                 <Text
                                     style={styles.retailerName}
-                                    numberOfLines={2}>
+                                    numberOfLines={2}
+                                >
                                     {order.Retailer_Name}
                                 </Text>
                             </View>
@@ -375,7 +402,8 @@ const DeliveryPending = ({ route }: { route: any }) => {
                                         </Text>
                                         <Text
                                             style={styles.infoValue}
-                                            numberOfLines={1}>
+                                            numberOfLines={1}
+                                        >
                                             {order.Branch_Name}
                                         </Text>
                                     </View>
@@ -424,7 +452,8 @@ const DeliveryPending = ({ route }: { route: any }) => {
                                             style={[
                                                 styles.tableCell,
                                                 styles.productNameCell,
-                                            ]}>
+                                            ]}
+                                        >
                                             Product
                                         </Text>
                                         <Text style={styles.tableCell}>
@@ -439,23 +468,46 @@ const DeliveryPending = ({ route }: { route: any }) => {
                                     </View>
                                     {order.Products_List &&
                                         order.Products_List.length > 0 &&
-                                        order.Products_List.map((product: any) => (
-                                            <View
-                                                key={product.Product_Id || product.Product_Name}
-                                                style={styles.tableRow}
-                                            >
-                                                <Text style={[styles.tableCell, styles.productNameCell]} numberOfLines={4}>
-                                                    {product.Product_Name}
-                                                </Text>
-                                                <Text style={styles.tableCell}>{product.Bill_Qty}</Text>
-                                                <Text style={styles.tableCell}>
-                                                    {formatCurrency(product.Item_Rate).replace("₹", "")}
-                                                </Text>
-                                                <Text style={styles.tableCell}>
-                                                    {formatCurrency(product.Final_Amo).replace("₹", "")}
-                                                </Text>
-                                            </View>
-                                        ))}
+                                        order.Products_List.map(
+                                            (product: any) => (
+                                                <View
+                                                    key={
+                                                        product.Product_Id ||
+                                                        product.Product_Name
+                                                    }
+                                                    style={styles.tableRow}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.tableCell,
+                                                            styles.productNameCell,
+                                                        ]}
+                                                        numberOfLines={4}
+                                                    >
+                                                        {product.Product_Name}
+                                                    </Text>
+                                                    <Text
+                                                        style={styles.tableCell}
+                                                    >
+                                                        {product.Bill_Qty}
+                                                    </Text>
+                                                    <Text
+                                                        style={styles.tableCell}
+                                                    >
+                                                        {formatCurrency(
+                                                            product.Item_Rate,
+                                                        ).replace("₹", "")}
+                                                    </Text>
+                                                    <Text
+                                                        style={styles.tableCell}
+                                                    >
+                                                        {formatCurrency(
+                                                            product.Final_Amo,
+                                                        ).replace("₹", "")}
+                                                    </Text>
+                                                </View>
+                                            ),
+                                        )}
                                 </View>
                             )}
                     </View>
@@ -503,7 +555,8 @@ const DeliveryPending = ({ route }: { route: any }) => {
                         tintColor={colors.primary}
                     />
                 }
-                showsVerticalScrollIndicator={false}>
+                showsVerticalScrollIndicator={false}
+            >
                 {/* Loading State */}
                 {isLoading && (
                     <View style={styles.loadingContainer}>
@@ -529,7 +582,8 @@ const DeliveryPending = ({ route }: { route: any }) => {
                         </Text>
                         <TouchableOpacity
                             style={styles.retryButton}
-                            onPress={onRefresh}>
+                            onPress={onRefresh}
+                        >
                             <Icon
                                 name="refresh"
                                 size={20}
@@ -554,13 +608,15 @@ const DeliveryPending = ({ route }: { route: any }) => {
                                     }}
                                     style={[
                                         styles.toggleButton,
-                                        selectedTab === tab && styles.toggleButtonActive
+                                        selectedTab === tab &&
+                                            styles.toggleButtonActive,
                                     ]}
                                 >
                                     <Text
                                         style={[
                                             styles.toggleText,
-                                            selectedTab === tab && styles.toggleTextActive
+                                            selectedTab === tab &&
+                                                styles.toggleTextActive,
                                         ]}
                                     >
                                         {tab}
@@ -591,7 +647,8 @@ const DeliveryPending = ({ route }: { route: any }) => {
                             />
                             {searchQuery.length > 0 && (
                                 <TouchableOpacity
-                                    onPress={() => setSearchQuery("")}>
+                                    onPress={() => setSearchQuery("")}
+                                >
                                     <Icon
                                         name="clear"
                                         size={20}

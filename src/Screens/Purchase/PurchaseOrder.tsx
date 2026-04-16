@@ -22,14 +22,13 @@ import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 import AppHeader from "../../Components/AppHeader";
 import FilterModal from "../../Components/FilterModal";
 import { formatCurrency } from "../../constants/utils";
-import { MMKV } from "react-native-mmkv";
+import { storage } from "../../constants/storage";
 
 const PurchaseOrder = ({ route }: { route: any }) => {
     const item = route.params || {};
     const branchIdProps = item.branchId;
 
     const { colors, typography } = useTheme();
-    const storage = new MMKV();
     const styles = getStyles(typography, colors);
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -51,13 +50,13 @@ const PurchaseOrder = ({ route }: { route: any }) => {
 
     const ITEMS_PER_PAGE = 10;
 
-     React.useEffect(() => {
-                const userId =  storage.getString("userId")
-                const branchId =  storage.getString("branchId")
-                
-                if (userId) setUserId(parseInt(userId));
-                if (branchId) setBranchId(branchId);
-            }, []);
+    React.useEffect(() => {
+        const userId = storage.getString("userId");
+        const branchId = storage.getString("branchId");
+
+        if (userId) setUserId(parseInt(userId));
+        if (branchId) setBranchId(branchId);
+    }, []);
 
     // Define types for the order and item
     type OrderItem = {
@@ -82,8 +81,9 @@ const PurchaseOrder = ({ route }: { route: any }) => {
         refetch,
     } = useQuery({
         queryKey: ["purchaseOrderReport", fromDate, toDate],
-        queryFn: () => getPurchaseOrderEntry(fromDate, toDate, userId, branchIdProps),
-        enabled: !!fromDate && !!toDate&& !!userId && !!branchIdProps,
+        queryFn: () =>
+            getPurchaseOrderEntry(fromDate, toDate, userId, branchIdProps),
+        enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
     // Filter and sort data
@@ -215,7 +215,8 @@ const PurchaseOrder = ({ route }: { route: any }) => {
             <View key={order.Id} style={styles.orderCard}>
                 <Pressable
                     style={styles.orderHeader}
-                    onPress={() => toggleOrderExpansion(order.Id)}>
+                    onPress={() => toggleOrderExpansion(order.Id)}
+                >
                     <View style={styles.orderHeaderLeft}>
                         <View style={styles.orderIdContainer}>
                             <Text style={styles.orderId}>{order.PO_ID}</Text>
@@ -228,18 +229,20 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                                 ? colors.success + "20"
                                                 : colors.warning + "20",
                                     },
-                                ]}>
+                                ]}
+                            >
                                 <Text
                                     style={[
                                         styles.statusText,
                                         {
                                             color:
                                                 order.OrderStatus ===
-                                                    "Completed"
+                                                "Completed"
                                                     ? colors.success
                                                     : colors.warning,
                                         },
-                                    ]}>
+                                    ]}
+                                >
                                     {order.OrderStatus}
                                 </Text>
                             </View>
@@ -290,7 +293,8 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                     </View>
                                 </View>
                                 <View
-                                    style={[styles.infoItem, styles.fullWidth]}>
+                                    style={[styles.infoItem, styles.fullWidth]}
+                                >
                                     <Text style={styles.infoLabel}>
                                         Party Address
                                     </Text>
@@ -298,7 +302,8 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                         style={[
                                             styles.infoValue,
                                             styles.addressText,
-                                        ]}>
+                                        ]}
+                                    >
                                         {order.PartyAddress || "-"}
                                     </Text>
                                 </View>
@@ -307,7 +312,8 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                         style={[
                                             styles.infoItem,
                                             styles.fullWidth,
-                                        ]}>
+                                        ]}
+                                    >
                                         <Text style={styles.infoLabel}>
                                             Remarks
                                         </Text>
@@ -315,7 +321,8 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                             style={[
                                                 styles.infoValue,
                                                 styles.remarksText,
-                                            ]}>
+                                            ]}
+                                        >
                                             {order.Remarks}
                                         </Text>
                                     </View>
@@ -344,13 +351,15 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                                 <Text
                                                     style={
                                                         styles.itemDetailLabel
-                                                    }>
+                                                    }
+                                                >
                                                     Weight:
                                                 </Text>
                                                 <Text
                                                     style={
                                                         styles.itemDetailValue
-                                                    }>
+                                                    }
+                                                >
                                                     {item.Weight} kg
                                                 </Text>
                                             </View>
@@ -358,13 +367,15 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                                 <Text
                                                     style={
                                                         styles.itemDetailLabel
-                                                    }>
+                                                    }
+                                                >
                                                     Rate:
                                                 </Text>
                                                 <Text
                                                     style={
                                                         styles.itemDetailValue
-                                                    }>
+                                                    }
+                                                >
                                                     ₹{item.Rate}/kg
                                                 </Text>
                                             </View>
@@ -372,13 +383,15 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                                 <Text
                                                     style={
                                                         styles.itemDetailLabel
-                                                    }>
+                                                    }
+                                                >
                                                     Total:
                                                 </Text>
                                                 <Text
                                                     style={
                                                         styles.itemDetailValue
-                                                    }>
+                                                    }
+                                                >
                                                     {formatCurrency(
                                                         item.Weight * item.Rate,
                                                     )}
@@ -388,13 +401,15 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                                 <Text
                                                     style={
                                                         styles.itemDetailLabel
-                                                    }>
+                                                    }
+                                                >
                                                     Delivery:
                                                 </Text>
                                                 <Text
                                                     style={
                                                         styles.itemDetailValue
-                                                    }>
+                                                    }
+                                                >
                                                     {item.DeliveryLocation}
                                                 </Text>
                                             </View>
@@ -429,7 +444,8 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                     </Text>
                     <TouchableOpacity
                         style={styles.retryButton}
-                        onPress={() => refetch()}>
+                        onPress={() => refetch()}
+                    >
                         <Text style={styles.retryButtonText}>Retry</Text>
                     </TouchableOpacity>
                 </View>
@@ -471,7 +487,8 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                         colors={[colors.primary]}
                         tintColor={colors.primary}
                     />
-                }>
+                }
+            >
                 {/* Summary Cards */}
                 <View style={styles.summarySection}>
                     <Text style={styles.sectionTitle}>Summary</Text>
@@ -531,7 +548,8 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                         />
                         {searchQuery.length > 0 && (
                             <TouchableOpacity
-                                onPress={() => setSearchQuery("")}>
+                                onPress={() => setSearchQuery("")}
+                            >
                                 <Icon
                                     name="clear"
                                     size={20}
@@ -549,7 +567,8 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                             styles.tabButton,
                             activeTab === "orders" && styles.activeTab,
                         ]}
-                        onPress={() => setActiveTab("orders")}>
+                        onPress={() => setActiveTab("orders")}
+                    >
                         <Icon
                             name="receipt"
                             size={20}
@@ -563,7 +582,8 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                             style={[
                                 styles.tabText,
                                 activeTab === "orders" && styles.activeTabText,
-                            ]}>
+                            ]}
+                        >
                             Orders
                         </Text>
                     </TouchableOpacity>
@@ -572,7 +592,8 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                             styles.tabButton,
                             activeTab === "items" && styles.activeTab,
                         ]}
-                        onPress={() => setActiveTab("items")}>
+                        onPress={() => setActiveTab("items")}
+                    >
                         <Icon
                             name="inventory"
                             size={20}
@@ -586,7 +607,8 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                             style={[
                                 styles.tabText,
                                 activeTab === "items" && styles.activeTabText,
-                            ]}>
+                            ]}
+                        >
                             Items
                         </Text>
                     </TouchableOpacity>
@@ -641,51 +663,50 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                     ) => (
                                         <View
                                             key={item.name}
-                                            style={styles.itemSummaryCard}>
+                                            style={styles.itemSummaryCard}
+                                        >
                                             <View
-                                                style={
-                                                    styles.itemSummaryHeader
-                                                }>
+                                                style={styles.itemSummaryHeader}
+                                            >
                                                 <Text
                                                     style={
                                                         styles.summaryItemName
-                                                    }>
+                                                    }
+                                                >
                                                     {item.name}
                                                 </Text>
                                                 <Text
                                                     style={
                                                         styles.summaryItemGroup
-                                                    }>
+                                                    }
+                                                >
                                                     {item.stockGroup}
                                                 </Text>
                                             </View>
                                             <View
-                                                style={styles.itemSummaryStats}>
+                                                style={styles.itemSummaryStats}
+                                            >
                                                 <View style={styles.statItem}>
                                                     <Text
-                                                        style={
-                                                            styles.statLabel
-                                                        }>
+                                                        style={styles.statLabel}
+                                                    >
                                                         Total Weight
                                                     </Text>
                                                     <Text
-                                                        style={
-                                                            styles.statValue
-                                                        }>
+                                                        style={styles.statValue}
+                                                    >
                                                         {item.totalWeight} kg
                                                     </Text>
                                                 </View>
                                                 <View style={styles.statItem}>
                                                     <Text
-                                                        style={
-                                                            styles.statLabel
-                                                        }>
+                                                        style={styles.statLabel}
+                                                    >
                                                         Total Value
                                                     </Text>
                                                     <Text
-                                                        style={
-                                                            styles.statValue
-                                                        }>
+                                                        style={styles.statValue}
+                                                    >
                                                         {formatCurrency(
                                                             item.totalValue,
                                                         )}
@@ -693,15 +714,13 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                                 </View>
                                                 <View style={styles.statItem}>
                                                     <Text
-                                                        style={
-                                                            styles.statLabel
-                                                        }>
+                                                        style={styles.statLabel}
+                                                    >
                                                         Orders
                                                     </Text>
                                                     <Text
-                                                        style={
-                                                            styles.statValue
-                                                        }>
+                                                        style={styles.statValue}
+                                                    >
                                                         {item.count}
                                                     </Text>
                                                 </View>
@@ -719,14 +738,15 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                     style={[
                                         styles.pageButton,
                                         currentPage === 1 &&
-                                        styles.pageButtonDisabled,
+                                            styles.pageButtonDisabled,
                                     ]}
                                     onPress={() =>
                                         setCurrentPage(
                                             Math.max(1, currentPage - 1),
                                         )
                                     }
-                                    disabled={currentPage === 1}>
+                                    disabled={currentPage === 1}
+                                >
                                     <Icon
                                         name="keyboard-arrow-left"
                                         size={24}
@@ -747,7 +767,7 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                     style={[
                                         styles.pageButton,
                                         currentPage === totalPages &&
-                                        styles.pageButtonDisabled,
+                                            styles.pageButtonDisabled,
                                     ]}
                                     onPress={() =>
                                         setCurrentPage(
@@ -757,7 +777,8 @@ const PurchaseOrder = ({ route }: { route: any }) => {
                                             ),
                                         )
                                     }
-                                    disabled={currentPage === totalPages}>
+                                    disabled={currentPage === totalPages}
+                                >
                                     <Icon
                                         name="keyboard-arrow-right"
                                         size={24}

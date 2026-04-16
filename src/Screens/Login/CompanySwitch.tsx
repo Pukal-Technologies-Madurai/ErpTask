@@ -9,7 +9,7 @@ import {
     ToastAndroid,
 } from "react-native";
 import React from "react";
-import { MMKV } from "react-native-mmkv";
+import { storage } from "../../constants/storage";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
@@ -36,7 +36,6 @@ const CompanySwitch = () => {
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { colors, typography } = useTheme();
     const styles = getStyles(colors, typography);
-    const storage = new MMKV();
 
     const userName = storage.getString("userName") || "N/A";
     const password = storage.getString("password") || "";
@@ -260,7 +259,8 @@ const CompanySwitch = () => {
             </Text>
             <Text
                 style={[typography.button, styles.retryButton]}
-                onPress={() => refetch()}>
+                onPress={() => refetch()}
+            >
                 Tap to retry
             </Text>
         </View>
@@ -304,7 +304,8 @@ const CompanySwitch = () => {
                                 style={[
                                     typography.body2,
                                     styles.switchingToText,
-                                ]}>
+                                ]}
+                            >
                                 Switching to:{" "}
                                 <Text style={styles.selectedCompanyName}>
                                     {selectedCompany.Company_Name}
@@ -338,7 +339,8 @@ const CompanySwitch = () => {
                                             !isSwitching &&
                                             handleCompanySelection(company)
                                         }
-                                        disabled={isSwitching}>
+                                        disabled={isSwitching}
+                                    >
                                         <CheckBox
                                             value={
                                                 selectedCompany?.Global_Id ===
@@ -360,7 +362,8 @@ const CompanySwitch = () => {
                                             style={styles.checkbox}
                                         />
                                         <View
-                                            style={styles.companyNameContainer}>
+                                            style={styles.companyNameContainer}
+                                        >
                                             <Text
                                                 style={[
                                                     typography.body1,
@@ -373,7 +376,8 @@ const CompanySwitch = () => {
                                                             ) ===
                                                                 currentCompanyId)) &&
                                                         styles.selectedCompanyItemText,
-                                                ]}>
+                                                ]}
+                                            >
                                                 {company.Company_Name}
                                             </Text>
                                             {selectedCompany?.Global_Id ===
@@ -397,7 +401,8 @@ const CompanySwitch = () => {
                                     style={[
                                         typography.body2,
                                         styles.noDataText,
-                                    ]}>
+                                    ]}
+                                >
                                     No companies available for this user
                                 </Text>
                             )}

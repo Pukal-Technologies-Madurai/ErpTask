@@ -30,23 +30,37 @@ const formatApiDate = (d: Date) => {
     return `${yyyy}-${mm}-${dd}`;
 };
 
-const buildUrlWithFilters = (baseUrl: string, from: string, to: string | null, filters: Record<string, string>) => {
-    const params = new URLSearchParams();
-    if (from) params.append("Fromdate", from);
-    if (to) params.append("Todate", to || "");
-    Object.keys(filters || {}).forEach((k) => {
+const buildUrlWithFilters = (
+    baseUrl: string,
+    from: string,
+    to: string | null,
+    filters: Record<string, string>,
+) => {
+    const params: string[] = [];
+
+    if (from) {
+        params.push(`Fromdate=${encodeURIComponent(from)}`);
+    }
+
+    if (to) {
+        params.push(`Todate=${encodeURIComponent(to)}`);
+    }
+
+    Object.keys(filters || {}).forEach(k => {
         const v = filters[k];
-        if (v !== undefined && v !== null && String(v).trim() !== "") {
-            params.append(k, String(v));
-        } else {
-            params.append(k, "");
-        }
+        const value =
+            v !== undefined && v !== null && String(v).trim() !== ""
+                ? String(v)
+                : "";
+        params.push(`${encodeURIComponent(k)}=${encodeURIComponent(value)}`);
     });
-    return `${baseUrl}?${params.toString()}`;
+
+    return `${baseUrl}?${params.join("&")}`;
 };
 
 const OpeningStockItemWise = () => {
-    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const navigation =
+        useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { colors, typography } = useTheme();
     const styles = getStyles(typography, colors);
 
@@ -55,28 +69,42 @@ const OpeningStockItemWise = () => {
     const [modalVisible, setModalVisible] = React.useState(false);
 
     const [searchQuery, setSearchQuery] = React.useState("");
-    const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
+    const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(
+        new Set(),
+    );
     const [currentPage, setCurrentPage] = React.useState(1);
     const [refreshing, setRefreshing] = React.useState(false);
-    const [sortBy, setSortBy] = React.useState<"name" | "count" | "balance">("name");
+    const [sortBy, setSortBy] = React.useState<"name" | "count" | "balance">(
+        "name",
+    );
     const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("asc");
-    const [dynamicFilters, setDynamicFilters] = React.useState<Record<string, string>>({});
-    const [externalFilterTemplate, setExternalFilterTemplate] = React.useState<any[] | null>(null);
+    const [dynamicFilters, setDynamicFilters] = React.useState<
+        Record<string, string>
+    >({});
+    const [externalFilterTemplate, setExternalFilterTemplate] = React.useState<
+        any[] | null
+    >(null);
 
     // --- LEVEL-2 states ---
     const [level2Columns, setLevel2Columns] = React.useState<any[]>([]);
-    const [level2TypesOrder, setLevel2TypesOrder] = React.useState<number[]>([]);
-    const [selectedValuesByType, setSelectedValuesByType] = React.useState<Record<number, string>>({});
-    const [activeTypeValuesWithTotals, setActiveTypeValuesWithTotals] = React.useState<{ value: string; total: number }[]>([]);
-    const [secondLevelValues, setSecondLevelValues] = React.useState<{ value: string; total: number }[]>([]);
-    const [groupByColumn, setGroupByColumn] = React.useState<string>("Stock_Group");
+    const [level2TypesOrder, setLevel2TypesOrder] = React.useState<number[]>(
+        [],
+    );
+    const [selectedValuesByType, setSelectedValuesByType] = React.useState<
+        Record<number, string>
+    >({});
+    const [activeTypeValuesWithTotals, setActiveTypeValuesWithTotals] =
+        React.useState<{ value: string; total: number }[]>([]);
+    const [secondLevelValues, setSecondLevelValues] = React.useState<
+        { value: string; total: number }[]
+    >([]);
+    const [groupByColumn, setGroupByColumn] =
+        React.useState<string>("Stock_Group");
     const [groupLevels, setGroupLevels] = React.useState<any[]>([]);
-
 
     const fromStr = React.useMemo(() => formatApiDate(fromDate), [fromDate]);
     const toStr = React.useMemo(() => formatApiDate(toDate), [toDate]);
     const REPORT_NAME = "StockInhand";
-
 
     // --- fetch ItemWise stock
     const {
@@ -88,10 +116,15 @@ const OpeningStockItemWise = () => {
         queryKey: ["itemWiseStock", fromStr, toStr, dynamicFilters],
         queryFn: async () => {
             const base = API.itemWiseStock(fromStr, toStr);
-            const url = buildUrlWithFilters(base.split("?")[0], fromStr, toStr, dynamicFilters);
+            const url = buildUrlWithFilters(
+                base.split("?")[0],
+                fromStr,
+                toStr,
+                dynamicFilters,
+            );
             const resp = await fetch(url);
             const json = await resp.json();
-            return Array.isArray(json) ? json : (json.data || []);
+            return Array.isArray(json) ? json : json.data || [];
         },
         enabled: !!fromStr && !!toStr,
     });
@@ -102,16 +135,18 @@ const OpeningStockItemWise = () => {
             const url = API.getReportFilters(REPORT_NAME);
             const res = await fetch(url);
             const json = await res.json();
-            setExternalFilterTemplate(Array.isArray(json?.data) ? json.data : []);
+            setExternalFilterTemplate(
+                Array.isArray(json?.data) ? json.data : [],
+            );
         } catch (err) {
             console.error("Failed to load report filters:", err);
             setExternalFilterTemplate([]);
         }
     }, []);
 
-
     const getGroupIcon = () => {
-        if (groupByColumn.toLowerCase().includes("brand")) return "branding-watermark";
+        if (groupByColumn.toLowerCase().includes("brand"))
+            return "branding-watermark";
         if (groupByColumn.toLowerCase().includes("bag")) return "inventory";
         if (groupByColumn.toLowerCase().includes("grade")) return "layers";
         if (groupByColumn.toLowerCase().includes("group")) return "category";
@@ -128,36 +163,58 @@ const OpeningStockItemWise = () => {
         const key = colName.toLowerCase().replace(/\s+/g, "_");
         if (key.includes("brand")) return "Brand";
         if (key.includes("group_st")) return "Group_ST";
-        if (key.includes("product") || key.includes("product_name")) return "Product_Name";
-        if (key.includes("item") && key.includes("name")) return "stock_item_name";
+        if (key.includes("product") || key.includes("product_name"))
+            return "Product_Name";
+        if (key.includes("item") && key.includes("name"))
+            return "stock_item_name";
         if (key.includes("stock_group")) return "Stock_Group";
-        if (key.includes("grade") && key.includes("item")) return "Grade_Item_Group";
-        if (key.includes("s_sub") || key.includes("sub_group")) return "S_Sub_Group_1";
+        if (key.includes("grade") && key.includes("item"))
+            return "Grade_Item_Group";
+        if (key.includes("s_sub") || key.includes("sub_group"))
+            return "S_Sub_Group_1";
         if (key.includes("bag")) return "Bag";
         return colName;
     };
 
     // --- compute totals for a column from itemWiseStockData (sums Bal_Qty or OB_Bal_Qty fallback) ---
-    const computeValuesWithTotals = (columnName: string, parentPair?: { column: string; value: string } | undefined) => {
+    const computeValuesWithTotals = (
+        columnName: string,
+        parentPair?: { column: string; value: string } | undefined,
+    ) => {
         const totals = new Map<string, number>();
-        const qtyFieldCandidates = ["Bal_Qty", "Act_Bal_Qty", "OB_Bal_Qty", "OB_Act_Qty"];
+        const qtyFieldCandidates = [
+            "Bal_Qty",
+            "Act_Bal_Qty",
+            "OB_Bal_Qty",
+            "OB_Act_Qty",
+        ];
 
         (itemWiseStockData || []).forEach((it: any) => {
             // If parentPair exists, check parent's presence either on item or group
             if (parentPair) {
                 const itemParentVal = it?.[parentPair.column];
-                if (itemParentVal === undefined || itemParentVal === null || String(itemParentVal) === "") return;
+                if (
+                    itemParentVal === undefined ||
+                    itemParentVal === null ||
+                    String(itemParentVal) === ""
+                )
+                    return;
                 if (String(itemParentVal) !== parentPair.value) return;
             }
 
             let v = it?.[columnName];
-            if (v === undefined || v === null || String(v).trim() === "") return;
+            if (v === undefined || v === null || String(v).trim() === "")
+                return;
             const valStr = String(v);
             // choose a qty to sum: Bal_Qty preferred
             let qty = 0;
             for (const f of qtyFieldCandidates) {
                 const candidate = it[f];
-                if (candidate !== undefined && candidate !== null && candidate !== "") {
+                if (
+                    candidate !== undefined &&
+                    candidate !== null &&
+                    candidate !== ""
+                ) {
                     qty = Number(candidate) || 0;
                     break;
                 }
@@ -175,7 +232,10 @@ const OpeningStockItemWise = () => {
         if (!externalFilterTemplate?.length) return;
 
         const groupFilters = (externalFilterTemplate || [])
-            .filter((f: any) => f.filterType === "GROUP_FILTER" || f.isGroupFilter === true)
+            .filter(
+                (f: any) =>
+                    f.filterType === "GROUP_FILTER" || f.isGroupFilter === true,
+            )
             .sort((a: any, b: any) => Number(a.Level_Id) - Number(b.Level_Id));
 
         if (!groupFilters.length) {
@@ -190,13 +250,12 @@ const OpeningStockItemWise = () => {
 
             // ✅ Sort options alphabetically
             options: (g.options || []).sort((a: any, b: any) =>
-                a.label.localeCompare(b.label)
+                a.label.localeCompare(b.label),
             ),
         }));
 
         setGroupLevels(normalized);
         setGroupByColumn(normalized[0].columnName);
-
     }, [externalFilterTemplate]);
 
     React.useEffect(() => {
@@ -232,7 +291,7 @@ const OpeningStockItemWise = () => {
                 (f: any) =>
                     Number(f?.FilterLevel) === 2 ||
                     Number(f?.Filter_Level) === 2 ||
-                    Number(f?.Filterlevel) === 2
+                    Number(f?.Filterlevel) === 2,
             );
 
             const lvl2 = lvl2Raw.map((f: any) => {
@@ -267,8 +326,8 @@ const OpeningStockItemWise = () => {
                 new Set(
                     lvl2
                         .map((x: any) => Number(x.Type))
-                        .filter((t: number) => !isNaN(t))
-                )
+                        .filter((t: number) => !isNaN(t)),
+                ),
             ) as number[];
 
             uniqTypes.sort((a, b) => a - b);
@@ -305,7 +364,7 @@ const OpeningStockItemWise = () => {
         }
 
         const firstType = level2TypesOrder[0];
-        const colsForType = level2Columns.filter((c) => c.Type === firstType);
+        const colsForType = level2Columns.filter(c => c.Type === firstType);
         if (!colsForType.length) {
             setActiveTypeValuesWithTotals([]);
             setSecondLevelValues([]);
@@ -319,23 +378,35 @@ const OpeningStockItemWise = () => {
             const parentType = level2TypesOrder[idx - 1];
             const selectedParentValue = selectedValuesByType[parentType];
             if (selectedParentValue) {
-                const parentCols = level2Columns.filter((c) => c.Type === parentType);
+                const parentCols = level2Columns.filter(
+                    c => c.Type === parentType,
+                );
                 if (parentCols.length > 0) {
-                    parentPair = { column: parentCols[0].Column_Name, value: selectedParentValue };
+                    parentPair = {
+                        column: parentCols[0].Column_Name,
+                        value: selectedParentValue,
+                    };
                 }
             }
         }
 
         const mappedCol = normalizeColumnKey(primaryCol);
-        const parentForCompute = parentPair ? { column: normalizeColumnKey(parentPair.column), value: parentPair.value } : undefined;
+        const parentForCompute = parentPair
+            ? {
+                  column: normalizeColumnKey(parentPair.column),
+                  value: parentPair.value,
+              }
+            : undefined;
         const newVals = computeValuesWithTotals(mappedCol, parentForCompute);
         setActiveTypeValuesWithTotals(newVals);
 
         // if the firstType === 4 compute secondLevel (type 5) same as SalesInvoice
         if (firstType === 4) {
-            const type5Cols = level2Columns.filter((c) => c.Type === 5);
+            const type5Cols = level2Columns.filter(c => c.Type === 5);
             if (type5Cols.length && selectedValuesByType[4]) {
-                const type5ColName = normalizeColumnKey(type5Cols[0].Column_Name);
+                const type5ColName = normalizeColumnKey(
+                    type5Cols[0].Column_Name,
+                );
                 const secondLevel = computeValuesWithTotals(type5ColName, {
                     column: normalizeColumnKey(primaryCol),
                     value: selectedValuesByType[4],
@@ -347,7 +418,12 @@ const OpeningStockItemWise = () => {
         } else {
             setSecondLevelValues([]);
         }
-    }, [itemWiseStockData, level2Columns, level2TypesOrder, JSON.stringify(selectedValuesByType)]);
+    }, [
+        itemWiseStockData,
+        level2Columns,
+        level2TypesOrder,
+        JSON.stringify(selectedValuesByType),
+    ]);
 
     // ---- Filtering pipeline (grouping & search & level2 filter application) ----
 
@@ -359,7 +435,9 @@ const OpeningStockItemWise = () => {
         const grouped = data.reduce((acc: any, item: any) => {
             const rawValue = item?.[column];
             const key =
-                rawValue !== undefined && rawValue !== null && String(rawValue).trim() !== ""
+                rawValue !== undefined &&
+                rawValue !== null &&
+                String(rawValue).trim() !== ""
                     ? String(rawValue)
                     : "Others";
 
@@ -368,13 +446,13 @@ const OpeningStockItemWise = () => {
             return acc;
         }, {});
 
-        const groups = Object.keys(grouped).map((key) => {
+        const groups = Object.keys(grouped).map(key => {
             const items = grouped[key];
 
             const totalBalance = items.reduce(
                 (sum: number, it: any) =>
                     sum + (it.Bal_Qty || it.Act_Bal_Qty || it.OB_Bal_Qty || 0),
-                0
+                0,
             );
 
             const node: any = {
@@ -400,17 +478,21 @@ const OpeningStockItemWise = () => {
         let filtered = [...rawData];
 
         // For each type in order, if selected value exists, filter accordingly
-        level2TypesOrder.forEach((t) => {
+        level2TypesOrder.forEach(t => {
             const selVal = selectedValuesByType[t];
             if (!selVal) return;
-            const cols = level2Columns.filter((c) => c.Type === t);
+            const cols = level2Columns.filter(c => c.Type === t);
             if (!cols || cols.length === 0) return;
             const colName = cols[0].Column_Name;
             const mappedCol = normalizeColumnKey(colName);
 
             filtered = filtered.filter((it: any) => {
                 // direct field match
-                if (it && it[mappedCol] !== undefined && it[mappedCol] !== null) {
+                if (
+                    it &&
+                    it[mappedCol] !== undefined &&
+                    it[mappedCol] !== null
+                ) {
                     if (String(it[mappedCol]) === selVal) return true;
                 }
                 // fallback: no nested product list in itemWise data; so return false
@@ -426,18 +508,20 @@ const OpeningStockItemWise = () => {
         if (!q) return groups;
 
         const filterGroup = (group: any): any | null => {
-
             // Check group name
-            const groupMatch = String(group.groupName).toLowerCase().includes(q);
+            const groupMatch = String(group.groupName)
+                .toLowerCase()
+                .includes(q);
 
             // Check items
             let matchedItems = [];
             if (group.items) {
                 matchedItems = group.items.filter((item: any) =>
-                    Object.values(item || {}).some(val =>
-                        typeof val === "string" &&
-                        val.toLowerCase().includes(q)
-                    )
+                    Object.values(item || {}).some(
+                        val =>
+                            typeof val === "string" &&
+                            val.toLowerCase().includes(q),
+                    ),
                 );
             }
 
@@ -450,24 +534,30 @@ const OpeningStockItemWise = () => {
             }
 
             // If any match exists keep the group
-            if (groupMatch || matchedItems.length > 0 || matchedChildren.length > 0) {
+            if (
+                groupMatch ||
+                matchedItems.length > 0 ||
+                matchedChildren.length > 0
+            ) {
                 return {
                     ...group,
                     items: matchedItems.length ? matchedItems : group.items,
-                    children: matchedChildren.length ? matchedChildren : group.children
+                    children: matchedChildren.length
+                        ? matchedChildren
+                        : group.children,
                 };
             }
 
             return null;
         };
 
-        return groups
-            .map((g) => filterGroup(g))
-            .filter(Boolean);
+        return groups.map(g => filterGroup(g)).filter(Boolean);
     };
 
     const getCurrentData = () => {
-        const rawData = Array.isArray(itemWiseStockData) ? itemWiseStockData : [];
+        const rawData = Array.isArray(itemWiseStockData)
+            ? itemWiseStockData
+            : [];
         // Apply level2 client-side filters on raw data before grouping
         const afterLevel2 = applyLevel2FiltersToRaw(rawData);
         const grouped = groupDataMultiLevel(afterLevel2);
@@ -476,11 +566,19 @@ const OpeningStockItemWise = () => {
         const totalRecords = rawData.length;
         const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        const paginated = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+        const paginated = filtered.slice(
+            startIndex,
+            startIndex + ITEMS_PER_PAGE,
+        );
         return { data: paginated, totalPages, totalItems, totalRecords };
     };
 
-    const { data: displayData = [], totalPages, totalItems, totalRecords } = getCurrentData();
+    const {
+        data: displayData = [],
+        totalPages,
+        totalItems,
+        totalRecords,
+    } = getCurrentData();
 
     const toggleGroup = (groupName: string) => {
         const s = new Set(expandedGroups);
@@ -501,7 +599,13 @@ const OpeningStockItemWise = () => {
     React.useEffect(() => {
         setCurrentPage(1);
         setExpandedGroups(new Set());
-    }, [searchQuery, sortBy, sortOrder, JSON.stringify(dynamicFilters), JSON.stringify(selectedValuesByType)]);
+    }, [
+        searchQuery,
+        sortBy,
+        sortOrder,
+        JSON.stringify(dynamicFilters),
+        JSON.stringify(selectedValuesByType),
+    ]);
 
     // --- Level2 Chip UI ---
     const Level2Filter = () => {
@@ -509,14 +613,16 @@ const OpeningStockItemWise = () => {
 
         return (
             <>
-                {level2TypesOrder.map((typeNum) => {
-                    const cols = level2Columns.filter((c) => c.Type === typeNum);
+                {level2TypesOrder.map(typeNum => {
+                    const cols = level2Columns.filter(c => c.Type === typeNum);
                     if (!cols || cols.length === 0) return null;
                     const primaryCol = cols[0];
                     const colName = primaryCol.Column_Name;
                     // parent type
                     const idx = level2TypesOrder.indexOf(typeNum);
-                    let parentPair: { column: string; value: string } | undefined;
+                    let parentPair:
+                        | { column: string; value: string }
+                        | undefined;
                     if (idx > 0) {
                         const parentType = level2TypesOrder[idx - 1];
                         const selParent = selectedValuesByType[parentType];
@@ -524,50 +630,107 @@ const OpeningStockItemWise = () => {
                             // if parent is not selected, we won't show this child's options (cascading)
                             return null;
                         }
-                        const parentCols = level2Columns.filter((c) => c.Type === parentType);
+                        const parentCols = level2Columns.filter(
+                            c => c.Type === parentType,
+                        );
                         if (parentCols.length > 0) {
-                            parentPair = { column: parentCols[0].Column_Name, value: selParent };
+                            parentPair = {
+                                column: parentCols[0].Column_Name,
+                                value: selParent,
+                            };
                         }
                     }
 
                     // compute options and totals for this type
                     const mappedCol = normalizeColumnKey(colName);
-                    const parentForCompute = parentPair ? { column: normalizeColumnKey(parentPair.column), value: parentPair.value } : undefined;
-                    const valuesWithTotals = computeValuesWithTotals(mappedCol, parentForCompute);
+                    const parentForCompute = parentPair
+                        ? {
+                              column: normalizeColumnKey(parentPair.column),
+                              value: parentPair.value,
+                          }
+                        : undefined;
+                    const valuesWithTotals = computeValuesWithTotals(
+                        mappedCol,
+                        parentForCompute,
+                    );
 
-                    const selectedForThisType = selectedValuesByType[typeNum] || "";
+                    const selectedForThisType =
+                        selectedValuesByType[typeNum] || "";
 
                     return (
-                        <View key={`lvl2-type-${typeNum}`} style={{ marginVertical: 6 }}>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.level2FilterContainer}>
+                        <View
+                            key={`lvl2-type-${typeNum}`}
+                            style={{ marginVertical: 6 }}
+                        >
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                style={styles.level2FilterContainer}
+                            >
                                 <TouchableOpacity
-                                    style={[styles.brandFilterButton, !selectedForThisType && styles.brandFilterButtonActive]}
+                                    style={[
+                                        styles.brandFilterButton,
+                                        !selectedForThisType &&
+                                            styles.brandFilterButtonActive,
+                                    ]}
                                     onPress={() => {
                                         // clear this type and downstream types
-                                        const newSel = { ...selectedValuesByType };
+                                        const newSel = {
+                                            ...selectedValuesByType,
+                                        };
                                         delete newSel[typeNum];
                                         // delete downstream
-                                        level2TypesOrder.forEach((t) => { if (t > typeNum) delete newSel[t]; });
+                                        level2TypesOrder.forEach(t => {
+                                            if (t > typeNum) delete newSel[t];
+                                        });
                                         setSelectedValuesByType(newSel);
                                     }}
                                 >
-                                    <Text style={[styles.brandFilterText, !selectedForThisType && styles.brandFilterTextActive]}>All</Text>
+                                    <Text
+                                        style={[
+                                            styles.brandFilterText,
+                                            !selectedForThisType &&
+                                                styles.brandFilterTextActive,
+                                        ]}
+                                    >
+                                        All
+                                    </Text>
                                 </TouchableOpacity>
 
                                 {valuesWithTotals.map(({ value, total }) => {
-                                    const isSelected = selectedForThisType === value;
+                                    const isSelected =
+                                        selectedForThisType === value;
                                     return (
                                         <TouchableOpacity
                                             key={`${typeNum}-${value}`}
-                                            style={[styles.brandFilterButton, isSelected && styles.brandFilterButtonActive]}
+                                            style={[
+                                                styles.brandFilterButton,
+                                                isSelected &&
+                                                    styles.brandFilterButtonActive,
+                                            ]}
                                             onPress={() => {
-                                                const newSel: Record<number, string> = { ...selectedValuesByType, [typeNum]: value };
+                                                const newSel: Record<
+                                                    number,
+                                                    string
+                                                > = {
+                                                    ...selectedValuesByType,
+                                                    [typeNum]: value,
+                                                };
                                                 // clear downstream
-                                                level2TypesOrder.forEach((t) => { if (t > typeNum) delete newSel[t]; });
+                                                level2TypesOrder.forEach(t => {
+                                                    if (t > typeNum)
+                                                        delete newSel[t];
+                                                });
                                                 setSelectedValuesByType(newSel);
                                             }}
                                         >
-                                            <Text style={[styles.brandFilterText, isSelected && styles.brandFilterTextActive]}>
+                                            <Text
+                                                style={[
+                                                    styles.brandFilterText,
+                                                    isSelected &&
+                                                        styles.brandFilterTextActive,
+                                                ]}
+                                            >
                                                 {value} ({formatNumber(total)})
                                             </Text>
                                         </TouchableOpacity>
@@ -582,7 +745,8 @@ const OpeningStockItemWise = () => {
     };
 
     const formatNumber = (num: number) => {
-        if (Math.abs(num) >= 10000000) return `${(num / 10000000).toFixed(1)}Cr`;
+        if (Math.abs(num) >= 10000000)
+            return `${(num / 10000000).toFixed(1)}Cr`;
         if (Math.abs(num) >= 100000) return `${(num / 100000).toFixed(1)}L`;
         if (Math.abs(num) >= 1000) return `${(num / 1000).toFixed(1)}K`;
         return String(num);
@@ -621,11 +785,46 @@ const OpeningStockItemWise = () => {
         return (
             <View style={[styles.tableRow, { backgroundColor: "#eee" }]}>
                 <View style={styles.rowContainer}>
-                    <Text style={[styles.rowCell, { width: COLS.name, fontWeight: "bold" }]}>Name</Text>
-                    <Text style={[styles.rowCell, { width: COLS.cls, fontWeight: "bold" }]}>Cls</Text>
-                    <Text style={[styles.rowCell, { width: COLS.ob, fontWeight: "bold" }]}>OB</Text>
-                    <Text style={[styles.rowCell, { width: COLS.in, fontWeight: "bold" }]}>In</Text>
-                    <Text style={[styles.rowCell, { width: COLS.out, fontWeight: "bold" }]}>Out</Text>
+                    <Text
+                        style={[
+                            styles.rowCell,
+                            { width: COLS.name, fontWeight: "bold" },
+                        ]}
+                    >
+                        Name
+                    </Text>
+                    <Text
+                        style={[
+                            styles.rowCell,
+                            { width: COLS.cls, fontWeight: "bold" },
+                        ]}
+                    >
+                        Cls
+                    </Text>
+                    <Text
+                        style={[
+                            styles.rowCell,
+                            { width: COLS.ob, fontWeight: "bold" },
+                        ]}
+                    >
+                        OB
+                    </Text>
+                    <Text
+                        style={[
+                            styles.rowCell,
+                            { width: COLS.in, fontWeight: "bold" },
+                        ]}
+                    >
+                        In
+                    </Text>
+                    <Text
+                        style={[
+                            styles.rowCell,
+                            { width: COLS.out, fontWeight: "bold" },
+                        ]}
+                    >
+                        Out
+                    </Text>
                 </View>
             </View>
         );
@@ -668,9 +867,7 @@ const OpeningStockItemWise = () => {
                             const qty = item.Bal_Act_Qty ?? item.Act_Bal_Qty;
                             const bagCount = getBagCount(qty, item.Bag);
 
-                            return bagCount
-                                ? `${qty} (${bagCount} nos)`
-                                : qty;
+                            return bagCount ? `${qty} (${bagCount} nos)` : qty;
                         })()}
                     </Text>
 
@@ -691,28 +888,35 @@ const OpeningStockItemWise = () => {
     };
 
     const renderGroup = (groups: any[], level = 0) => {
-
         return groups.map((grp: any) => {
-
             const key = `${level}-${grp.groupName}`;
             const expanded = expandedGroups.has(key);
 
             return (
-                <View key={key} style={{ marginLeft: level * 10, marginBottom: 10 }}>
-
+                <View
+                    key={key}
+                    style={{ marginLeft: level * 10, marginBottom: 10 }}
+                >
                     {/* LEVEL 1 HEADER (Original Style) */}
                     {level === 0 ? (
-
                         <TouchableOpacity
                             style={styles.groupHeader}
                             onPress={() => toggleGroup(key)}
                             activeOpacity={0.8}
                         >
                             <View style={styles.groupHeaderLeft}>
-
-                                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                <View
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                    }}
+                                >
                                     <Icon
-                                        name={expanded ? "expand-less" : "expand-more"}
+                                        name={
+                                            expanded
+                                                ? "expand-less"
+                                                : "expand-more"
+                                        }
                                         size={20}
                                         style={{ marginRight: 4 }}
                                     />
@@ -728,15 +932,13 @@ const OpeningStockItemWise = () => {
                                     </Text>
 
                                     <Text style={styles.groupBalance}>
-                                        Balance: {formatNumber(grp.totalBalance)}
+                                        Balance:{" "}
+                                        {formatNumber(grp.totalBalance)}
                                     </Text>
                                 </View>
-
                             </View>
                         </TouchableOpacity>
-
                     ) : (
-
                         /* NESTED LEVEL HEADER (Godown Style) */
 
                         <TouchableOpacity
@@ -756,27 +958,25 @@ const OpeningStockItemWise = () => {
                                 {formatNumber(grp.totalBalance)}
                             </Text>
                         </TouchableOpacity>
-
                     )}
 
                     {/* CHILD GROUPS */}
-                    {expanded && grp.children && renderGroup(grp.children, level + 1)}
+                    {expanded &&
+                        grp.children &&
+                        renderGroup(grp.children, level + 1)}
 
                     {/* ITEMS TABLE */}
                     {expanded && grp.items && (
                         <ScrollView horizontal>
                             <View>
-
                                 <ItemWiseHeader />
 
                                 {grp.items.map((item: any, i: number) => (
                                     <ItemWiseRow key={i} item={item} />
                                 ))}
-
                             </View>
                         </ScrollView>
                     )}
-
                 </View>
             );
         });
@@ -800,12 +1000,17 @@ const OpeningStockItemWise = () => {
                 toDate={toDate}
                 onFromDateChange={setFromDate}
                 onToDateChange={setToDate}
-                onApply={(selected) => {
+                onApply={selected => {
                     const mapped: Record<string, string> = {};
                     let index = 1;
-                    Object.keys(selected || {}).forEach((key) => {
+                    Object.keys(selected || {}).forEach(key => {
                         let value = selected[key];
-                        if (value === "All" || value === null || value === undefined) value = "";
+                        if (
+                            value === "All" ||
+                            value === null ||
+                            value === undefined
+                        )
+                            value = "";
                         mapped[`filter${index}`] = value;
                         index++;
                     });
@@ -826,7 +1031,12 @@ const OpeningStockItemWise = () => {
             <ScrollView
                 style={styles.contentContainer}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={[colors.primary]}
+                        tintColor={colors.primary}
+                    />
                 }
                 showsVerticalScrollIndicator={false}
             >
@@ -835,11 +1045,25 @@ const OpeningStockItemWise = () => {
 
                 {/* Search */}
                 <View style={styles.searchContainer}>
-                    <Icon name="search" size={20} color={colors.textSecondary} />
-                    <TextInput style={styles.searchInput} placeholder="Search by group or item name..." placeholderTextColor={colors.textSecondary} value={searchQuery} onChangeText={setSearchQuery} />
+                    <Icon
+                        name="search"
+                        size={20}
+                        color={colors.textSecondary}
+                    />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search by group or item name..."
+                        placeholderTextColor={colors.textSecondary}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                    />
                     {searchQuery.length > 0 && (
                         <TouchableOpacity onPress={() => setSearchQuery("")}>
-                            <Icon name="clear" size={20} color={colors.textSecondary} />
+                            <Icon
+                                name="clear"
+                                size={20}
+                                color={colors.textSecondary}
+                            />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -847,17 +1071,122 @@ const OpeningStockItemWise = () => {
                 {/* Sort controls */}
                 <View style={styles.sortContainer}>
                     <View style={styles.sortButtons}>
-                        <TouchableOpacity style={[styles.sortButton, sortBy === "name" && styles.sortButtonActive]} onPress={() => { if (sortBy === "name") setSortOrder(prev => prev === "asc" ? "desc" : "asc"); else { setSortBy("name"); setSortOrder("asc"); } }}>
-                            <Icon name={sortBy === "name" && sortOrder === "desc" ? "arrow-downward" : "arrow-upward"} size={16} color={sortBy === "name" ? colors.white : colors.text} />
-                            <Text style={[styles.sortButtonText, sortBy === "name" && styles.sortButtonTextActive]}>Name</Text>
+                        <TouchableOpacity
+                            style={[
+                                styles.sortButton,
+                                sortBy === "name" && styles.sortButtonActive,
+                            ]}
+                            onPress={() => {
+                                if (sortBy === "name")
+                                    setSortOrder(prev =>
+                                        prev === "asc" ? "desc" : "asc",
+                                    );
+                                else {
+                                    setSortBy("name");
+                                    setSortOrder("asc");
+                                }
+                            }}
+                        >
+                            <Icon
+                                name={
+                                    sortBy === "name" && sortOrder === "desc"
+                                        ? "arrow-downward"
+                                        : "arrow-upward"
+                                }
+                                size={16}
+                                color={
+                                    sortBy === "name"
+                                        ? colors.white
+                                        : colors.text
+                                }
+                            />
+                            <Text
+                                style={[
+                                    styles.sortButtonText,
+                                    sortBy === "name" &&
+                                        styles.sortButtonTextActive,
+                                ]}
+                            >
+                                Name
+                            </Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.sortButton, sortBy === "count" && styles.sortButtonActive]} onPress={() => { if (sortBy === "count") setSortOrder(prev => prev === "asc" ? "desc" : "asc"); else { setSortBy("count"); setSortOrder("desc"); } }}>
-                            <Icon name={sortBy === "count" && sortOrder === "desc" ? "arrow-downward" : "arrow-upward"} size={16} color={sortBy === "count" ? colors.white : colors.text} />
-                            <Text style={[styles.sortButtonText, sortBy === "count" && styles.sortButtonTextActive]}>Count</Text>
+                        <TouchableOpacity
+                            style={[
+                                styles.sortButton,
+                                sortBy === "count" && styles.sortButtonActive,
+                            ]}
+                            onPress={() => {
+                                if (sortBy === "count")
+                                    setSortOrder(prev =>
+                                        prev === "asc" ? "desc" : "asc",
+                                    );
+                                else {
+                                    setSortBy("count");
+                                    setSortOrder("desc");
+                                }
+                            }}
+                        >
+                            <Icon
+                                name={
+                                    sortBy === "count" && sortOrder === "desc"
+                                        ? "arrow-downward"
+                                        : "arrow-upward"
+                                }
+                                size={16}
+                                color={
+                                    sortBy === "count"
+                                        ? colors.white
+                                        : colors.text
+                                }
+                            />
+                            <Text
+                                style={[
+                                    styles.sortButtonText,
+                                    sortBy === "count" &&
+                                        styles.sortButtonTextActive,
+                                ]}
+                            >
+                                Count
+                            </Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.sortButton, sortBy === "balance" && styles.sortButtonActive]} onPress={() => { if (sortBy === "balance") setSortOrder(prev => prev === "asc" ? "desc" : "asc"); else { setSortBy("balance"); setSortOrder("desc"); } }}>
-                            <Icon name={sortBy === "balance" && sortOrder === "desc" ? "arrow-downward" : "arrow-upward"} size={16} color={sortBy === "balance" ? colors.white : colors.text} />
-                            <Text style={[styles.sortButtonText, sortBy === "balance" && styles.sortButtonTextActive]}>Balance</Text>
+                        <TouchableOpacity
+                            style={[
+                                styles.sortButton,
+                                sortBy === "balance" && styles.sortButtonActive,
+                            ]}
+                            onPress={() => {
+                                if (sortBy === "balance")
+                                    setSortOrder(prev =>
+                                        prev === "asc" ? "desc" : "asc",
+                                    );
+                                else {
+                                    setSortBy("balance");
+                                    setSortOrder("desc");
+                                }
+                            }}
+                        >
+                            <Icon
+                                name={
+                                    sortBy === "balance" && sortOrder === "desc"
+                                        ? "arrow-downward"
+                                        : "arrow-upward"
+                                }
+                                size={16}
+                                color={
+                                    sortBy === "balance"
+                                        ? colors.white
+                                        : colors.text
+                                }
+                            />
+                            <Text
+                                style={[
+                                    styles.sortButtonText,
+                                    sortBy === "balance" &&
+                                        styles.sortButtonTextActive,
+                                ]}
+                            >
+                                Balance
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -865,51 +1194,85 @@ const OpeningStockItemWise = () => {
                 {/* Loading / Error / Content */}
                 {isItemWiseLoading && (
                     <View style={styles.loadingContainer}>
-                        <Text style={styles.loadingText}>Loading stock data...</Text>
+                        <Text style={styles.loadingText}>
+                            Loading stock data...
+                        </Text>
                     </View>
                 )}
 
                 {!isItemWiseLoading && itemWiseError && (
                     <View style={styles.errorContainer}>
-                        <Icon name="error-outline" size={48} color={colors.accent} />
-                        <Text style={styles.errorText}>Error loading stock data</Text>
-                        <Text style={styles.errorSubtext}>{(itemWiseError as any)?.message || "Please try again later"}</Text>
-                        <TouchableOpacity style={styles.retryButton} onPress={onRefresh}>
-                            <Icon name="refresh" size={20} color={colors.white} />
+                        <Icon
+                            name="error-outline"
+                            size={48}
+                            color={colors.accent}
+                        />
+                        <Text style={styles.errorText}>
+                            Error loading stock data
+                        </Text>
+                        <Text style={styles.errorSubtext}>
+                            {(itemWiseError as any)?.message ||
+                                "Please try again later"}
+                        </Text>
+                        <TouchableOpacity
+                            style={styles.retryButton}
+                            onPress={onRefresh}
+                        >
+                            <Icon
+                                name="refresh"
+                                size={20}
+                                color={colors.white}
+                            />
                             <Text style={styles.retryButtonText}>Retry</Text>
                         </TouchableOpacity>
                     </View>
                 )}
 
-                {!isItemWiseLoading && !itemWiseError && displayData.length > 0 && (
-                    <>
-                        <View style={styles.summaryContainer}>
-                            <Text style={styles.summaryText}>
-                                Showing {displayData.length} groups ({totalItems} total groups, {totalRecords} total records)
+                {!isItemWiseLoading &&
+                    !itemWiseError &&
+                    displayData.length > 0 && (
+                        <>
+                            <View style={styles.summaryContainer}>
+                                <Text style={styles.summaryText}>
+                                    Showing {displayData.length} groups (
+                                    {totalItems} total groups, {totalRecords}{" "}
+                                    total records)
+                                </Text>
+                            </View>
+
+                            {renderGroup(displayData)}
+
+                            {totalPages > 1 && (
+                                <PaginationControls
+                                    currentPage={currentPage}
+                                    totalPages={totalPages}
+                                    totalItems={totalItems}
+                                    totalRecords={totalRecords}
+                                    onPageChange={p => setCurrentPage(p)}
+                                />
+                            )}
+                        </>
+                    )}
+
+                {!isItemWiseLoading &&
+                    !itemWiseError &&
+                    displayData.length === 0 && (
+                        <View style={styles.noDataContainer}>
+                            <Icon
+                                name="inventory"
+                                size={48}
+                                color={colors.textSecondary}
+                            />
+                            <Text style={styles.noDataText}>
+                                No stock data found
+                            </Text>
+                            <Text style={styles.noDataSubtext}>
+                                {searchQuery
+                                    ? "Try adjusting your search terms"
+                                    : "Please select a date range to view data"}
                             </Text>
                         </View>
-
-                        {renderGroup(displayData)}
-
-                        {totalPages > 1 && (
-                            <PaginationControls
-                                currentPage={currentPage}
-                                totalPages={totalPages}
-                                totalItems={totalItems}
-                                totalRecords={totalRecords}
-                                onPageChange={(p) => setCurrentPage(p)}
-                            />
-                        )}
-                    </>
-                )}
-
-                {!isItemWiseLoading && !itemWiseError && displayData.length === 0 && (
-                    <View style={styles.noDataContainer}>
-                        <Icon name="inventory" size={48} color={colors.textSecondary} />
-                        <Text style={styles.noDataText}>No stock data found</Text>
-                        <Text style={styles.noDataSubtext}>{searchQuery ? "Try adjusting your search terms" : "Please select a date range to view data"}</Text>
-                    </View>
-                )}
+                    )}
             </ScrollView>
         </SafeAreaView>
     );
@@ -1314,7 +1677,7 @@ const getStyles = (typography: any, colors: any) =>
             borderWidth: 1,
             borderColor: "#ccc",
             borderRadius: 6,
-            overflow: "hidden"
+            overflow: "hidden",
         },
 
         headerCell: {
@@ -1338,7 +1701,7 @@ const getStyles = (typography: any, colors: any) =>
             textAlign: "center",
             fontSize: 13,
             fontWeight: "600",
-            color: "#000"
+            color: "#000",
         },
         godownHeaderContainer: {
             padding: 6,
@@ -1359,7 +1722,7 @@ const getStyles = (typography: any, colors: any) =>
         level2FilterContainer: {
             flexDirection: "row",
             paddingVertical: 8,
-            paddingHorizontal: 5
+            paddingHorizontal: 5,
         },
         brandFilterContainer: {
             paddingHorizontal: 16,

@@ -1,5 +1,4 @@
-import { MMKV } from "react-native-mmkv";
-const storage = new MMKV();
+import { storage } from "./storage";
 
 let baseURL = storage.getString("baseURL") || "https://erpsmt.in/";
 // export let baseURL = "http://192.168.3.106:9001/";
@@ -14,36 +13,86 @@ export const baseurl = (url: any) => {
 
 export const API = {
     getUserAuthInfo: () => `${baseURL}api/authorization/userAuth`,
-    userPortal: () => `${baseURL}api/authorization/userPortal/accounts?username=`,
+    userPortal: () =>
+        `${baseURL}api/authorization/userPortal/accounts?username=`,
     userPortalLogin: () => `${baseURL}api/authorization/userPortal/login`,
     getUserAuthMob: () => `${baseURL}api/authorization/userAuthmobile`,
 
     getEmpDeptWiseAttendance: (from: string, to: string) =>
         `${baseURL}api/empAttendance/departmentwise?FromDate=${from}&ToDate=${to}`,
 
-    salesInvoice: (from: string, to: string, userId: number, branchId?: number) =>
-        `${baseURL}api/sales/salesInvoiceMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
+    salesInvoice: (
+        from: string,
+        to: string,
+        userId: number,
+        branchId?: number,
+    ) =>
+        `${baseURL}api/sales/salesInvoiceMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
+        }`,
 
-    salesInvoiceMobileFilter: (from: string, to: string, userId: number, branchId?: number) =>
-        `${baseURL}api/sales/salesInvoiceMobileFilter?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
+    salesInvoiceMobileFilter: (
+        from: string,
+        to: string,
+        userId: number,
+        branchId?: number,
+    ) =>
+        `${baseURL}api/sales/salesInvoiceMobileFilter?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
+        }`,
 
-    salesOrderInvoice: (from: string, to: string, userId: number, branchId?: number) =>
-        `${baseURL}api/sales/saleOrder?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
+    salesOrderInvoice: (
+        from: string,
+        to: string,
+        userId: number,
+        branchId?: number,
+    ) =>
+        `${baseURL}api/sales/saleOrder?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
+        }`,
 
-    deliveryPending: (from: string, to: string, userId: number, branchId?: number) =>
-        `${baseURL}api/delivery/deliveryOrderListDataMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
+    deliveryPending: (
+        from: string,
+        to: string,
+        userId: number,
+        branchId?: number,
+    ) =>
+        `${baseURL}api/delivery/deliveryOrderListDataMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
+        }`,
 
-    saleorderPending: (from: string, to: string, userId: number | string, branchId?: number | string) =>
-        `${baseURL}api/reports/reportsNonconvert/salesMobile?Fromdate=${from}&User_Id=${userId}&Todate=${to}&Branch_Id=${branchId || ''}`,
+    saleorderPending: (
+        from: string,
+        to: string,
+        userId: number | string,
+        branchId?: number | string,
+    ) =>
+        `${baseURL}api/reports/reportsNonconvert/salesMobile?Fromdate=${from}&User_Id=${userId}&Todate=${to}&Branch_Id=${
+            branchId || ""
+        }`,
 
-    saleorderPendingItem: (from: string, to: string, userId: number | string, branchId?: number | string) =>
-        `${baseURL}api/reports/reportsNonconvert/salesMobileItem?Fromdate=${from}&User_Id=${userId}&Todate=${to}&Branch_Id=${branchId || ''}`,
+    saleorderPendingItem: (
+        from: string,
+        to: string,
+        userId: number | string,
+        branchId?: number | string,
+    ) =>
+        `${baseURL}api/reports/reportsNonconvert/salesMobileItem?Fromdate=${from}&User_Id=${userId}&Todate=${to}&Branch_Id=${
+            branchId || ""
+        }`,
 
     purchaseReport: (from: string, to: string) =>
         `${baseURL}api/reports/PurchaseOrderReportCard?Report_Type=2&Fromdate=${from}&Todate=${to}`,
 
-    purchaseOrderEntry: (from: string, to: string, userId: number | string, branchId?: number) =>
-        `${baseURL}api/dataEntry/purchaseOrderMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
+    purchaseOrderEntry: (
+        from: string,
+        to: string,
+        userId: number | string,
+        branchId?: number,
+    ) =>
+        `${baseURL}api/dataEntry/purchaseOrderMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
+        }`,
 
     itemWiseStock: (from: string, to: string) =>
         `${baseURL}api/reports/storageStock/itemWiseMobile?Fromdate=${from}&Todate=${to}`,
@@ -57,20 +106,38 @@ export const API = {
     getUserBranch: (uID: number) =>
         `${baseURL}api/authorization/userBranches?UserId=${uID}`,
 
-    receiptCollection: (from: string, to: string, userId: number, branchId?: number) =>
-        `${baseURL}api/receipt/receiptMasterMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
+    receiptCollection: (
+        from: string,
+        to: string,
+        userId: number,
+        branchId?: number,
+    ) =>
+        `${baseURL}api/receipt/receiptMasterMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
+        }`,
 
-    getPurchaseInvoice: (from: string, to: string, userId: number, branchId?: number) =>
-        `${baseURL}api/purchase/purchaseInvoiceMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
+    getPurchaseInvoice: (
+        from: string,
+        to: string,
+        userId: number,
+        branchId?: number,
+    ) =>
+        `${baseURL}api/purchase/purchaseInvoiceMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
+        }`,
 
     getPayment: (from: string, to: string, userId: number, branchId?: number) =>
-        `${baseURL}api/payment/paymentMasterMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ''}`,
+        `${baseURL}api/payment/paymentMasterMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
+        }`,
 
     geRetailers: (from: string, to: string) =>
         `${baseURL}api/masters/retailersPaginated?`,
 
     getTransactionReports: (from: string, to: string, AccId?: number) =>
-        `${baseURL}api/payment/transactions?fromDate=${from}&toDate=${to}&Acc_Id=${AccId || ''}`,
+        `${baseURL}api/payment/transactions?fromDate=${from}&toDate=${to}&Acc_Id=${
+            AccId || ""
+        }`,
 
     getDebtorsCreditors: (from: string, to: string) =>
         `${baseURL}api/payment/getDebtorDetails?fromDate=${from}&toDate=${to}`,
@@ -78,13 +145,17 @@ export const API = {
     getExpenses: (from: string, to: string) =>
         `${baseURL}api/reports/expenseReport?fromDate=${from}&toDate=${to}`,
 
-    expensesbyId: () =>
-        `${baseURL}/api/reports/expenseByAccId`,
+    expensesbyId: () => `${baseURL}/api/reports/expenseByAccId`,
 
     itemtransaction: (from: string, to: string, Product_Id?: number) =>
         `${baseURL}api/reports/itemexpenseReport?fromDate=${from}&toDate=${to}&Product_Id=${Product_Id}`,
 
-    godownitemwisetransaction: (from: string, to: string, Product_Id?: number, Godown_Id?: number) =>
+    godownitemwisetransaction: (
+        from: string,
+        to: string,
+        Product_Id?: number,
+        Godown_Id?: number,
+    ) =>
         `${baseURL}api/reports/godownexpenseReport?fromDate=${from}&toDate=${to}&Product_Id=${Product_Id}&Godown_Id=${Godown_Id}`,
 
     dashboardsalesgraph: (from: string, to: string, Company_Id?: number) =>
@@ -97,6 +168,7 @@ export const API = {
         `${baseURL}api/reports/externalAPI/StockValueGraph?Fromdate=${from}&Todate=${to}&Company_Id=${Company_Id}`,
 
     getReportFilters: (reportName: string) =>
-        `${baseURL}api/sales/salesFilterDropdown?reportName=${encodeURIComponent(reportName)}`,
-
+        `${baseURL}api/sales/salesFilterDropdown?reportName=${encodeURIComponent(
+            reportName,
+        )}`,
 };

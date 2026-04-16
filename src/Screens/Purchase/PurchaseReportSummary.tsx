@@ -11,7 +11,7 @@ import React from "react";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import FontAwesomeIcon from "react-native-vector-icons/FontAwesome6";
 import { useNavigation } from "@react-navigation/native";
-import { MMKV } from "react-native-mmkv";
+import { storage } from "../../constants/storage";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
@@ -24,7 +24,6 @@ import { RootStackParamList } from "../../Navigation/types";
 import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 
 const PurchaseReportSummary = () => {
-    const storage = new MMKV();
     const { colors, typography } = useTheme();
     const styles = getStyles(typography, colors);
     const navigation =
@@ -269,7 +268,8 @@ const PurchaseReportSummary = () => {
                         isExpanded && styles.groupHeaderExpanded,
                     ]}
                     onPress={() => toggleGroup(group.Stock_Group)}
-                    activeOpacity={0.7}>
+                    activeOpacity={0.7}
+                >
                     <View style={styles.groupHeaderContent}>
                         <View style={styles.groupTitleContainer}>
                             <Icon
@@ -302,7 +302,8 @@ const PurchaseReportSummary = () => {
                                     style={[
                                         styles.groupMetaValue,
                                         { color: colors.success },
-                                    ]}>
+                                    ]}
+                                >
                                     {formatCurrency(groupTotal)}
                                 </Text>
                             </View>
@@ -360,14 +361,16 @@ const PurchaseReportSummary = () => {
                 style={[
                     styles.productCard,
                     isExpanded && styles.productCardExpanded,
-                ]}>
+                ]}
+            >
                 <TouchableOpacity
                     style={[
                         styles.productHeader,
                         isExpanded && styles.productHeaderExpanded,
                     ]}
                     onPress={() => toggleItem(itemKey)}
-                    activeOpacity={0.7}>
+                    activeOpacity={0.7}
+                >
                     <View style={styles.productInfo}>
                         <View style={styles.productMainInfo}>
                             <View style={styles.productNameContainer}>
@@ -412,7 +415,8 @@ const PurchaseReportSummary = () => {
                                     style={[
                                         styles.statValue,
                                         { color: colors.success },
-                                    ]}>
+                                    ]}
+                                >
                                     {formatCurrency(productTotal)}
                                 </Text>
                             </View>
@@ -481,7 +485,8 @@ const PurchaseReportSummary = () => {
                             style={[
                                 styles.tableCellValue,
                                 { color: colors.success },
-                            ]}>
+                            ]}
+                        >
                             {formatCurrency(transaction.amount)}
                         </Text>
                     </View>
@@ -499,7 +504,8 @@ const PurchaseReportSummary = () => {
                     currentPage === 1 && styles.pageButtonDisabled,
                 ]}
                 onPress={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}>
+                disabled={currentPage === 1}
+            >
                 <Icon
                     name="chevron-left"
                     size={20}
@@ -524,7 +530,8 @@ const PurchaseReportSummary = () => {
                 onPress={() =>
                     setCurrentPage(Math.min(totalPages, currentPage + 1))
                 }
-                disabled={currentPage === totalPages}>
+                disabled={currentPage === totalPages}
+            >
                 <Icon
                     name="chevron-right"
                     size={20}
@@ -577,7 +584,8 @@ const PurchaseReportSummary = () => {
                         tintColor={colors.primary}
                     />
                 }
-                showsVerticalScrollIndicator={false}>
+                showsVerticalScrollIndicator={false}
+            >
                 {/* Loading State */}
                 {isLoading && (
                     <View style={styles.loadingContainer}>
@@ -603,7 +611,8 @@ const PurchaseReportSummary = () => {
                         </Text>
                         <TouchableOpacity
                             style={styles.retryButton}
-                            onPress={onRefresh}>
+                            onPress={onRefresh}
+                        >
                             <Icon
                                 name="refresh"
                                 size={20}
@@ -635,7 +644,8 @@ const PurchaseReportSummary = () => {
                             />
                             {searchQuery.length > 0 && (
                                 <TouchableOpacity
-                                    onPress={() => setSearchQuery("")}>
+                                    onPress={() => setSearchQuery("")}
+                                >
                                     <Icon
                                         name="clear"
                                         size={20}

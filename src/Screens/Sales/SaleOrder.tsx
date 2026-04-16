@@ -22,15 +22,14 @@ import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
 import { usePagination } from "../../hooks/usePagination";
 import PaginationControls from "../../Components/PaginationControls";
-import { MMKV } from "react-native-mmkv";
+import { storage } from "../../constants/storage";
 
 const SaleOrder = ({ route }: { route: any }) => {
     const item = route.params || {};
     const branchIdProps = item.branchId;
-//   console.log("branchId", branchIdProps);
-    
+    //   console.log("branchId", branchIdProps);
+
     const { typography, colors } = useTheme();
-     const storage = new MMKV();
     const styles = getStyles(typography, colors);
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -50,11 +49,11 @@ const SaleOrder = ({ route }: { route: any }) => {
     const ITEMS_PER_PAGE = 15;
 
     React.useEffect(() => {
-            const userId =  storage.getString("userId")
-            const branchId =  storage.getString("branchId")
-            if (userId) setUserId(userId);
-            if (branchId) setBranchId(branchId);
-        }, [branchId]);
+        const userId = storage.getString("userId");
+        const branchId = storage.getString("branchId");
+        if (userId) setUserId(userId);
+        if (branchId) setBranchId(branchId);
+    }, [branchId]);
 
     const {
         data: saleOrder = [],
@@ -63,7 +62,8 @@ const SaleOrder = ({ route }: { route: any }) => {
         refetch,
     } = useQuery({
         queryKey: ["saleOrder", fromDate, toDate],
-        queryFn: () => salesOrderInvoice(fromDate, toDate, userId, branchIdProps),
+        queryFn: () =>
+            salesOrderInvoice(fromDate, toDate, userId, branchIdProps),
         enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
@@ -203,18 +203,21 @@ const SaleOrder = ({ route }: { route: any }) => {
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                style={styles.brandFilterContainer}>
+                style={styles.brandFilterContainer}
+            >
                 <TouchableOpacity
                     style={[
                         styles.brandFilterButton,
                         !selectedBrand && styles.brandFilterButtonActive,
                     ]}
-                    onPress={() => setSelectedBrand("")}>
+                    onPress={() => setSelectedBrand("")}
+                >
                     <Text
                         style={[
                             styles.brandFilterText,
                             !selectedBrand && styles.brandFilterTextActive,
-                        ]}>
+                        ]}
+                    >
                         All
                     </Text>
                 </TouchableOpacity>
@@ -226,13 +229,15 @@ const SaleOrder = ({ route }: { route: any }) => {
                             selectedBrand === brand &&
                                 styles.brandFilterButtonActive,
                         ]}
-                        onPress={() => setSelectedBrand(brand)}>
+                        onPress={() => setSelectedBrand(brand)}
+                    >
                         <Text
                             style={[
                                 styles.brandFilterText,
                                 selectedBrand === brand &&
                                     styles.brandFilterTextActive,
-                            ]}>
+                            ]}
+                        >
                             {brand}
                         </Text>
                     </TouchableOpacity>
@@ -259,7 +264,8 @@ const SaleOrder = ({ route }: { route: any }) => {
                 <TouchableOpacity
                     style={styles.orderHeader}
                     onPress={() => toggleOrder(order.S_Id)}
-                    activeOpacity={0.7}>
+                    activeOpacity={0.7}
+                >
                     <View style={styles.orderHeaderLeft}>
                         <View style={styles.orderTopRow}>
                             <View style={styles.orderNumberContainer}>
@@ -305,7 +311,8 @@ const SaleOrder = ({ route }: { route: any }) => {
                                 />
                                 <Text
                                     style={styles.retailerName}
-                                    numberOfLines={2}>
+                                    numberOfLines={2}
+                                >
                                     {order.Retailer_Name}
                                 </Text>
                             </View>
@@ -341,7 +348,8 @@ const SaleOrder = ({ route }: { route: any }) => {
                                         </Text>
                                         <Text
                                             style={styles.infoValue}
-                                            numberOfLines={1}>
+                                            numberOfLines={1}
+                                        >
                                             {order.Branch_Name}
                                         </Text>
                                     </View>
@@ -390,7 +398,8 @@ const SaleOrder = ({ route }: { route: any }) => {
                                             style={[
                                                 styles.tableCell,
                                                 styles.productNameCell,
-                                            ]}>
+                                            ]}
+                                        >
                                             Product
                                         </Text>
                                         <Text style={styles.tableCell}>
@@ -407,13 +416,15 @@ const SaleOrder = ({ route }: { route: any }) => {
                                         (product: any, index: number) => (
                                             <View
                                                 key={index}
-                                                style={styles.tableRow}>
+                                                style={styles.tableRow}
+                                            >
                                                 <Text
                                                     style={[
                                                         styles.tableCell,
                                                         styles.productNameCell,
                                                     ]}
-                                                    numberOfLines={4}>
+                                                    numberOfLines={4}
+                                                >
                                                     {product.Product_Name}
                                                 </Text>
                                                 <Text style={styles.tableCell}>
@@ -479,7 +490,8 @@ const SaleOrder = ({ route }: { route: any }) => {
                         tintColor={colors.primary}
                     />
                 }
-                showsVerticalScrollIndicator={false}>
+                showsVerticalScrollIndicator={false}
+            >
                 {/* Loading State */}
                 {isLoading && (
                     <View style={styles.loadingContainer}>
@@ -505,7 +517,8 @@ const SaleOrder = ({ route }: { route: any }) => {
                         </Text>
                         <TouchableOpacity
                             style={styles.retryButton}
-                            onPress={onRefresh}>
+                            onPress={onRefresh}
+                        >
                             <Icon
                                 name="refresh"
                                 size={20}
@@ -541,7 +554,8 @@ const SaleOrder = ({ route }: { route: any }) => {
                             />
                             {searchQuery.length > 0 && (
                                 <TouchableOpacity
-                                    onPress={() => setSearchQuery("")}>
+                                    onPress={() => setSearchQuery("")}
+                                >
                                     <Icon
                                         name="clear"
                                         size={20}

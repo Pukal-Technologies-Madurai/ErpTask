@@ -21,7 +21,7 @@ import { RootStackParamList } from "../../Navigation/types";
 import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
 import { usePagination } from "../../hooks/usePagination";
 import PaginationControls from "../../Components/PaginationControls";
-import { MMKV } from "react-native-mmkv";
+import { storage } from "../../constants/storage";
 import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 import { API } from "../../constants/api";
 
@@ -44,8 +44,8 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
     const branchIdProps = route.params?.branchId;
     const { typography, colors } = useTheme();
     const styles = getStyles(typography, colors);
-    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-    const storage = new MMKV();
+    const navigation =
+        useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
     const today = new Date();
     const last30 = new Date();
@@ -57,19 +57,33 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
     const [branchId, setBranchId] = React.useState("");
     const [searchQuery, setSearchQuery] = React.useState("");
     const [selectedBrand, setSelectedBrand] = React.useState("");
-    const [expandedOrders, setExpandedOrders] = React.useState<Set<string>>(new Set());
+    const [expandedOrders, setExpandedOrders] = React.useState<Set<string>>(
+        new Set(),
+    );
     const [modalVisible, setModalVisible] = React.useState(false);
     const [refreshing, setRefreshing] = React.useState(false);
     const [viewMode, setViewMode] = React.useState<"order">("order");
-    const [externalFilterTemplate, setExternalFilterTemplate] = React.useState<any[] | null>(null);
-    const [level2Columns, setLevel2Columns] = React.useState<Level2Column[]>([]);
-    const [level2TypesOrder, setLevel2TypesOrder] = React.useState<number[]>([]);
-    const [selectedValuesByType, setSelectedValuesByType] = React.useState<Record<number, string>>({});
-    const [appliedDynamicFilters, setAppliedDynamicFilters] = React.useState<Record<string, string>>({});
+    const [externalFilterTemplate, setExternalFilterTemplate] = React.useState<
+        any[] | null
+    >(null);
+    const [level2Columns, setLevel2Columns] = React.useState<Level2Column[]>(
+        [],
+    );
+    const [level2TypesOrder, setLevel2TypesOrder] = React.useState<number[]>(
+        [],
+    );
+    const [selectedValuesByType, setSelectedValuesByType] = React.useState<
+        Record<number, string>
+    >({});
+    const [appliedDynamicFilters, setAppliedDynamicFilters] = React.useState<
+        Record<string, string>
+    >({});
     const [activeType, setActiveType] = React.useState<number | null>(null);
-    const [activeTypeValuesWithTotals, setActiveTypeValuesWithTotals] = React.useState<{ value: string; total: number }[]>([]);
-    const [secondLevelValues, setSecondLevelValues] = React.useState<{ value: string; total: number }[]>([]);
-
+    const [activeTypeValuesWithTotals, setActiveTypeValuesWithTotals] =
+        React.useState<{ value: string; total: number }[]>([]);
+    const [secondLevelValues, setSecondLevelValues] = React.useState<
+        { value: string; total: number }[]
+    >([]);
 
     const REPORT_NAME = "SalesReturn";
 
@@ -89,7 +103,13 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
         queryKey: ["saleOrder", fromDate, toDate, appliedDynamicFilters],
 
         queryFn: () =>
-            salesOrderPendingList(fromDate, toDate, userId, branchIdProps, appliedDynamicFilters),
+            salesOrderPendingList(
+                fromDate,
+                toDate,
+                userId,
+                branchIdProps,
+                appliedDynamicFilters,
+            ),
         enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
@@ -97,7 +117,9 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
         try {
             const res = await fetch(API.getReportFilters(REPORT_NAME));
             const json = await res.json();
-            setExternalFilterTemplate(Array.isArray(json?.data) ? json.data : []);
+            setExternalFilterTemplate(
+                Array.isArray(json?.data) ? json.data : [],
+            );
         } catch (err) {
             console.error("Failed to load filters", err);
             setExternalFilterTemplate([]);
@@ -125,29 +147,30 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
         if (key.includes("product")) return "Product_Name";
         if (key.includes("item")) return "Product_Name";
         if (key.includes("party_nature")) return "Party_Nature";
-        if (key.includes("Party_Mailing_Address")) return "Party_Mailing_Address";
+        if (key.includes("Party_Mailing_Address"))
+            return "Party_Mailing_Address";
 
         return colName;
     };
 
     const matchesFilter = (obj: any, key: string, value: string): boolean => {
-            if (!obj) return false;
+        if (!obj) return false;
 
-            // Check at this level
-            if (obj[key] === value) return true;
+        // Check at this level
+        if (obj[key] === value) return true;
 
-            // Check nested arrays
-            return Object.values(obj).some((v: any) => {
-                if (Array.isArray(v)) {
-                    return v.some((item: any) => matchesFilter(item, key, value));
-                }
-                return false;
-            });
-        };
+        // Check nested arrays
+        return Object.values(obj).some((v: any) => {
+            if (Array.isArray(v)) {
+                return v.some((item: any) => matchesFilter(item, key, value));
+            }
+            return false;
+        });
+    };
 
     const computeValuesWithTotals = (
         column: string,
-        parent?: { column: string; value: string }
+        parent?: { column: string; value: string },
     ) => {
         const map = new Map<string, number>();
         const key = normalizeColumnKey(column);
@@ -174,7 +197,6 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
             return values;
         };
 
-
         saleOrder.forEach((order: any) => {
             let includeOrder = true;
 
@@ -182,7 +204,9 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                 const parentKey = normalizeColumnKey(parent.column);
                 includeOrder =
                     order[parentKey] === parent.value ||
-                    (order.Products_List || []).some((p: any) => p[parentKey] === parent.value);
+                    (order.Products_List || []).some(
+                        (p: any) => p[parentKey] === parent.value,
+                    );
             }
 
             if (!includeOrder) return;
@@ -190,7 +214,7 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
             const values = extractValues(order);
             values.forEach((val: any) => {
                 if (!val) return;
-                map.set(val, (map.get(val) || 0) + 1); 
+                map.set(val, (map.get(val) || 0) + 1);
             });
         });
 
@@ -198,7 +222,6 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
             .map(([value, total]) => ({ value, total }))
             .sort((a, b) => b.total - a.total);
     };
-
 
     React.useEffect(() => {
         if (!saleOrder.length) return;
@@ -210,7 +233,7 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
 
         // ✅ TYPE-4 VALUES (ALWAYS)
         setActiveTypeValuesWithTotals(
-            computeValuesWithTotals(type4Col.Column_Name)
+            computeValuesWithTotals(type4Col.Column_Name),
         );
 
         // ✅ TYPE-5 VALUES (ONLY WHEN TYPE-4 SELECTED)
@@ -219,16 +242,14 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                 computeValuesWithTotals(type5Col.Column_Name, {
                     column: type4Col.Column_Name,
                     value: selectedValuesByType[4],
-                })
+                }),
             );
         } else {
             setSecondLevelValues([]);
         }
     }, [saleOrder, selectedValuesByType[4]]);
 
-
-    const formatNumber = (n: number) =>
-        Number(n || 0).toLocaleString("en-IN");
+    const formatNumber = (n: number) => Number(n || 0).toLocaleString("en-IN");
 
     const loadLevel2Filters = React.useCallback(async () => {
         try {
@@ -241,19 +262,19 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
 
             const lvl2: Level2Column[] = raw
                 .filter(
-                    (x) =>
+                    x =>
                         String(x.FilterLevel) === "2" &&
-                        x.filterType !== undefined
+                        x.filterType !== undefined,
                 )
-                .map((x) => ({
+                .map(x => ({
                     Type: Number(x.filterType),
                     Column_Name: x.columnName,
                     isGroupFilter: Boolean(x.isGroupFilter),
                 }))
-                .filter((x) => !Number.isNaN(x.Type));
+                .filter(x => !Number.isNaN(x.Type));
 
             const uniqTypes = Array.from(
-                new Set<number>(lvl2.map((x) => x.Type))
+                new Set<number>(lvl2.map(x => x.Type)),
             ).sort((a, b) => a - b);
 
             setLevel2Columns(lvl2);
@@ -285,7 +306,7 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
     const flatItems = React.useMemo(() => {
         const rows: { order: any; item: any }[] = [];
 
-        (saleOrder as any[]).forEach((order) => {
+        (saleOrder as any[]).forEach(order => {
             // Push each product if exists
             order.Products_List?.forEach((product: any) => {
                 rows.push({ order, item: product });
@@ -298,17 +319,15 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
         return rows;
     }, [saleOrder]);
 
-
     const flatProductsForFilter = React.useMemo(() => {
         const rows: any[] = [];
-        (saleOrder as any[]).forEach((order) => {
+        (saleOrder as any[]).forEach(order => {
             order.Products_List?.forEach((product: any) => {
                 rows.push({ order, product });
             });
         });
         return rows;
     }, [saleOrder]);
-
 
     /* ---------- FILTER LOGIC (UNCHANGED) ---------- */
     const filteredOrders = React.useMemo(() => {
@@ -322,7 +341,9 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                     o.Retailer_Name +
                     o.Sales_Person_Name +
                     o.Branch_Name
-                ).toLowerCase().includes(searchQuery.toLowerCase())
+                )
+                    .toLowerCase()
+                    .includes(searchQuery.toLowerCase()),
             );
         }
 
@@ -330,18 +351,26 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
         if (Object.keys(selectedValuesByType).length) {
             filtered = filtered.filter((order: any) =>
                 Object.entries(selectedValuesByType).every(([type, val]) => {
-                    const col = level2Columns.find(c => c.Type === Number(type));
+                    const col = level2Columns.find(
+                        c => c.Type === Number(type),
+                    );
                     if (!col) return true; // skip unknown type
 
                     const key = normalizeColumnKey(col.Column_Name);
 
                     return matchesFilter(order, key, val);
-                })
+                }),
             );
         }
 
         return filtered;
-    }, [saleOrder, searchQuery, selectedValuesByType, level2TypesOrder, level2Columns]);
+    }, [
+        saleOrder,
+        searchQuery,
+        selectedValuesByType,
+        level2TypesOrder,
+        level2Columns,
+    ]);
 
     const isTypeEnabled = (type: number) => {
         if (type === 4) return true;
@@ -439,7 +468,8 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                                 <Text
                                     style={[
                                         styles.brandFilterText,
-                                        selected && styles.brandFilterTextActive,
+                                        selected &&
+                                            styles.brandFilterTextActive,
                                     ]}
                                 >
                                     {value} ({formatNumber(total)})
@@ -461,7 +491,7 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                             style={[
                                 styles.brandFilterButton,
                                 !selectedValuesByType[5] &&
-                                styles.brandFilterButtonActive,
+                                    styles.brandFilterButtonActive,
                             ]}
                             onPress={() =>
                                 setSelectedValuesByType({ 4: parentSelected })
@@ -471,7 +501,7 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                                 style={[
                                     styles.brandFilterText,
                                     !selectedValuesByType[5] &&
-                                    styles.brandFilterTextActive,
+                                        styles.brandFilterTextActive,
                                 ]}
                             >
                                 All
@@ -488,7 +518,7 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                                     style={[
                                         styles.brandFilterButton,
                                         selected &&
-                                        styles.brandFilterButtonActive,
+                                            styles.brandFilterButtonActive,
                                     ]}
                                     onPress={() =>
                                         setSelectedValuesByType({
@@ -501,7 +531,7 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                                         style={[
                                             styles.brandFilterText,
                                             selected &&
-                                            styles.brandFilterTextActive,
+                                                styles.brandFilterTextActive,
                                         ]}
                                     >
                                         {value} ({formatNumber(total)})
@@ -511,7 +541,6 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                         })}
                     </ScrollView>
                 )}
-
             </>
         );
     };
@@ -534,7 +563,8 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                 <TouchableOpacity
                     style={styles.orderHeader}
                     onPress={() => toggleOrder(order.S_Id)}
-                    activeOpacity={0.7}>
+                    activeOpacity={0.7}
+                >
                     <View style={styles.orderHeaderLeft}>
                         <View style={styles.orderTopRow}>
                             <View style={styles.orderNumberContainer}>
@@ -580,7 +610,8 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                                 />
                                 <Text
                                     style={styles.retailerName}
-                                    numberOfLines={2}>
+                                    numberOfLines={2}
+                                >
                                     {order.Retailer_Name}
                                 </Text>
                             </View>
@@ -616,7 +647,8 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                                         </Text>
                                         <Text
                                             style={styles.infoValue}
-                                            numberOfLines={1}>
+                                            numberOfLines={1}
+                                        >
                                             {order.Branch_Name}
                                         </Text>
                                     </View>
@@ -657,49 +689,62 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                         </View>
 
                         {/* Products Table */}
-                        {order.Products_List && order.Products_List.length > 0 && (
-                            <View style={styles.productsTable}>
-                                <View style={styles.tableHeader}>
-                                    <Text
-                                        style={[
-                                            styles.tableCell,
-                                            styles.productNameCell,
-                                        ]}>
-                                        Product
-                                    </Text>
-                                    <Text style={styles.tableCell}>Qty</Text>
-                                    <Text style={styles.tableCell}>Rate</Text>
-                                    <Text style={styles.tableCell}>Amount</Text>
+                        {order.Products_List &&
+                            order.Products_List.length > 0 && (
+                                <View style={styles.productsTable}>
+                                    <View style={styles.tableHeader}>
+                                        <Text
+                                            style={[
+                                                styles.tableCell,
+                                                styles.productNameCell,
+                                            ]}
+                                        >
+                                            Product
+                                        </Text>
+                                        <Text style={styles.tableCell}>
+                                            Qty
+                                        </Text>
+                                        <Text style={styles.tableCell}>
+                                            Rate
+                                        </Text>
+                                        <Text style={styles.tableCell}>
+                                            Amount
+                                        </Text>
+                                    </View>
+                                    {order.Products_List.map(
+                                        (product: any, index: number) => (
+                                            <View
+                                                key={index}
+                                                style={styles.tableRow}
+                                            >
+                                                <Text
+                                                    style={[
+                                                        styles.tableCell,
+                                                        styles.productNameCell,
+                                                    ]}
+                                                    numberOfLines={4}
+                                                >
+                                                    {product.Product_Name}
+                                                </Text>
+                                                <Text style={styles.tableCell}>
+                                                    {product.Bill_Qty ??
+                                                        product.Total_Qty}
+                                                </Text>
+                                                <Text style={styles.tableCell}>
+                                                    {formatCurrency(
+                                                        product.Item_Rate,
+                                                    ).replace("₹", "")}
+                                                </Text>
+                                                <Text style={styles.tableCell}>
+                                                    {formatCurrency(
+                                                        product.Final_Amo,
+                                                    ).replace("₹", "")}
+                                                </Text>
+                                            </View>
+                                        ),
+                                    )}
                                 </View>
-                                {order.Products_List.map(
-                                    (product: any, index: number) => (
-                                        <View key={index} style={styles.tableRow}>
-                                            <Text
-                                                style={[
-                                                    styles.tableCell,
-                                                    styles.productNameCell,
-                                                ]}
-                                                numberOfLines={4}>
-                                                {product.Product_Name}
-                                            </Text>
-                                            <Text style={styles.tableCell}>
-                                                {product.Bill_Qty ?? product.Total_Qty}
-                                            </Text>
-                                            <Text style={styles.tableCell}>
-                                                {formatCurrency(
-                                                    product.Item_Rate,
-                                                ).replace("₹", "")}
-                                            </Text>
-                                            <Text style={styles.tableCell}>
-                                                {formatCurrency(
-                                                    product.Final_Amo,
-                                                ).replace("₹", "")}
-                                            </Text>
-                                        </View>
-                                    ),
-                                )}
-                            </View>
-                        )}
+                            )}
                     </View>
                 )}
             </View>
@@ -733,7 +778,7 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                 reportName={REPORT_NAME}
                 expectedReportName={REPORT_NAME}
                 externalFilters={externalFilterTemplate || undefined}
-                onApply={(selectedFilters) => {
+                onApply={selectedFilters => {
                     setAppliedDynamicFilters(selectedFilters || {});
                     setSelectedValuesByType({});
                     setModalVisible(false);
@@ -752,24 +797,40 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                         tintColor={colors.primary}
                     />
                 }
-                showsVerticalScrollIndicator={false}>
+                showsVerticalScrollIndicator={false}
+            >
                 {/* Loading State */}
                 {isLoading && (
                     <View style={styles.loadingContainer}>
-                        <Text style={styles.loadingText}>Loading orders...</Text>
+                        <Text style={styles.loadingText}>
+                            Loading orders...
+                        </Text>
                     </View>
                 )}
 
                 {/* Error State */}
                 {!isLoading && error && (
                     <View style={styles.errorContainer}>
-                        <Icon name="error-outline" size={48} color={colors.accent} />
-                        <Text style={styles.errorText}>Error loading orders</Text>
+                        <Icon
+                            name="error-outline"
+                            size={48}
+                            color={colors.accent}
+                        />
+                        <Text style={styles.errorText}>
+                            Error loading orders
+                        </Text>
                         <Text style={styles.errorSubtext}>
                             {error.message || "Please try again later"}
                         </Text>
-                        <TouchableOpacity style={styles.retryButton} onPress={onRefresh}>
-                            <Icon name="refresh" size={20} color={colors.white} />
+                        <TouchableOpacity
+                            style={styles.retryButton}
+                            onPress={onRefresh}
+                        >
+                            <Icon
+                                name="refresh"
+                                size={20}
+                                color={colors.white}
+                            />
                             <Text style={styles.retryButtonText}>Retry</Text>
                         </TouchableOpacity>
                     </View>
@@ -778,7 +839,6 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                 {/* Data Display */}
                 {!isLoading && !error && (saleOrder as any[]).length > 0 && (
                     <>
-
                         {/* Summary Cards */}
                         <SummaryCards />
 
@@ -787,7 +847,11 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
 
                         {/* Search Bar */}
                         <View style={styles.searchContainer}>
-                            <Icon name="search" size={20} color={colors.textSecondary} />
+                            <Icon
+                                name="search"
+                                size={20}
+                                color={colors.textSecondary}
+                            />
                             <TextInput
                                 style={styles.searchInput}
                                 placeholder="Search by order number, retailer, sales person..."
@@ -796,8 +860,14 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                                 onChangeText={setSearchQuery}
                             />
                             {searchQuery.length > 0 && (
-                                <TouchableOpacity onPress={() => setSearchQuery("")}>
-                                    <Icon name="clear" size={20} color={colors.textSecondary} />
+                                <TouchableOpacity
+                                    onPress={() => setSearchQuery("")}
+                                >
+                                    <Icon
+                                        name="clear"
+                                        size={20}
+                                        color={colors.textSecondary}
+                                    />
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -805,8 +875,10 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                         {/* Results Info */}
                         <View style={styles.resultsContainer}>
                             <Text style={styles.resultsText}>
-                                Showing {displayData.length} {viewMode === "order" ? "orders" : "items"} (
-                                {totalItems} filtered, {totalRecords} total records)
+                                Showing {displayData.length}{" "}
+                                {viewMode === "order" ? "orders" : "items"} (
+                                {totalItems} filtered, {totalRecords} total
+                                records)
                             </Text>
                         </View>
 
@@ -831,7 +903,11 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                 {/* No Data State */}
                 {!isLoading && !error && (saleOrder as any[]).length === 0 && (
                     <View style={styles.noDataContainer}>
-                        <Icon name="shopping-cart" size={48} color={colors.textSecondary} />
+                        <Icon
+                            name="shopping-cart"
+                            size={48}
+                            color={colors.textSecondary}
+                        />
                         <Text style={styles.noDataText}>No orders found</Text>
                         <Text style={styles.noDataSubtext}>
                             Please select a date range to view orders
@@ -845,8 +921,14 @@ const SalesPendingOrderWise = ({ route }: { route: any }) => {
                     (saleOrder as any[]).length > 0 &&
                     displayData.length === 0 && (
                         <View style={styles.noDataContainer}>
-                            <Icon name="search-off" size={48} color={colors.textSecondary} />
-                            <Text style={styles.noDataText}>No results found</Text>
+                            <Icon
+                                name="search-off"
+                                size={48}
+                                color={colors.textSecondary}
+                            />
+                            <Text style={styles.noDataText}>
+                                No results found
+                            </Text>
                             <Text style={styles.noDataSubtext}>
                                 Try adjusting your search or filter criteria
                             </Text>
@@ -1308,7 +1390,6 @@ const getStyles = (typography: any, colors: any) =>
         level2FilterContainer: {
             flexDirection: "row",
             paddingVertical: 8,
-            paddingHorizontal: 5
+            paddingHorizontal: 5,
         },
-
     });

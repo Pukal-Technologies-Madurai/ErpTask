@@ -24,7 +24,7 @@ import { RootStackParamList } from "../../Navigation/types";
 import { formatCurrency } from "../../constants/utils";
 import { usePagination } from "../../hooks/usePagination";
 import PaginationControls from "../../Components/PaginationControls";
-import { MMKV } from "react-native-mmkv";
+import { storage } from "../../constants/storage";
 import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 import { API } from "../../constants/api";
 
@@ -59,8 +59,8 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
     const branchIdProps = route.params?.branchId;
     const { typography, colors } = useTheme();
     const styles = getStyles(typography, colors);
-    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-    const storage = new MMKV();
+    const navigation =
+        useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
     const today = new Date();
     const last30 = new Date();
@@ -73,14 +73,29 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
     const [searchQuery, setSearchQuery] = React.useState("");
     const [modalVisible, setModalVisible] = React.useState(false);
     const [refreshing, setRefreshing] = React.useState(false);
-    const [level2Columns, setLevel2Columns] = React.useState<{ Type: number; Column_Name: string; isGroupFilter: boolean; }[]>([]);
-    const [selectedValuesByType, setSelectedValuesByType] = React.useState<Record<number, string>>({});
-    const [activeTypeValuesWithTotals, setActiveTypeValuesWithTotals] = React.useState<{ value: string; total: number }[]>([]);
-    const [secondLevelValues, setSecondLevelValues] = React.useState<{ value: string; total: number }[]>([]);
-    const [externalFilterTemplate, setExternalFilterTemplate] = React.useState<any[] | null>(null);
-    const [appliedDynamicFilters, setAppliedDynamicFilters] = React.useState<Record<string, string>>({});
-    const [level2TypesOrder, setLevel2TypesOrder] = React.useState<number[]>([]);
-    const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
+    const [level2Columns, setLevel2Columns] = React.useState<
+        { Type: number; Column_Name: string; isGroupFilter: boolean }[]
+    >([]);
+    const [selectedValuesByType, setSelectedValuesByType] = React.useState<
+        Record<number, string>
+    >({});
+    const [activeTypeValuesWithTotals, setActiveTypeValuesWithTotals] =
+        React.useState<{ value: string; total: number }[]>([]);
+    const [secondLevelValues, setSecondLevelValues] = React.useState<
+        { value: string; total: number }[]
+    >([]);
+    const [externalFilterTemplate, setExternalFilterTemplate] = React.useState<
+        any[] | null
+    >(null);
+    const [appliedDynamicFilters, setAppliedDynamicFilters] = React.useState<
+        Record<string, string>
+    >({});
+    const [level2TypesOrder, setLevel2TypesOrder] = React.useState<number[]>(
+        [],
+    );
+    const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(
+        new Set(),
+    );
     const [storageLoaded, setStorageLoaded] = React.useState(false);
 
     const REPORT_NAME = "SalesReturn_Item";
@@ -100,9 +115,22 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
         error,
         refetch,
     } = useQuery({
-        queryKey: ["saleorder", fromDate, toDate, appliedDynamicFilters, userId, branchIdProps],
+        queryKey: [
+            "saleorder",
+            fromDate,
+            toDate,
+            appliedDynamicFilters,
+            userId,
+            branchIdProps,
+        ],
         queryFn: () =>
-            salesOrderPendingItemList(fromDate, toDate, userId, branchIdProps, appliedDynamicFilters),
+            salesOrderPendingItemList(
+                fromDate,
+                toDate,
+                userId,
+                branchIdProps,
+                appliedDynamicFilters,
+            ),
         enabled: storageLoaded && !!userId && !!branchIdProps,
     });
 
@@ -117,7 +145,9 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
         try {
             const res = await fetch(API.getReportFilters(REPORT_NAME));
             const json = await res.json();
-            setExternalFilterTemplate(Array.isArray(json?.data) ? json.data : []);
+            setExternalFilterTemplate(
+                Array.isArray(json?.data) ? json.data : [],
+            );
         } catch (err) {
             console.error("Failed to load filters", err);
             setExternalFilterTemplate([]);
@@ -132,23 +162,35 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
         loadExternalFilters();
     }, [loadExternalFilters]);
 
-
     const normalizeColumnKey = (colName: string) => {
         if (!colName) return colName;
         const key = colName.toLowerCase().replace(/\s+/g, "");
         if (key.includes("brand")) return "BrandGet";
-        if (key.includes("variant") || key.includes("size") || key.includes("pack")) return "Item_Variant_Name";
-        if (key.includes("product") || key.includes("item")) return "Product_Name";
+        if (
+            key.includes("variant") ||
+            key.includes("size") ||
+            key.includes("pack")
+        )
+            return "Item_Variant_Name";
+        if (key.includes("product") || key.includes("item"))
+            return "Product_Name";
         return colName;
     };
 
     const matchesFilter = (obj: any, key: string, value: string): boolean => {
         if (!obj) return false;
         if (obj[key] === value) return true;
-        return Object.values(obj).some((v: any) => Array.isArray(v) && v.some((item: any) => matchesFilter(item, key, value)));
+        return Object.values(obj).some(
+            (v: any) =>
+                Array.isArray(v) &&
+                v.some((item: any) => matchesFilter(item, key, value)),
+        );
     };
 
-    const computeValuesWithTotals = (column: string, parent?: { column: string; value: string }) => {
+    const computeValuesWithTotals = (
+        column: string,
+        parent?: { column: string; value: string },
+    ) => {
         const map = new Map<string, number>();
         const key = normalizeColumnKey(column);
 
@@ -173,7 +215,8 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
             });
         });
 
-        return [...map.entries()].map(([value, total]) => ({ value, total }))
+        return [...map.entries()]
+            .map(([value, total]) => ({ value, total }))
             .sort((a, b) => b.total - a.total);
     };
 
@@ -198,13 +241,17 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
 
         if (!type4 || !saleOrder.length) return;
 
-        setActiveTypeValuesWithTotals(computeValuesWithTotals(type4.Column_Name));
+        setActiveTypeValuesWithTotals(
+            computeValuesWithTotals(type4.Column_Name),
+        );
 
         if (selectedValuesByType[4] && type5) {
-            setSecondLevelValues(computeValuesWithTotals(type5.Column_Name, {
-                column: type4.Column_Name,
-                value: selectedValuesByType[4],
-            }));
+            setSecondLevelValues(
+                computeValuesWithTotals(type5.Column_Name, {
+                    column: type4.Column_Name,
+                    value: selectedValuesByType[4],
+                }),
+            );
         } else {
             setSecondLevelValues([]);
         }
@@ -213,7 +260,10 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
     const filteredOrders = React.useMemo(() => {
         if (!saleOrder || saleOrder.length === 0) return [];
 
-        if (!appliedDynamicFilters || Object.keys(appliedDynamicFilters).length === 0) {
+        if (
+            !appliedDynamicFilters ||
+            Object.keys(appliedDynamicFilters).length === 0
+        ) {
             return saleOrder; // <- show all initially
         }
 
@@ -222,7 +272,7 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                 const col = level2Columns.find(c => c.Column_Name === key);
                 if (!col) return true;
                 return matchesFilter(order, key, value);
-            })
+            }),
         );
     }, [saleOrder, appliedDynamicFilters, level2Columns]);
 
@@ -245,13 +295,25 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
 
     const filteredItems = React.useMemo(() => {
         if (!searchQuery) return itemWiseData;
-        return itemWiseData.filter((i: any) =>
-            (i.Product_Name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (i.BrandGet || "").toLowerCase().includes(searchQuery.toLowerCase())
+        return itemWiseData.filter(
+            (i: any) =>
+                (i.Product_Name || "")
+                    .toLowerCase()
+                    .includes(searchQuery.toLowerCase()) ||
+                (i.BrandGet || "")
+                    .toLowerCase()
+                    .includes(searchQuery.toLowerCase()),
         );
     }, [itemWiseData, searchQuery]);
 
-    const { currentData: displayData, currentPage, totalPages, totalItems, totalRecords, setCurrentPage } = usePagination({
+    const {
+        currentData: displayData,
+        currentPage,
+        totalPages,
+        totalItems,
+        totalRecords,
+        setCurrentPage,
+    } = usePagination({
         data: filteredItems,
         itemsPerPage: ITEMS_PER_PAGE,
     });
@@ -260,7 +322,7 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
         const groupFilter = externalFilterTemplate?.find(
             (f: any) =>
                 String(f.filterType) === "GROUP_FILTER" &&
-                f.isGroupFilter === true
+                f.isGroupFilter === true,
         );
 
         if (!groupFilter?.columnName) return "";
@@ -269,27 +331,34 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
 
         if (col.includes("brand")) return "BrandGet";
         if (col.includes("bag")) return "Bag";
-        if (col.includes("product") || col.includes("item")) return "Product_Name";
+        if (col.includes("product") || col.includes("item"))
+            return "Product_Name";
 
         return groupFilter.columnName;
     }, [externalFilterTemplate]);
-
 
     console.log("GROUP COLUMN:", getGroupFilterColumn());
 
     React.useEffect(() => {
         setCurrentPage(1);
         setExpandedGroups(new Set());
-    }, [searchQuery, selectedValuesByType[4], getGroupFilterColumn, setCurrentPage]);
-
+    }, [
+        searchQuery,
+        selectedValuesByType[4],
+        getGroupFilterColumn,
+        setCurrentPage,
+    ]);
 
     const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
-        try { await refetch(); } finally { setRefreshing(false); }
+        try {
+            await refetch();
+        } finally {
+            setRefreshing(false);
+        }
     }, [refetch]);
 
-    const formatNumber = (n: number) =>
-        Number(n || 0).toLocaleString("en-IN");
+    const formatNumber = (n: number) => Number(n || 0).toLocaleString("en-IN");
 
     const loadLevel2Filters = React.useCallback(async () => {
         try {
@@ -302,19 +371,19 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
 
             const lvl2: Level2Column[] = raw
                 .filter(
-                    (x) =>
+                    x =>
                         String(x.FilterLevel) === "2" &&
-                        x.filterType !== undefined
+                        x.filterType !== undefined,
                 )
-                .map((x) => ({
+                .map(x => ({
                     Type: Number(x.filterType),
                     Column_Name: x.columnName,
                     isGroupFilter: Boolean(x.isGroupFilter),
                 }))
-                .filter((x) => !Number.isNaN(x.Type));
+                .filter(x => !Number.isNaN(x.Type));
 
             const uniqTypes = Array.from(
-                new Set<number>(lvl2.map((x) => x.Type))
+                new Set<number>(lvl2.map(x => x.Type)),
             ).sort((a, b) => a - b);
 
             setLevel2Columns(lvl2);
@@ -328,7 +397,6 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
     React.useEffect(() => {
         loadLevel2Filters();
     }, [loadLevel2Filters]);
-
 
     const groupedData = React.useMemo(() => {
         const groupColumn = getGroupFilterColumn();
@@ -348,7 +416,6 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
             items,
         }));
     }, [filteredItems, getGroupFilterColumn]);
-
 
     // ---------- Level2Filter Component ----------
     const Level2Filter = () => {
@@ -396,7 +463,8 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                                 <Text
                                     style={[
                                         styles.brandFilterText,
-                                        selected && styles.brandFilterTextActive,
+                                        selected &&
+                                            styles.brandFilterTextActive,
                                     ]}
                                 >
                                     {value} ({formatNumber(total)})
@@ -418,7 +486,7 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                             style={[
                                 styles.brandFilterButton,
                                 !selectedValuesByType[5] &&
-                                styles.brandFilterButtonActive,
+                                    styles.brandFilterButtonActive,
                             ]}
                             onPress={() =>
                                 setSelectedValuesByType({ 4: parentSelected })
@@ -428,7 +496,7 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                                 style={[
                                     styles.brandFilterText,
                                     !selectedValuesByType[5] &&
-                                    styles.brandFilterTextActive,
+                                        styles.brandFilterTextActive,
                                 ]}
                             >
                                 All
@@ -445,7 +513,7 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                                     style={[
                                         styles.brandFilterButton,
                                         selected &&
-                                        styles.brandFilterButtonActive,
+                                            styles.brandFilterButtonActive,
                                     ]}
                                     onPress={() =>
                                         setSelectedValuesByType({
@@ -458,7 +526,7 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                                         style={[
                                             styles.brandFilterText,
                                             selected &&
-                                            styles.brandFilterTextActive,
+                                                styles.brandFilterTextActive,
                                         ]}
                                     >
                                         {value} ({formatNumber(total)})
@@ -468,7 +536,6 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                         })}
                     </ScrollView>
                 )}
-
             </>
         );
     };
@@ -482,7 +549,6 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
             return set;
         });
     };
-
 
     const ItemWiseCard = ({ item }: { item: any }) => (
         <View style={styles.cardContainer}>
@@ -516,7 +582,7 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                 reportName={REPORT_NAME}
                 expectedReportName={REPORT_NAME}
                 externalFilters={externalFilterTemplate || undefined}
-                onApply={(selectedFilters) => {
+                onApply={selectedFilters => {
                     setAppliedDynamicFilters(selectedFilters || {});
                     setSelectedValuesByType({});
                     setModalVisible(false);
@@ -527,14 +593,23 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
             <ScrollView
                 style={styles.scrollContainer}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={[colors.primary]}
+                        tintColor={colors.primary}
+                    />
                 }
                 showsVerticalScrollIndicator={false}
             >
                 <Level2Filter />
 
                 <View style={styles.searchContainer}>
-                    <Icon name="search" size={20} color={colors.textSecondary} />
+                    <Icon
+                        name="search"
+                        size={20}
+                        color={colors.textSecondary}
+                    />
                     <TextInput
                         style={styles.searchInput}
                         placeholder="Search by Products/Items..."
@@ -544,7 +619,11 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                     />
                     {searchQuery.length > 0 && (
                         <TouchableOpacity onPress={() => setSearchQuery("")}>
-                            <Icon name="clear" size={20} color={colors.textSecondary} />
+                            <Icon
+                                name="clear"
+                                size={20}
+                                color={colors.textSecondary}
+                            />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -567,11 +646,17 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
                                             color={colors.text}
                                             style={{ marginRight: 8 }}
                                         />
-                                        <Text style={styles.brandName}>{groupName}</Text>
+                                        <Text style={styles.brandName}>
+                                            {groupName}
+                                        </Text>
                                     </View>
 
                                     <Icon
-                                        name={isOpen ? "expand-less" : "expand-more"}
+                                        name={
+                                            isOpen
+                                                ? "expand-less"
+                                                : "expand-more"
+                                        }
                                         size={20}
                                         color={colors.text}
                                     />
@@ -605,20 +690,39 @@ const SalesPendingItemWise = ({ route }: { route: any }) => {
 
                 {!isLoading && !error && saleOrder.length === 0 && (
                     <View style={styles.noDataContainer}>
-                        <Icon name="shopping-cart" size={48} color={colors.textSecondary} />
+                        <Icon
+                            name="shopping-cart"
+                            size={48}
+                            color={colors.textSecondary}
+                        />
                         <Text style={styles.noDataText}>No Items found</Text>
-                        <Text style={styles.noDataSubtext}> Please select a date range to view Sales Pending Items </Text>
+                        <Text style={styles.noDataSubtext}>
+                            {" "}
+                            Please select a date range to view Sales Pending
+                            Items{" "}
+                        </Text>
                     </View>
                 )}
 
-                {!isLoading && !error && saleOrder.length > 0 && displayData.length === 0 && (
-                    <View style={styles.noDataContainer}>
-                        <Icon name="search-off" size={48} color={colors.textSecondary} />
-                        <Text style={styles.noDataText}>No results found</Text>
-                        <Text style={styles.noDataSubtext}> Try adjusting your search or filter criteria </Text>
-                    </View>
-                )}
-
+                {!isLoading &&
+                    !error &&
+                    saleOrder.length > 0 &&
+                    displayData.length === 0 && (
+                        <View style={styles.noDataContainer}>
+                            <Icon
+                                name="search-off"
+                                size={48}
+                                color={colors.textSecondary}
+                            />
+                            <Text style={styles.noDataText}>
+                                No results found
+                            </Text>
+                            <Text style={styles.noDataSubtext}>
+                                {" "}
+                                Try adjusting your search or filter criteria{" "}
+                            </Text>
+                        </View>
+                    )}
             </ScrollView>
         </SafeAreaView>
     );
@@ -1085,7 +1189,7 @@ const getStyles = (typography: any, colors: any) =>
             color: "#666",
         },
         brandBadge: {
-            width: "100%",                // full width
+            width: "100%", // full width
             paddingVertical: responsiveHeight(2),
             paddingHorizontal: responsiveWidth(4),
             borderRadius: 12,
@@ -1168,8 +1272,6 @@ const getStyles = (typography: any, colors: any) =>
         level2FilterContainer: {
             flexDirection: "row",
             paddingVertical: 8,
-            paddingHorizontal: 5
+            paddingHorizontal: 5,
         },
-
-
     });

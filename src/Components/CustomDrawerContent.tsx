@@ -15,7 +15,7 @@ import {
     DrawerContentComponentProps,
 } from "@react-navigation/drawer";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MMKV } from "react-native-mmkv";
+import { storage } from "../constants/storage";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../Navigation/types";
@@ -25,7 +25,6 @@ import { responsiveWidth, responsiveHeight } from "../constants/helper";
 const CustomDrawerContent: React.FC<DrawerContentComponentProps> = props => {
     const { colors, typography, mode } = useTheme();
     const styles = getStyles(typography, colors);
-    const storage = new MMKV();
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
@@ -77,7 +76,8 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = props => {
                 {...props}
                 contentContainerStyle={styles.scrollView}
                 showsVerticalScrollIndicator={false}
-                style={styles.scrollContainer}>
+                style={styles.scrollContainer}
+            >
                 <View style={styles.menuContainer}>
                     <DrawerItemList {...props} />
                 </View>
@@ -91,7 +91,8 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = props => {
                 <TouchableOpacity
                     style={styles.logoutButton}
                     onPress={handleLogout}
-                    activeOpacity={0.7}>
+                    activeOpacity={0.7}
+                >
                     <Icon
                         name="log-out-outline"
                         size={20}

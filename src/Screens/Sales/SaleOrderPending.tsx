@@ -22,7 +22,7 @@ import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
 import { usePagination } from "../../hooks/usePagination";
 import PaginationControls from "../../Components/PaginationControls";
-import { MMKV } from "react-native-mmkv";
+import { storage } from "../../constants/storage";
 
 type Product = {
     SO_St_Id?: string;
@@ -41,7 +41,6 @@ const SaleOrderPending = ({ route }: { route: any }) => {
     const branchIdProps = item.branchId;
 
     const { typography, colors } = useTheme();
-    const storage = new MMKV();
     const styles = getStyles(typography, colors);
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -87,7 +86,10 @@ const SaleOrderPending = ({ route }: { route: any }) => {
 
     // Get unique brands and their totals from products (uses Products_List)
     const getBrandsWithTotals = () => {
-        const brandTotals = new Map<string, { count: number; amount: number }>();
+        const brandTotals = new Map<
+            string,
+            { count: number; amount: number }
+        >();
 
         (saleOrder as any[]).forEach((order: any) => {
             order.Products_List?.forEach((product: any) => {
@@ -143,33 +145,32 @@ const SaleOrderPending = ({ route }: { route: any }) => {
     };
 
     const filteredData = React.useMemo(() => {
-    let filtered = [...(saleOrder as any[])];
+        let filtered = [...(saleOrder as any[])];
 
-    if (searchQuery.trim()) {
-        filtered = filtered.filter((order: any) =>
-            (
-                order.So_Inv_No?.toLowerCase() +
-                " " +
-                order.Retailer_Name?.toLowerCase() +
-                " " +
-                order.Sales_Person_Name?.toLowerCase() +
-                " " +
-                order.Branch_Name?.toLowerCase()
-            ).includes(searchQuery.toLowerCase()),
-        );
-    }
+        if (searchQuery.trim()) {
+            filtered = filtered.filter((order: any) =>
+                (
+                    order.So_Inv_No?.toLowerCase() +
+                    " " +
+                    order.Retailer_Name?.toLowerCase() +
+                    " " +
+                    order.Sales_Person_Name?.toLowerCase() +
+                    " " +
+                    order.Branch_Name?.toLowerCase()
+                ).includes(searchQuery.toLowerCase()),
+            );
+        }
 
-    if (selectedBrand) {
-        filtered = filtered.filter((order: any) =>
-            order.Products_List?.some(
-                (product: Product) => product.BrandGet === selectedBrand,
-            ),
-        );
-    }
+        if (selectedBrand) {
+            filtered = filtered.filter((order: any) =>
+                order.Products_List?.some(
+                    (product: Product) => product.BrandGet === selectedBrand,
+                ),
+            );
+        }
 
-    return filtered;
-}, [saleOrder, searchQuery, selectedBrand]);
-
+        return filtered;
+    }, [saleOrder, searchQuery, selectedBrand]);
 
     // Build item-wise list from Products_List
     const itemWiseData = React.useMemo(() => {
@@ -195,7 +196,11 @@ const SaleOrderPending = ({ route }: { route: any }) => {
     // debug - shows itemWiseData after it's created (remove in production)
     React.useEffect(() => {
         // eslint-disable-next-line no-console
-        console.log("ItemWiseData generated:", itemWiseData.length, itemWiseData);
+        console.log(
+            "ItemWiseData generated:",
+            itemWiseData.length,
+            itemWiseData,
+        );
     }, [itemWiseData]);
 
     const totalAmount = filteredData.reduce(
@@ -268,18 +273,21 @@ const SaleOrderPending = ({ route }: { route: any }) => {
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                style={styles.brandFilterContainer}>
+                style={styles.brandFilterContainer}
+            >
                 <TouchableOpacity
                     style={[
                         styles.brandFilterButton,
                         !selectedBrand && styles.brandFilterButtonActive,
                     ]}
-                    onPress={() => setSelectedBrand("")}>
+                    onPress={() => setSelectedBrand("")}
+                >
                     <Text
                         style={[
                             styles.brandFilterText,
                             !selectedBrand && styles.brandFilterTextActive,
-                        ]}>
+                        ]}
+                    >
                         All
                     </Text>
                 </TouchableOpacity>
@@ -289,15 +297,17 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                         style={[
                             styles.brandFilterButton,
                             selectedBrand === brand &&
-                            styles.brandFilterButtonActive,
+                                styles.brandFilterButtonActive,
                         ]}
-                        onPress={() => setSelectedBrand(brand)}>
+                        onPress={() => setSelectedBrand(brand)}
+                    >
                         <Text
                             style={[
                                 styles.brandFilterText,
                                 selectedBrand === brand &&
-                                styles.brandFilterTextActive,
-                            ]}>
+                                    styles.brandFilterTextActive,
+                            ]}
+                        >
                             {brand}
                         </Text>
                     </TouchableOpacity>
@@ -324,7 +334,8 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                 <TouchableOpacity
                     style={styles.orderHeader}
                     onPress={() => toggleOrder(order.S_Id)}
-                    activeOpacity={0.7}>
+                    activeOpacity={0.7}
+                >
                     <View style={styles.orderHeaderLeft}>
                         <View style={styles.orderTopRow}>
                             <View style={styles.orderNumberContainer}>
@@ -370,7 +381,8 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                                 />
                                 <Text
                                     style={styles.retailerName}
-                                    numberOfLines={2}>
+                                    numberOfLines={2}
+                                >
                                     {order.Retailer_Name}
                                 </Text>
                             </View>
@@ -406,7 +418,8 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                                         </Text>
                                         <Text
                                             style={styles.infoValue}
-                                            numberOfLines={1}>
+                                            numberOfLines={1}
+                                        >
                                             {order.Branch_Name}
                                         </Text>
                                     </View>
@@ -447,49 +460,62 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                         </View>
 
                         {/* Products Table */}
-                        {order.Products_List && order.Products_List.length > 0 && (
-                            <View style={styles.productsTable}>
-                                <View style={styles.tableHeader}>
-                                    <Text
-                                        style={[
-                                            styles.tableCell,
-                                            styles.productNameCell,
-                                        ]}>
-                                        Product
-                                    </Text>
-                                    <Text style={styles.tableCell}>Qty</Text>
-                                    <Text style={styles.tableCell}>Rate</Text>
-                                    <Text style={styles.tableCell}>Amount</Text>
+                        {order.Products_List &&
+                            order.Products_List.length > 0 && (
+                                <View style={styles.productsTable}>
+                                    <View style={styles.tableHeader}>
+                                        <Text
+                                            style={[
+                                                styles.tableCell,
+                                                styles.productNameCell,
+                                            ]}
+                                        >
+                                            Product
+                                        </Text>
+                                        <Text style={styles.tableCell}>
+                                            Qty
+                                        </Text>
+                                        <Text style={styles.tableCell}>
+                                            Rate
+                                        </Text>
+                                        <Text style={styles.tableCell}>
+                                            Amount
+                                        </Text>
+                                    </View>
+                                    {order.Products_List.map(
+                                        (product: any, index: number) => (
+                                            <View
+                                                key={index}
+                                                style={styles.tableRow}
+                                            >
+                                                <Text
+                                                    style={[
+                                                        styles.tableCell,
+                                                        styles.productNameCell,
+                                                    ]}
+                                                    numberOfLines={4}
+                                                >
+                                                    {product.Product_Name}
+                                                </Text>
+                                                <Text style={styles.tableCell}>
+                                                    {product.Bill_Qty ??
+                                                        product.Total_Qty}
+                                                </Text>
+                                                <Text style={styles.tableCell}>
+                                                    {formatCurrency(
+                                                        product.Item_Rate,
+                                                    ).replace("₹", "")}
+                                                </Text>
+                                                <Text style={styles.tableCell}>
+                                                    {formatCurrency(
+                                                        product.Final_Amo,
+                                                    ).replace("₹", "")}
+                                                </Text>
+                                            </View>
+                                        ),
+                                    )}
                                 </View>
-                                {order.Products_List.map(
-                                    (product: any, index: number) => (
-                                        <View key={index} style={styles.tableRow}>
-                                            <Text
-                                                style={[
-                                                    styles.tableCell,
-                                                    styles.productNameCell,
-                                                ]}
-                                                numberOfLines={4}>
-                                                {product.Product_Name}
-                                            </Text>
-                                            <Text style={styles.tableCell}>
-                                                {product.Bill_Qty ?? product.Total_Qty}
-                                            </Text>
-                                            <Text style={styles.tableCell}>
-                                                {formatCurrency(
-                                                    product.Item_Rate,
-                                                ).replace("₹", "")}
-                                            </Text>
-                                            <Text style={styles.tableCell}>
-                                                {formatCurrency(
-                                                    product.Final_Amo,
-                                                ).replace("₹", "")}
-                                            </Text>
-                                        </View>
-                                    ),
-                                )}
-                            </View>
-                        )}
+                            )}
                     </View>
                 )}
             </View>
@@ -533,10 +559,14 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                     {/* Left Column */}
                     <View style={styles.detailsColumn}>
                         <Text style={styles.label}>Order No</Text>
-                        <Text style={styles.value}>{item.So_Inv_No || "--"}</Text>
+                        <Text style={styles.value}>
+                            {item.So_Inv_No || "--"}
+                        </Text>
 
                         <Text style={styles.label}>Retailer</Text>
-                        <Text style={styles.value}>{item.Retailer_Name || "--"}</Text>
+                        <Text style={styles.value}>
+                            {item.Retailer_Name || "--"}
+                        </Text>
 
                         <Text style={styles.label}>Qty</Text>
                         <Text style={styles.value}>
@@ -552,16 +582,19 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                         </Text>
 
                         <Text style={styles.label}>Date</Text>
-                        <Text style={styles.value}>{formatDate(item.Created_on)}</Text>
+                        <Text style={styles.value}>
+                            {formatDate(item.Created_on)}
+                        </Text>
 
                         <Text style={styles.label}>Branch</Text>
-                        <Text style={styles.value}>{item.Branch_Name || "--"}</Text>
+                        <Text style={styles.value}>
+                            {item.Branch_Name || "--"}
+                        </Text>
                     </View>
                 </View>
             </View>
         );
     };
-
 
     const handleCloseModal = () => {
         setModalVisible(false);
@@ -603,24 +636,40 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                         tintColor={colors.primary}
                     />
                 }
-                showsVerticalScrollIndicator={false}>
+                showsVerticalScrollIndicator={false}
+            >
                 {/* Loading State */}
                 {isLoading && (
                     <View style={styles.loadingContainer}>
-                        <Text style={styles.loadingText}>Loading orders...</Text>
+                        <Text style={styles.loadingText}>
+                            Loading orders...
+                        </Text>
                     </View>
                 )}
 
                 {/* Error State */}
                 {!isLoading && error && (
                     <View style={styles.errorContainer}>
-                        <Icon name="error-outline" size={48} color={colors.accent} />
-                        <Text style={styles.errorText}>Error loading orders</Text>
+                        <Icon
+                            name="error-outline"
+                            size={48}
+                            color={colors.accent}
+                        />
+                        <Text style={styles.errorText}>
+                            Error loading orders
+                        </Text>
                         <Text style={styles.errorSubtext}>
                             {error.message || "Please try again later"}
                         </Text>
-                        <TouchableOpacity style={styles.retryButton} onPress={onRefresh}>
-                            <Icon name="refresh" size={20} color={colors.white} />
+                        <TouchableOpacity
+                            style={styles.retryButton}
+                            onPress={onRefresh}
+                        >
+                            <Icon
+                                name="refresh"
+                                size={20}
+                                color={colors.white}
+                            />
                             <Text style={styles.retryButtonText}>Retry</Text>
                         </TouchableOpacity>
                     </View>
@@ -634,14 +683,18 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                             <TouchableOpacity
                                 style={[
                                     styles.toggleButton,
-                                    viewMode === "order" && styles.toggleButtonActive,
+                                    viewMode === "order" &&
+                                        styles.toggleButtonActive,
                                 ]}
-                                onPress={() => setViewMode("order")}>
+                                onPress={() => setViewMode("order")}
+                            >
                                 <Text
                                     style={[
                                         styles.toggleText,
-                                        viewMode === "order" && styles.toggleTextActive,
-                                    ]}>
+                                        viewMode === "order" &&
+                                            styles.toggleTextActive,
+                                    ]}
+                                >
                                     Order Wise
                                 </Text>
                             </TouchableOpacity>
@@ -649,14 +702,18 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                             <TouchableOpacity
                                 style={[
                                     styles.toggleButton,
-                                    viewMode === "item" && styles.toggleButtonActive,
+                                    viewMode === "item" &&
+                                        styles.toggleButtonActive,
                                 ]}
-                                onPress={() => setViewMode("item")}>
+                                onPress={() => setViewMode("item")}
+                            >
                                 <Text
                                     style={[
                                         styles.toggleText,
-                                        viewMode === "item" && styles.toggleTextActive,
-                                    ]}>
+                                        viewMode === "item" &&
+                                            styles.toggleTextActive,
+                                    ]}
+                                >
                                     Item Wise
                                 </Text>
                             </TouchableOpacity>
@@ -670,7 +727,11 @@ const SaleOrderPending = ({ route }: { route: any }) => {
 
                         {/* Search Bar */}
                         <View style={styles.searchContainer}>
-                            <Icon name="search" size={20} color={colors.textSecondary} />
+                            <Icon
+                                name="search"
+                                size={20}
+                                color={colors.textSecondary}
+                            />
                             <TextInput
                                 style={styles.searchInput}
                                 placeholder="Search by order number, retailer, sales person..."
@@ -679,8 +740,14 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                                 onChangeText={setSearchQuery}
                             />
                             {searchQuery.length > 0 && (
-                                <TouchableOpacity onPress={() => setSearchQuery("")}>
-                                    <Icon name="clear" size={20} color={colors.textSecondary} />
+                                <TouchableOpacity
+                                    onPress={() => setSearchQuery("")}
+                                >
+                                    <Icon
+                                        name="clear"
+                                        size={20}
+                                        color={colors.textSecondary}
+                                    />
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -688,19 +755,24 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                         {/* Results Info */}
                         <View style={styles.resultsContainer}>
                             <Text style={styles.resultsText}>
-                                Showing {displayData.length} {viewMode === "order" ? "orders" : "items"} (
-                                {totalItems} filtered, {totalRecords} total records)
+                                Showing {displayData.length}{" "}
+                                {viewMode === "order" ? "orders" : "items"} (
+                                {totalItems} filtered, {totalRecords} total
+                                records)
                             </Text>
                         </View>
 
                         {/* List */}
                         {viewMode === "order"
                             ? displayData.map((order: any) => (
-                                <SaleOrderCard key={order.S_Id} order={order} />
-                            ))
+                                  <SaleOrderCard
+                                      key={order.S_Id}
+                                      order={order}
+                                  />
+                              ))
                             : displayData.map((item: any, idx: number) => (
-                                <ItemWiseCard key={idx} item={item} />
-                            ))}
+                                  <ItemWiseCard key={idx} item={item} />
+                              ))}
 
                         {/* Pagination */}
                         {totalPages > 1 && (
@@ -718,7 +790,11 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                 {/* No Data State */}
                 {!isLoading && !error && (saleOrder as any[]).length === 0 && (
                     <View style={styles.noDataContainer}>
-                        <Icon name="shopping-cart" size={48} color={colors.textSecondary} />
+                        <Icon
+                            name="shopping-cart"
+                            size={48}
+                            color={colors.textSecondary}
+                        />
                         <Text style={styles.noDataText}>No orders found</Text>
                         <Text style={styles.noDataSubtext}>
                             Please select a date range to view orders
@@ -732,8 +808,14 @@ const SaleOrderPending = ({ route }: { route: any }) => {
                     (saleOrder as any[]).length > 0 &&
                     displayData.length === 0 && (
                         <View style={styles.noDataContainer}>
-                            <Icon name="search-off" size={48} color={colors.textSecondary} />
-                            <Text style={styles.noDataText}>No results found</Text>
+                            <Icon
+                                name="search-off"
+                                size={48}
+                                color={colors.textSecondary}
+                            />
+                            <Text style={styles.noDataText}>
+                                No results found
+                            </Text>
                             <Text style={styles.noDataSubtext}>
                                 Try adjusting your search or filter criteria
                             </Text>
@@ -1192,5 +1274,4 @@ const getStyles = (typography: any, colors: any) =>
             color: "#444",
             marginBottom: 4,
         },
-
     });

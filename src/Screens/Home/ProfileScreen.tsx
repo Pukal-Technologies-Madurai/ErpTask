@@ -9,7 +9,7 @@ import {
 import React from "react";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { MMKV } from "react-native-mmkv";
+import { storage } from "../../constants/storage";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import AppHeader from "../../Components/AppHeader";
 import { useTheme } from "../../Context/ThemeContext";
@@ -21,7 +21,6 @@ const ProfileScreen = () => {
     const styles = getStyles(typography, colors);
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-    const storage = new MMKV();
 
     // Get user data from storage
     const userName = storage.getString("userName") || "N/A";
@@ -78,7 +77,8 @@ const ProfileScreen = () => {
 
             <ScrollView
                 style={styles.scrollView}
-                showsVerticalScrollIndicator={false}>
+                showsVerticalScrollIndicator={false}
+            >
                 {/* Profile Header */}
                 <View style={styles.profileHeader}>
                     <View style={styles.avatarContainer}>
@@ -132,7 +132,8 @@ const ProfileScreen = () => {
                     <TouchableOpacity
                         style={styles.logoutButton}
                         onPress={handleLogout}
-                        activeOpacity={0.8}>
+                        activeOpacity={0.8}
+                    >
                         <Icon name="logout" size={20} color={colors.white} />
                         <Text style={styles.logoutButtonText}>Logout</Text>
                     </TouchableOpacity>
