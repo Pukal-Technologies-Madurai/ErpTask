@@ -687,14 +687,14 @@ const OpeningStockGodownWise = () => {
             {
               width: COL_WIDTH,
               color:
-                (item.Bal_Act_Qty ?? item.Act_Bal_Qty) >= 0
+                (item.Bal_Qty ?? item.Act_Bal_Qty) >= 0
                   ? colors.primary
                   : colors.accent,
             },
           ]}
         >
           {(() => {
-            const qty = item.Bal_Act_Qty ?? item.Act_Bal_Qty;
+            const qty = item.Bal_Qty ?? item.Act_Bal_Qty;
             const bagCount = getBagCount(qty, item.Bag);
 
             return bagCount
@@ -704,7 +704,7 @@ const OpeningStockGodownWise = () => {
         </Text>
 
         <Text style={[styles.rowCell, { width: COL_WIDTH }]}>
-          {item.OB_Bal_Qty ?? item.OB_Act_Qty}
+          {item.OB_Bal_Qty}
         </Text>
 
         <Text style={[styles.rowCell, { width: COL_WIDTH }]}>

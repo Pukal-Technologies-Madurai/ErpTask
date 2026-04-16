@@ -119,8 +119,10 @@ const OpeningStockItemWise = () => {
     };
 
     React.useEffect(() => {
-        if (modalVisible) loadExternalFilters();
-    }, [modalVisible, loadExternalFilters]);
+        if (modalVisible) {
+            loadExternalFilters();
+        }
+    }, [modalVisible]);
 
     // --- Helper: normalize column names to match API result keys ---
     const normalizeColumnKey = (colName: string) => {
@@ -172,14 +174,28 @@ const OpeningStockItemWise = () => {
     };
 
     React.useEffect(() => {
+        loadExternalFilters();
+    }, []);
+
+
+    React.useEffect(() => {
         if (!externalFilterTemplate?.length) return;
 
-        const groupFilters = (externalFilterTemplate || [])
-            .filter((f: any) => f.filterType === "GROUP_FILTER" || f.isGroupFilter === true)
-            .sort((a: any, b: any) => Number(a.Level_Id) - Number(b.Level_Id));
+        const groupFilters = externalFilterTemplate
+            .filter(
+                (f: any) =>
+                    f.filterType === "GROUP_FILTER" ||
+                    f.isGroupFilter === true
+            )
+            .sort(
+                (a: any, b: any) =>
+                    Number(a.Level_Id) - Number(b.Level_Id)
+            );
 
         if (!groupFilters.length) {
-            setGroupLevels([{ columnName: "Stock_Group", Level_Id: 1 }]);
+            setGroupLevels([
+                { columnName: "Stock_Group", Level_Id: 1 },
+            ]);
             setGroupByColumn("Stock_Group");
             return;
         }
@@ -187,21 +203,23 @@ const OpeningStockItemWise = () => {
         const normalized = groupFilters.map((g: any) => ({
             ...g,
             columnName: normalizeColumnKey(g.columnName),
-
-            // ✅ Sort options alphabetically
-            options: (g.options || []).sort((a: any, b: any) =>
-                a.label.localeCompare(b.label)
+            options: (g.options || []).sort(
+                (a: any, b: any) =>
+                    a.label.localeCompare(b.label)
             ),
         }));
 
-        setGroupLevels(normalized);
+        setGroupLevels((prev) =>
+            JSON.stringify(prev) ===
+                JSON.stringify(normalized)
+                ? prev
+                : normalized
+        );
+
         setGroupByColumn(normalized[0].columnName);
 
     }, [externalFilterTemplate]);
 
-    React.useEffect(() => {
-        loadExternalFilters();
-    }, []);
 
     // --- Load level2 columns metadata from filter API (same endpoint used by SalesInvoice) ---
     const loadLevel2Columns = React.useCallback(async () => {
@@ -288,66 +306,53 @@ const OpeningStockItemWise = () => {
     // Load level2 columns on mount and whenever dynamicFilters change (because Level-1 is dynamic from modal)
     React.useEffect(() => {
         loadLevel2Columns();
-        // On level-1 (dynamicFilters) change we reset selected level2s (Option 1)
-        setSelectedValuesByType({});
-        // reset pagination / expanded groups
+
         setCurrentPage(1);
         setExpandedGroups(new Set());
-    }, [loadLevel2Columns, JSON.stringify(dynamicFilters)]);
+
+    }, [dynamicFilters]);
+
+    React.useEffect(() => {
+        if (Object.keys(selectedValuesByType).length > 0) {
+            setSelectedValuesByType({});
+        }
+    }, [dynamicFilters]);
 
     // When the data or selectedValuesByType changes we may recompute some helper lists (optional)
     React.useEffect(() => {
-        // Example: compute values for the first available type to show on load
-        if (!level2TypesOrder || level2TypesOrder.length === 0) {
+        if (!level2TypesOrder?.length) {
             setActiveTypeValuesWithTotals([]);
             setSecondLevelValues([]);
             return;
         }
 
         const firstType = level2TypesOrder[0];
-        const colsForType = level2Columns.filter((c) => c.Type === firstType);
-        if (!colsForType.length) {
-            setActiveTypeValuesWithTotals([]);
-            setSecondLevelValues([]);
-            return;
-        }
+
+        const colsForType = level2Columns.filter(
+            (c) => c.Type === firstType
+        );
+
+        if (!colsForType.length) return;
+
         const primaryCol = colsForType[0].Column_Name;
-        // find parent if exists
-        const idx = level2TypesOrder.indexOf(firstType);
-        let parentPair: { column: string; value: string } | undefined;
-        if (idx > 0) {
-            const parentType = level2TypesOrder[idx - 1];
-            const selectedParentValue = selectedValuesByType[parentType];
-            if (selectedParentValue) {
-                const parentCols = level2Columns.filter((c) => c.Type === parentType);
-                if (parentCols.length > 0) {
-                    parentPair = { column: parentCols[0].Column_Name, value: selectedParentValue };
-                }
-            }
-        }
 
-        const mappedCol = normalizeColumnKey(primaryCol);
-        const parentForCompute = parentPair ? { column: normalizeColumnKey(parentPair.column), value: parentPair.value } : undefined;
-        const newVals = computeValuesWithTotals(mappedCol, parentForCompute);
-        setActiveTypeValuesWithTotals(newVals);
+        const newVals = computeValuesWithTotals(
+            normalizeColumnKey(primaryCol)
+        );
 
-        // if the firstType === 4 compute secondLevel (type 5) same as SalesInvoice
-        if (firstType === 4) {
-            const type5Cols = level2Columns.filter((c) => c.Type === 5);
-            if (type5Cols.length && selectedValuesByType[4]) {
-                const type5ColName = normalizeColumnKey(type5Cols[0].Column_Name);
-                const secondLevel = computeValuesWithTotals(type5ColName, {
-                    column: normalizeColumnKey(primaryCol),
-                    value: selectedValuesByType[4],
-                });
-                setSecondLevelValues(secondLevel);
-            } else {
-                setSecondLevelValues([]);
-            }
-        } else {
-            setSecondLevelValues([]);
-        }
-    }, [itemWiseStockData, level2Columns, level2TypesOrder, JSON.stringify(selectedValuesByType)]);
+        setActiveTypeValuesWithTotals((prev) =>
+            JSON.stringify(prev) === JSON.stringify(newVals)
+                ? prev
+                : newVals
+        );
+
+    }, [
+        itemWiseStockData?.length,
+        level2Columns?.length,
+        level2TypesOrder.join(","),
+        JSON.stringify(selectedValuesByType),
+    ]);
+
 
     // ---- Filtering pipeline (grouping & search & level2 filter application) ----
 
@@ -501,8 +506,14 @@ const OpeningStockItemWise = () => {
     React.useEffect(() => {
         setCurrentPage(1);
         setExpandedGroups(new Set());
-    }, [searchQuery, sortBy, sortOrder, JSON.stringify(dynamicFilters), JSON.stringify(selectedValuesByType)]);
 
+    }, [
+        searchQuery,
+        sortBy,
+        sortOrder,
+        Object.keys(dynamicFilters).join(","),
+        Object.keys(selectedValuesByType).join(","),
+    ]);
     // --- Level2 Chip UI ---
     const Level2Filter = () => {
         if (!level2TypesOrder || level2TypesOrder.length === 0) return null;
@@ -658,14 +669,14 @@ const OpeningStockItemWise = () => {
                             {
                                 width: COLS.cls,
                                 color:
-                                    (item.Bal_Act_Qty ?? item.Act_Bal_Qty) >= 0
+                                    (item.Bal_Qty ?? item.Act_Bal_Qty) >= 0
                                         ? colors.primary
                                         : colors.accent,
                             },
                         ]}
                     >
                         {(() => {
-                            const qty = item.Bal_Act_Qty ?? item.Act_Bal_Qty;
+                            const qty = item.Bal_Qty ?? item.Act_Bal_Qty;
                             const bagCount = getBagCount(qty, item.Bag);
 
                             return bagCount
@@ -675,7 +686,7 @@ const OpeningStockItemWise = () => {
                     </Text>
 
                     <Text style={[styles.rowCell, { width: COLS.ob }]}>
-                        {item.OB_Bal_Qty ?? item.OB_Act_Qty}
+                        {item.OB_Bal_Qty}
                     </Text>
 
                     <Text style={[styles.rowCell, { width: COLS.in }]}>

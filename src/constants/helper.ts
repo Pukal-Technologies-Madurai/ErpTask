@@ -31,6 +31,7 @@ export const customColors = {
         white: "#ffffff",
         borderColor: "#CFD8DC",
         grey: "#E0E0E0",
+        textDark: "#000",
 
         // Grey scale
         grey50: "#FAFAFA",
@@ -72,6 +73,7 @@ export const customColors = {
         white: "#ffffff",
         borderColor: "#2C2C2C",
         grey: "#424242",
+        textDark: "#0000",
 
         // Grey scale
         grey50: "#FAFAFA",

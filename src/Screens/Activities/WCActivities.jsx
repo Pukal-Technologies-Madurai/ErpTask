@@ -325,7 +325,7 @@ const styles = colors =>
             // flex: 1,
             ...typography.body1(colors),
             fontWeight: "bold",
-            color: colors.textDark,
+            // color: colors.textDark,
         },
         detailValue: {
             ...typography.h6(colors),

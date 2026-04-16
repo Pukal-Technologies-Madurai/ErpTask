@@ -1322,7 +1322,7 @@ const getStyles = (typography: any, colors: any) =>
     },
     invoiceIdText: {
       fontSize: 13,
-      color: colors.textPrimary,
+      color: colors.textDark,
       marginLeft: 4,
       fontWeight: '500',
     },
