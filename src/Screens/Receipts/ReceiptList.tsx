@@ -1,264 +1,313 @@
-import React from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
     View,
     Text,
-    ScrollView,
+    StyleSheet,
+    FlatList,
     RefreshControl,
     TextInput,
     TouchableOpacity,
-    StyleSheet,
+    ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { MMKV } from "react-native-mmkv";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import { fetchReceiptList } from "../../Api/receipt";
 import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 import { useTheme } from "../../Context/ThemeContext";
 import AppHeader from "../../Components/AppHeader";
-import { SafeAreaView } from "react-native-safe-area-context";
 import FilterModal from "../../Components/FilterModal";
 import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
+
+const ITEMS_PER_PAGE = 15;
 
 const ReceiptList = ({ route }: { route: any }) => {
     const item = route.params || {};
     const branchIdProps = item.branchId;
     const { typography, colors } = useTheme();
-
     const styles = getStyles(typography, colors);
-    const navigation =
-        useNavigation<NativeStackNavigationProp<any>>();
-
+    const navigation = useNavigation<NativeStackNavigationProp<any>>();
     const storage = new MMKV();
 
-    const [fromDate, setFromDate] = React.useState<Date>(new Date());
-    const [toDate, setToDate] = React.useState<Date>(new Date());
-    const [userId, setUserId] = React.useState("");
-    const [branchId, setBranchId] = React.useState("");
-    const [searchQuery, setSearchQuery] = React.useState("");
-    const [expandedReceipts, setExpandedReceipts] = React.useState<Set<string>>(new Set());
-    const [modalVisible, setModalVisible] = React.useState(false);
-    const [refreshing, setRefreshing] = React.useState(false);
-    const [selectedTransactionType, setSelectedTransactionType] = React.useState<string>("");
+    // -- State --
+    const [fromDate, setFromDate] = useState<Date>(new Date());
+    const [toDate, setToDate] = useState<Date>(new Date());
+    const [userId, setUserId] = useState<string | null>(null);
+    const [branchId, setBranchId] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedTransactionType, setSelectedTransactionType] = useState<string>("");
+    const [modalVisible, setModalVisible] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
 
-    // Fetch receipts
-    React.useEffect(() => {
-        const userId = storage.getString("userId");
-        const branchId = storage.getString("branchId");
-        if (userId) setUserId(userId);
-        if (branchId) setBranchId(branchId);
+    // -- App Init --
+    useEffect(() => {
+        const uId = storage.getString("userId");
+        const bId = storage.getString("branchId");
+        if (uId) setUserId(uId);
+        if (bId) setBranchId(bId);
     }, []);
 
+    // -- Fetching --
     const {
-        data: receipts = [],
+        data: rawReceipts = [],
         isLoading,
+        isFetching,
         error,
         refetch,
     } = useQuery({
-        queryKey: ["receiptList", fromDate, toDate],
+        queryKey: ["receiptList", fromDate, toDate, userId, branchIdProps],
         queryFn: () => fetchReceiptList(fromDate, toDate, userId, branchIdProps),
-        enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
+        enabled: !!fromDate && !!toDate && !!userId && (branchIdProps !== undefined || !!branchId),
     });
 
-    // Get unique transaction types
-    const getTransactionTypes = () => {
-        const typeSet = new Set<string>();
-        receipts.forEach((receipt: any) => {
-            if (receipt.transaction_type) typeSet.add(receipt.transaction_type);
-        });
-        return Array.from(typeSet);
-    };
+    const onRefresh = useCallback(() => {
+        refetch();
+    }, [refetch]);
 
-    // Filter receipts by search and transaction type
-    const getProcessedData = () => {
-        let filtered = [...receipts];
+    // -- Processed Data (Filtering & Sorting) --
+    const processedData = useMemo(() => {
+        let filtered = [...rawReceipts];
 
-        if (branchIdProps) {
-            const branchIds = Array.isArray(branchIdProps) ? branchIdProps.map(id => Number(id)) : [Number(branchIdProps)];
-            filtered = filtered.filter(invoice => branchIds.includes(invoice.Branch_Id));
-        }
-
+        // Search Filter
         if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
             filtered = filtered.filter(
                 r =>
-                    r.receipt_invoice_no?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    r.CreditAccountGet?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    r.CreatedByGet?.toLowerCase().includes(searchQuery.toLowerCase())
+                    r.receipt_invoice_no?.toLowerCase().includes(query) ||
+                    r.CreditAccountGet?.toLowerCase().includes(query) ||
+                    r.CreatedByGet?.toLowerCase().includes(query) ||
+                    r.DebitAccountGet?.toLowerCase().includes(query),
             );
         }
 
+        // Transaction Type Filter
         if (selectedTransactionType) {
             filtered = filtered.filter(
-                r => r.transaction_type === selectedTransactionType
+                r => r.transaction_type === selectedTransactionType,
             );
         }
 
         return filtered;
-    };
+    }, [rawReceipts, searchQuery, selectedTransactionType]);
 
-    const filteredData = getProcessedData();
-    const totalAmount = filteredData.reduce((sum, r) => sum + (r.credit_amount || 0), 0);
+    // Derived unique transaction types for filter chips
+    const transactionTypes = useMemo(() => {
+        const types = new Set<string>();
+        rawReceipts.forEach((r: any) => {
+            if (r.transaction_type) types.add(r.transaction_type);
+        });
+        return Array.from(types);
+    }, [rawReceipts]);
 
-    // Initialize pagination state manually
-    const [currentPage, setCurrentPage] = React.useState(1);
-    const ITEMS_PER_PAGE = 15;
+    // Summary Stats
+    const summary = useMemo(() => {
+        const total = processedData.reduce((sum, r) => sum + (r.credit_amount || 0), 0);
+        return {
+            count: processedData.length,
+            totalAmount: total,
+        };
+    }, [processedData]);
 
-    const totalItems = filteredData.length;
-    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+    // Pagination Logic
+    const totalPages = Math.ceil(processedData.length / ITEMS_PER_PAGE);
+    const paginatedData = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return processedData.slice(start, start + ITEMS_PER_PAGE);
+    }, [processedData, currentPage]);
 
-    // Get current page data
-    const displayData = React.useMemo(() => {
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        return filteredData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-    }, [filteredData, currentPage]);
-
-    // Reset page to 1 only when filters change
-    React.useEffect(() => {
+    // Reset page on filter change
+    useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, selectedTransactionType, fromDate, toDate, branchIdProps]);
+    }, [searchQuery, selectedTransactionType, fromDate, toDate]);
 
+    // -- Sub-Components --
 
-    const toggleReceipt = (receiptId: string) => {
-        const newExpanded = new Set(expandedReceipts);
-        if (newExpanded.has(receiptId)) newExpanded.delete(receiptId);
-        else newExpanded.add(receiptId);
-        setExpandedReceipts(newExpanded);
-    };
-
-    const onRefresh = React.useCallback(async () => {
-        setRefreshing(true);
-        try {
-            await refetch();
-        } finally {
-            setRefreshing(false);
-        }
-    }, [refetch]);
-
-    React.useEffect(() => {
-        setExpandedReceipts(new Set());
-    }, [searchQuery, selectedTransactionType]);
-
-    // Summary Cards
-    const SummaryCards = () => (
-        <View style={styles.summaryContainer}>
-            <View style={styles.summaryCard}>
-                <Icon name="receipt" size={24} color={colors.primary} />
-                <Text style={styles.summaryValue}>{totalItems}</Text>
-                <Text style={styles.summaryLabel}>Receipts</Text>
+    const SummaryDashboard = () => (
+        <View style={styles.dashboardContainer}>
+            <View style={[styles.statCard, { borderLeftColor: colors.primary }]}>
+                <View style={styles.statIconContainer}>
+                    <Icon name="receipt-long" size={20} color={colors.primary} />
+                </View>
+                <View>
+                    <Text style={styles.statLabel}>Total Count</Text>
+                    <Text style={styles.statValue}>{summary.count}</Text>
+                </View>
             </View>
-            <View style={styles.summaryCard}>
-                <Icon name="currency-rupee" size={24} color={colors.success} />
-                <Text style={styles.summaryValue}>
-                    {formatCurrency(totalAmount).replace("₹", "")}
-                </Text>
-                <Text style={styles.summaryLabel}>Total Amount</Text>
+            <View style={[styles.statCard, { borderLeftColor: colors.success }]}>
+                <View style={styles.statIconContainer}>
+                    <Icon name="account-balance-wallet" size={20} color={colors.success} />
+                </View>
+                <View>
+                    <Text style={styles.statLabel}>Total Amount</Text>
+                    <Text style={[styles.statValue, { color: colors.success }]}>
+                        {formatCurrency(summary.totalAmount)}
+                    </Text>
+                </View>
             </View>
         </View>
     );
 
-    // Transaction Type Filter
-    const TransactionTypeFilter = () => {
-        const types = getTransactionTypes();
-
-        return (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.brandFilterContainer}>
-                <TouchableOpacity
-                    style={[styles.brandFilterButton, !selectedTransactionType && styles.brandFilterButtonActive]}
-                    onPress={() => setSelectedTransactionType("")}
-                >
-                    <Text style={[styles.brandFilterText, !selectedTransactionType && styles.brandFilterTextActive]}>
-                        All
-                    </Text>
-                </TouchableOpacity>
-
-                {types.map(type => (
+    const FilterChips = () => (
+        <View style={styles.filterSection}>
+            <FlatList
+                horizontal
+                data={["", ...transactionTypes]}
+                renderItem={({ item: type }) => (
                     <TouchableOpacity
-                        key={type}
-                        style={[styles.brandFilterButton, selectedTransactionType === type && styles.brandFilterButtonActive]}
+                        activeOpacity={0.7}
                         onPress={() => setSelectedTransactionType(type)}
-                    >
-                        <Text style={[styles.brandFilterText, selectedTransactionType === type && styles.brandFilterTextActive]}>
-                            {type}
+                        style={[
+                            styles.chip,
+                            selectedTransactionType === type && styles.activeChip,
+                        ]}>
+                        <Text
+                            style={[
+                                styles.chipText,
+                                selectedTransactionType === type && styles.activeChipText,
+                            ]}>
+                            {type || "All"}
                         </Text>
                     </TouchableOpacity>
-                ))}
-            </ScrollView>
+                )}
+                keyExtractor={item => item}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipList}
+            />
+        </View>
+    );
+
+    const SearchBar = () => (
+        <View style={styles.searchWrapper}>
+            <View style={styles.searchBar}>
+                <Icon name="search" size={20} color={colors.grey500} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search invoice, account..."
+                    placeholderTextColor={colors.grey400}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery("")}>
+                        <Icon name="close" size={20} color={colors.grey500} />
+                    </TouchableOpacity>
+                )}
+            </View>
+        </View>
+    );
+
+    const ReceiptItem = ({ item: r }: { item: any }) => {
+        const isCash = r.transaction_type?.toLowerCase() === "cash";
+        const modeColor = isCash ? colors.success : colors.info;
+        const modeIcon = isCash ? "payments" : "account-balance";
+
+        return (
+            <View style={styles.receiptCard}>
+                <View style={[styles.receiptHeader, { borderLeftColor: modeColor }]}>
+                    <View style={styles.headerTop}>
+                        <Text style={styles.invoiceNo}>{r.receipt_invoice_no}</Text>
+                        <Text style={styles.amountText}>
+                            {formatCurrency(r.credit_amount)}
+                        </Text>
+                    </View>
+                    <View style={styles.headerBottom}>
+                        <View style={styles.modePill}>
+                            <Icon name={modeIcon} size={12} color={modeColor} />
+                            <Text style={[styles.modeText, { color: modeColor }]}>
+                                {r.transaction_type}
+                            </Text>
+                        </View>
+                        <Text style={styles.dateTimeText}>
+                            {formatDate(new Date(r.created_on))} • {formatTime(r.created_on)}
+                        </Text>
+                    </View>
+                </View>
+
+                <View style={styles.receiptBody}>
+                    <View style={styles.ledgerRow}>
+                        <View style={styles.ledgerIcon}>
+                            <Icon name="person" size={16} color={colors.grey600} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.ledgerLabel}>Received From (Credit)</Text>
+                            <Text style={styles.ledgerName}>{r.CreditAccountGet}</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.ledgerRow}>
+                        <View style={styles.ledgerIcon}>
+                            <Icon name="arrow-forward" size={16} color={colors.grey600} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.ledgerLabel}>Deposited To (Debit)</Text>
+                            <Text style={styles.ledgerName}>{r.DebitAccountGet}</Text>
+                        </View>
+                    </View>
+
+                    {r.remarks && (
+                        <View style={styles.remarksBox}>
+                            <Text style={styles.remarksText} numberOfLines={2}>
+                                {r.remarks}
+                            </Text>
+                        </View>
+                    )}
+                </View>
+
+                <View style={styles.receiptFooter}>
+                    <Icon name="account-circle" size={14} color={colors.grey400} />
+                    <Text style={styles.footerText}>Created by: {r.CreatedByGet}</Text>
+                </View>
+            </View>
         );
     };
 
-    // Receipt Card Component
-    const ReceiptCard = ({ receipt }: { receipt: any }) => {
-        const isExpanded = expandedReceipts.has(receipt.receipt_id);
-
-        const getFormattedDate = (dateString: string) => {
-            try {
-                const date = new Date(dateString);
-                return formatDate(date);
-            } catch (error) {
-                return "--";
-            }
-        };
-
+    const Pagination = () => {
+        if (totalPages <= 1) return null;
         return (
-            <View style={styles.orderCard}>
+            <View style={styles.pagination}>
                 <TouchableOpacity
-                    style={styles.orderHeader}
-                    onPress={() => toggleReceipt(receipt.receipt_id)}
-                    activeOpacity={0.7}
-                >
-                    <View style={styles.orderHeaderLeft}>
-                        <View style={styles.orderTopRow}>
-                            <View style={styles.orderNumberContainer}>
-                                <Text style={styles.orderNumber}>{receipt.debit_ledger_name}</Text>
-                                <View style={styles.dateTimeContainer}>
-                                    <Icon name="event"
-                                        size={12}
-                                        color={colors.textSecondary}
-                                        style={styles.dateTimeIcon} />
-                                    <Text style={styles.orderDateTime}>
-                                        {receipt.created_on
-                                            ? getFormattedDate(receipt.created_on)
-                                            : "--"}
-                                    </Text>
-                                </View>
-                            </View>
-                            <Text style={styles.orderAmount}>
-                                {formatCurrency(receipt.credit_amount)}
-                            </Text>
-                        </View>
-                        <View style={styles.orderBottomRow}>
-                            <View style={styles.retailerContainer}>
-                                <Icon name="store" size={14} color={colors.primary} style={styles.bottomRowIcon} />
-                                <Text style={styles.retailerName} numberOfLines={2}>
-                                    {receipt.transaction_type}
-                                </Text>
-                            </View>
-                            <View style={styles.salesPersonContainer}>
-                                <Icon name="person-outline" size={14} color={colors.textSecondary} style={styles.bottomRowIcon} />
-                                <Text style={styles.salesPerson}>{receipt.CreatedByGet}</Text>
-                            </View>
-                        </View>
-                    </View>
+                    disabled={currentPage === 1}
+                    onPress={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    style={[styles.pageButton, currentPage === 1 && styles.disabledButton]}>
+                    <Icon name="chevron-left" size={24} color={currentPage === 1 ? colors.grey300 : colors.primary} />
+                </TouchableOpacity>
+                <Text style={styles.pageInfo}>
+                    Page {currentPage} of {totalPages}
+                </Text>
+                <TouchableOpacity
+                    disabled={currentPage === totalPages}
+                    onPress={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    style={[styles.pageButton, currentPage === totalPages && styles.disabledButton]}>
+                    <Icon name="chevron-right" size={24} color={currentPage === totalPages ? colors.grey300 : colors.primary} />
                 </TouchableOpacity>
             </View>
         );
     };
 
-    const handleCloseModal = () => setModalVisible(false);
+    const EmptyState = () => (
+        <View style={styles.emptyContainer}>
+            <Icon name="receipt" size={64} color={colors.grey200} />
+            <Text style={styles.emptyTitle}>No Receipts Found</Text>
+            <Text style={styles.emptySubtitle}>
+                {searchQuery ? "Try a different search term" : "Try adjusting the date filters"}
+            </Text>
+        </View>
+    );
 
+    // -- Main Render --
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top"]}>
             <AppHeader
-                title="Receipts"
+                title="Receipt Collection"
                 navigation={navigation}
-                showRightIcon={true}
+                showRightIcon
                 rightIconLibrary="MaterialIcon"
-                rightIconName="filter-list"
-                onRightPress={() => {
-                    console.log(modalVisible)
-                    setModalVisible(true)
-                }}
+                rightIconName="date-range"
+                onRightPress={() => setModalVisible(true)}
             />
 
             <FilterModal
@@ -268,116 +317,44 @@ const ReceiptList = ({ route }: { route: any }) => {
                 onFromDateChange={setFromDate}
                 onToDateChange={setToDate}
                 onApply={() => setModalVisible(false)}
-                onClose={handleCloseModal}
-                showToDate={true}
-                title="Filter Options"
-                fromLabel="From Date"
-                toLabel="To Date"
+                onClose={() => setModalVisible(false)}
+                showToDate
+                title="Select Date Range"
             />
 
-            <ScrollView
-                style={styles.scrollContainer}
+            <FlatList
+                data={paginatedData}
+                keyExtractor={item => item.receipt_id}
+                renderItem={({ item }) => <ReceiptItem item={item} />}
+                ListHeaderComponent={
+                    <View>
+                        <SummaryDashboard />
+                        <SearchBar />
+                        <FilterChips />
+                    </View>
+                }
+                ListFooterComponent={<Pagination />}
+                ListEmptyComponent={!isLoading ? <EmptyState /> : null}
+                contentContainerStyle={styles.listContent}
                 refreshControl={
                     <RefreshControl
-                        refreshing={refreshing}
+                        refreshing={isFetching && !isLoading}
                         onRefresh={onRefresh}
                         colors={[colors.primary]}
                         tintColor={colors.primary}
                     />
                 }
-                showsVerticalScrollIndicator={false}
-            >
-                {isLoading && (
-                    <View style={styles.loadingContainer}>
-                        <Text style={styles.loadingText}>Loading receipts...</Text>
-                    </View>
-                )}
+            />
 
-                {!isLoading && error && (
-                    <View style={styles.errorContainer}>
-                        <Icon name="error-outline" size={48} color={colors.accent} />
-                        <Text style={styles.errorText}>Error loading receipts</Text>
-                        <Text style={styles.errorSubtext}>{error.message || "Please try again later"}</Text>
-                        <TouchableOpacity style={styles.retryButton} onPress={onRefresh}>
-                            <Icon name="refresh" size={20} color={colors.white} />
-                            <Text style={styles.retryButtonText}>Retry</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-
-                {!isLoading && !error && receipts.length > 0 && (
-                    <>
-                        <SummaryCards />
-                        <TransactionTypeFilter />
-
-                        <View style={styles.searchContainer}>
-                            <Icon name="search" size={20} color={colors.textSecondary} />
-                            <TextInput
-                                style={styles.searchInput}
-                                placeholder="Search by invoice, account, or created by..."
-                                placeholderTextColor={colors.textSecondary}
-                                value={searchQuery}
-                                onChangeText={setSearchQuery}
-                            />
-                            {searchQuery.length > 0 && (
-                                <TouchableOpacity onPress={() => setSearchQuery("")}>
-                                    <Icon name="clear" size={20} color={colors.textSecondary} />
-                                </TouchableOpacity>
-                            )}
-                        </View>
-
-                        <View style={styles.resultsContainer}>
-                            <Text style={styles.resultsText}>
-                                Showing {displayData.length} receipts ({totalItems} filtered, {receipts.length} total)
-                            </Text>
-
-                        </View>
-
-                        {displayData.map(receipt => (
-                            <ReceiptCard key={receipt.receipt_id} receipt={receipt} />
-                        ))}
-                        {totalPages > 1 && (
-                            <View style={styles.paginationContainer}>
-                                {/* Previous Arrow */}
-                                <TouchableOpacity
-                                    style={[styles.arrowButton, currentPage === 1 && styles.arrowDisabled]}
-                                    disabled={currentPage === 1}
-                                    onPress={() => setCurrentPage(currentPage - 1)}
-                                >
-                                    <Icon name="chevron-left" size={24} color={currentPage === 1 ? colors.textSecondary : colors.primary} />
-                                </TouchableOpacity>
-
-                                <Text style={styles.pageInfo}>
-                                    {currentPage} / {totalPages}
-                                </Text>
-
-                                {/* Next Arrow */}
-                                <TouchableOpacity
-                                    style={[styles.arrowButton, currentPage === totalPages && styles.arrowDisabled]}
-                                    disabled={currentPage === totalPages}
-                                    onPress={() => setCurrentPage(currentPage + 1)}
-                                >
-                                    <Icon name="chevron-right" size={24} color={currentPage === totalPages ? colors.textSecondary : colors.primary} />
-                                </TouchableOpacity>
-                            </View>
-                        )}
-                    </>
-                )}
-
-                {!isLoading && !error && receipts.length === 0 && (
-                    <View style={styles.noDataContainer}>
-                        <Icon name="receipt" size={48} color={colors.textSecondary} />
-                        <Text style={styles.noDataText}>No receipts found</Text>
-                        <Text style={styles.noDataSubtext}>Please select a date range to view receipts</Text>
-                    </View>
-                )}
-
-            </ScrollView>
+            {isLoading && (
+                <View style={styles.loadingOverlay}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                    <Text style={styles.loadingText}>Fetching Records...</Text>
+                </View>
+            )}
         </SafeAreaView>
     );
 };
-
-export default ReceiptList;
 
 const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
@@ -385,327 +362,273 @@ const getStyles = (typography: any, colors: any) =>
             flex: 1,
             backgroundColor: colors.primary,
         },
-        scrollContainer: {
-            backgroundColor: colors.white,
+        listContent: {
+            backgroundColor: "#f8f9fa",
+            paddingBottom: responsiveHeight(4),
+            flexGrow: 1,
         },
-        searchContainer: {
+
+        // Summary Dashboard
+        dashboardContainer: {
+            flexDirection: "row",
+            padding: responsiveWidth(4),
+            gap: responsiveWidth(3),
+        },
+        statCard: {
+            flex: 1,
+            backgroundColor: colors.white,
+            padding: responsiveWidth(3),
+            borderRadius: 12,
+            borderLeftWidth: 4,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            elevation: 3,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+        },
+        statIconContainer: {
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: "#f2f2f2",
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        statLabel: {
+            ...typography.caption,
+            color: colors.grey600,
+            fontSize: 10,
+            textTransform: "uppercase",
+            letterSpacing: 0.5,
+        },
+        statValue: {
+            ...typography.subtitle1,
+            fontWeight: "700",
+            color: colors.text,
+        },
+
+        // Search Bar
+        searchWrapper: {
+            paddingHorizontal: responsiveWidth(4),
+            marginBottom: responsiveHeight(1),
+        },
+        searchBar: {
             flexDirection: "row",
             alignItems: "center",
             backgroundColor: colors.white,
-            marginHorizontal: responsiveWidth(4),
-            marginBottom: responsiveHeight(1.5),
-            borderRadius: responsiveWidth(2),
-            paddingHorizontal: responsiveWidth(4),
-            paddingVertical: responsiveHeight(1),
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.1,
-            shadowRadius: 2,
-            elevation: 2,
+            borderRadius: 12,
+            paddingHorizontal: 15,
+            height: 48,
+            borderWidth: 1,
+            borderColor: "#e0e0e0",
         },
         searchInput: {
             flex: 1,
-            ...typography.body1,
             color: colors.text,
-            paddingVertical: 8,
+            marginLeft: 10,
+            ...typography.body2,
         },
-        summaryContainer: {
-            flexDirection: "row",
+
+        // Filter Chips
+        filterSection: {
+            marginBottom: responsiveHeight(1),
+        },
+        chipList: {
             paddingHorizontal: responsiveWidth(4),
-            marginVertical: responsiveHeight(2),
-            gap: responsiveWidth(2),
+            paddingVertical: 5,
         },
-        summaryCard: {
-            flex: 1,
+        chip: {
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            borderRadius: 20,
             backgroundColor: colors.white,
-            padding: responsiveWidth(3),
-            borderRadius: responsiveWidth(2),
-            alignItems: "center",
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.1,
-            shadowRadius: 2,
-            elevation: 2,
+            marginRight: 8,
+            borderWidth: 1,
+            borderColor: "#e0e0e0",
         },
-        summaryValue: {
-            ...typography.body1,
-            color: colors.text,
-            fontWeight: "700",
-            textAlign: "center",
+        activeChip: {
+            backgroundColor: colors.primary,
+            borderColor: colors.primary,
         },
-        summaryLabel: {
+        chipText: {
             ...typography.caption,
-            color: colors.textSecondary,
-            textAlign: "center",
+            color: colors.grey700,
+            fontWeight: "600",
         },
-        orderCard: {
+        activeChipText: {
+            color: colors.white,
+        },
+
+        // Receipt Card
+        receiptCard: {
             backgroundColor: colors.white,
-            borderRadius: responsiveWidth(2),
             marginHorizontal: responsiveWidth(4),
             marginVertical: responsiveHeight(0.8),
+            borderRadius: 16,
+            overflow: "hidden",
             elevation: 2,
-            shadowColor: colors.black,
+            shadowColor: "#000",
             shadowOffset: { width: 0, height: 1 },
             shadowOpacity: 0.1,
-            shadowRadius: 2,
+            shadowRadius: 3,
         },
-        orderHeader: {
-            padding: responsiveWidth(3),
+        receiptHeader: {
+            padding: 12,
+            borderLeftWidth: 5,
+            backgroundColor: "#fcfcfc",
+            borderBottomWidth: 1,
+            borderBottomColor: "#f0f0f0",
         },
-        orderHeaderLeft: {
-            flex: 1,
-            marginRight: 8,
-        },
-        orderTopRow: {
+        headerTop: {
             flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: 4,
+            marginBottom: 6,
         },
-        orderBottomRow: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-        },
-        orderNumberContainer: {
-            flexDirection: "column",
-        },
-        orderNumber: {
-            ...typography.subtitle2,
-            fontWeight: "600",
+        invoiceNo: {
+            ...typography.body2,
+            fontWeight: "700",
             color: colors.primary,
         },
-        dateTimeContainer: {
-            flexDirection: "row",
-            alignItems: "center",
-            marginTop: 4,
-        },
-        dateTimeIcon: {
-            marginHorizontal: 4,
-        },
-        orderDateTime: {
-            ...typography.caption,
-            color: colors.textsecondary,
-        },
-        orderAmount: {
-            ...typography.body1,
-            color: colors.success,
-            fontWeight: "600",
-            marginTop: 6
-        },
-        retailerContainer: {
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center",
-            marginRight: 8,
-        },
-        salesPersonContainer: {
-            flexDirection: "row",
-            alignItems: "center",
-        },
-        bottomRowIcon: {
-            marginRight: 4,
-        },
-        retailerName: {
-            ...typography.body2,
+        amountText: {
+            ...typography.subtitle2,
+            fontWeight: "800",
             color: colors.text,
-            flex: 1,
         },
-        salesPerson: {
-            ...typography.caption,
-            color: colors.textSecondary,
-        },
-        orderDetails: {
-            paddingBottom: 12,
-        },
-        essentialInfo: {
-            padding: responsiveWidth(2),
-            backgroundColor: colors.background,
-            borderRadius: responsiveWidth(2),
-            marginHorizontal: responsiveWidth(3),
-        },
-        infoGrid: {
+        headerBottom: {
             flexDirection: "row",
             justifyContent: "space-between",
-            gap: responsiveWidth(1.5),
+            alignItems: "center",
         },
-        infoItem: {
-            flex: 1,
+        modePill: {
             flexDirection: "row",
             alignItems: "center",
-            backgroundColor: colors.white,
-            padding: responsiveWidth(2),
-            borderRadius: responsiveWidth(1.5),
+            backgroundColor: "#f5f5f5",
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 6,
+            gap: 4,
         },
-        infoContent: {
-            marginLeft: 8,
-            flex: 1,
+        modeText: {
+            fontSize: 10,
+            fontWeight: "700",
+            textTransform: "uppercase",
         },
-        infoLabel: {
+        dateTimeText: {
             ...typography.caption,
-            color: colors.textSecondary,
+            color: colors.grey500,
+            fontSize: 10,
         },
-        infoValue: {
+        receiptBody: {
+            padding: 12,
+            gap: 12,
+        },
+        ledgerRow: {
+            flexDirection: "row",
+            gap: 12,
+        },
+        ledgerIcon: {
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            backgroundColor: "#f0f0f0",
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        ledgerLabel: {
             ...typography.caption,
+            color: colors.grey500,
+            fontSize: 10,
+        },
+        ledgerName: {
+            ...typography.body2,
             color: colors.text,
             fontWeight: "600",
         },
-        productsTable: {
-            marginTop: responsiveHeight(1.5),
-            marginHorizontal: responsiveWidth(3),
-            borderWidth: 1,
-            borderColor: colors.borderColor,
-            borderRadius: responsiveWidth(1),
+        remarksBox: {
+            backgroundColor: "#fff9c4",
+            padding: 8,
+            borderRadius: 8,
+            marginTop: 4,
         },
-        tableHeader: {
+        remarksText: {
+            fontSize: 11,
+            fontStyle: "italic",
+            color: "#5d4037",
+        },
+        receiptFooter: {
             flexDirection: "row",
-            backgroundColor: colors.background,
-            paddingVertical: responsiveHeight(1),
-            paddingHorizontal: responsiveWidth(3),
-            borderBottomWidth: 1,
-            borderBottomColor: colors.borderColor,
-        },
-        tableRow: {
-            flexDirection: "row",
-            paddingVertical: responsiveHeight(1),
-            paddingHorizontal: responsiveWidth(3),
-            borderBottomWidth: 1,
-            borderBottomColor: colors.borderColor,
-        },
-        tableCell: {
-            flex: 1,
-            ...typography.body2,
-            color: colors.text,
-        },
-        productNameCell: {
-            flex: 2,
-        },
-        // Brand Filter
-        brandFilterContainer: {
-            paddingHorizontal: responsiveWidth(4),
-            marginVertical: responsiveHeight(1.5),
-        },
-        brandFilterButton: {
-            paddingVertical: responsiveHeight(0.5),
-            paddingHorizontal: responsiveWidth(4),
-            marginRight: responsiveWidth(1.2),
-            borderRadius: responsiveWidth(5),
-            backgroundColor: colors.background,
-            flexDirection: "column",
             alignItems: "center",
+            padding: 10,
+            backgroundColor: "#fafafa",
+            borderTopWidth: 1,
+            borderTopColor: "#f0f0f0",
+            gap: 6,
         },
-        brandFilterButtonActive: {
-            backgroundColor: colors.primary,
-        },
-        brandFilterText: {
+        footerText: {
             ...typography.caption,
-            color: colors.textSecondary,
-            marginBottom: 4,
+            color: colors.grey500,
+            fontSize: 11,
         },
-        brandFilterTextActive: {
-            color: colors.white,
-        },
-        resultsContainer: {
-            paddingHorizontal: 16,
-            marginBottom: 8,
-        },
-        resultsText: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            textAlign: "center",
-        },
-        paginationContainer: {
+
+        // Pagination
+        pagination: {
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "center",
-            paddingVertical: 16,
-            gap: 16,
+            paddingVertical: 20,
+            gap: 20,
         },
         pageButton: {
-            padding: 8,
-            borderRadius: "50%",
-            backgroundColor: colors.secondary,
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: colors.white,
+            alignItems: "center",
+            justifyContent: "center",
+            elevation: 2,
         },
-        pageButtonDisabled: {
-            opacity: 0.5,
-            backgroundColor: colors.border,
+        disabledButton: {
+            backgroundColor: "#f0f0f0",
+            elevation: 0,
         },
         pageInfo: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            fontSize: 14,
-            fontWeight: "500",
+            ...typography.body2,
+            fontWeight: "600",
+            color: colors.grey700,
         },
-        loadingContainer: {
-            flex: 1,
+
+        // Utils
+        loadingOverlay: {
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: "rgba(255,255,255,0.7)",
             alignItems: "center",
             justifyContent: "center",
-            padding: 32,
         },
         loadingText: {
-            ...typography.body1,
-            color: colors.textSecondary,
+            marginTop: 10,
+            color: colors.primary,
+            fontWeight: "600",
         },
-        errorContainer: {
+        emptyContainer: {
             flex: 1,
             alignItems: "center",
             justifyContent: "center",
-            padding: 32,
+            paddingVertical: 100,
         },
-        errorText: {
-            ...typography.body1,
-            color: colors.error,
-            textAlign: "center",
-            fontWeight: "600",
+        emptyTitle: {
+            ...typography.h6,
+            color: colors.grey400,
+            marginTop: 15,
         },
-        retryButton: {
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: colors.primary,
-            paddingHorizontal: 16,
-            paddingVertical: 8,
-            borderRadius: 8,
-            marginTop: 16,
-        },
-        retryButtonText: {
-            ...typography.button,
-            color: colors.white,
-            marginLeft: 8,
-            textAlign: "center",
-            fontWeight: "600",
-            marginTop: 16,
-        },
-        errorSubtext: {
+        emptySubtitle: {
             ...typography.body2,
-            color: colors.textSecondary,
-            textAlign: "center",
-            marginTop: 8,
-        },
-        noDataContainer: {
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 32,
-        },
-        noDataText: {
-            ...typography.body1,
-            color: colors.textSecondary,
-            textAlign: "center",
-            fontWeight: "600",
-            marginTop: 16,
-        },
-        noDataSubtext: {
-            ...typography.body2,
-            color: colors.textSecondary,
-            textAlign: "center",
-            marginTop: 8,
-        },
-        arrowButton: {
-            padding: 8,
-            borderRadius: 6,
-        },
-        arrowDisabled: {
-            opacity: 0.3,
+            color: colors.grey400,
+            marginTop: 5,
         },
     });
 
+export default ReceiptList;

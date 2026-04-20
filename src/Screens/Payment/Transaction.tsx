@@ -53,6 +53,7 @@ const Transaction = () => {
   const loadExternalFilters = useCallback(async () => {
     try {
       const res = await fetch(API.getReportFilters(REPORT_NAME));
+      console.log("transaction filter", `${API.getReportFilters(REPORT_NAME)}`)
       const json = await res.json();
       setExternalFilterTemplate(Array.isArray(json?.data) ? json.data : []);
     } catch (e) {

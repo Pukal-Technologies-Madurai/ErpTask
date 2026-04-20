@@ -1,72 +1,76 @@
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
     StyleSheet,
     Text,
     View,
-    ScrollView,
+    FlatList,
     RefreshControl,
+    ActivityIndicator,
 } from "react-native";
-import React, { useEffect, useState, useCallback } from "react";
-import AppHeader from "../../Components/AppHeader";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useTheme } from "../../Context/ThemeContext";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialIcons";
+
+import AppHeader from "../../Components/AppHeader";
 import FilterModal from "../../Components/FilterModal";
+import { useTheme } from "../../Context/ThemeContext";
 import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 import { API } from "../../constants/api";
+import { formatCurrency } from "../../constants/utils";
 
-/* ---------------- TYPES ---------------- */
+// ---------------- TYPES ----------------
 type TransactionRow = {
     invoice_no?: string;
-    Ledger_Date?: string;
-    Particulars?: string;
-    Credit_Amt?: number;
-    Debit_Amt?: number;
-    Trans_Id?: string;
+    Ledger_Date: string;
+    Particulars: string;
+    Credit_Amt: number;
+    Debit_Amt: number;
+    Trans_Id: string;
+    ord: number;
     Narration?: string;
     Line_Naration?: string;
+    Account_name?: string;
+    // Computed field
+    runningBalance?: number;
 };
 
-/* ---------------- HELPERS ---------------- */
-const formatAPIDate = (date: Date) =>
-    date.toISOString().split("T")[0];
+// ---------------- SCREEN ----------------
 
-const formatRowDate = (d?: string) =>
-    d ? new Date(d).toLocaleDateString("en-IN") : "--";
-
-/* ---------------- SCREEN ---------------- */
 const TransactionListExpenses = () => {
     const { typography, colors } = useTheme();
     const styles = getStyles(typography, colors);
     const navigation = useNavigation<NativeStackNavigationProp<any>>();
     const route = useRoute<any>();
 
-    const { accId, accName, fromDate: routeFromDate,
-        toDate: routeToDate, } = route.params ?? {};
+    const {
+        accId,
+        accName,
+        fromDate: routeFromDate,
+        toDate: routeToDate,
+    } = route.params ?? {};
+
     const [fromDate, setFromDate] = useState<Date>(
-        routeFromDate ? new Date(routeFromDate) : new Date()
+        routeFromDate ? new Date(routeFromDate) : new Date(),
     );
     const [toDate, setToDate] = useState<Date>(
-        routeToDate ? new Date(routeToDate) : new Date()
+        routeToDate ? new Date(routeToDate) : new Date(),
     );
+
     const [modalVisible, setModalVisible] = useState(false);
     const [transactions, setTransactions] = useState<TransactionRow[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    /* ---------------- FETCH ---------------- */
+    // ---------------- FETCH ----------------
     const fetchTransactions = useCallback(async () => {
         if (!accId) return;
-
-        const from = formatAPIDate(fromDate);
-        const to = formatAPIDate(toDate);
+        const from = fromDate.toISOString().split("T")[0];
+        const to = toDate.toISOString().split("T")[0];
 
         setLoading(true);
         try {
-            const res = await fetch(
-                API.getTransactionReports(from, to, accId)
-            );
+            const res = await fetch(API.getTransactionReports(from, to, accId));
             const json = await res.json();
             setTransactions(Array.isArray(json?.data) ? json.data : []);
         } catch (e) {
@@ -74,6 +78,7 @@ const TransactionListExpenses = () => {
             setTransactions([]);
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     }, [accId, fromDate, toDate]);
 
@@ -81,41 +86,147 @@ const TransactionListExpenses = () => {
         fetchTransactions();
     }, []);
 
-    const onRefresh = async () => {
+    const onRefresh = () => {
         setRefreshing(true);
-        await fetchTransactions();
-        setRefreshing(false);
-    };
-
-    const handleApplyFilter = () => {
-        setModalVisible(false);
         fetchTransactions();
     };
 
-    const formatDisplayDate = (date: Date) =>
-        date.toLocaleDateString("en-IN");
+    // ---------------- LOGIC ----------------
+    const ledgerData = useMemo(() => {
+        // Sort by date then by order index
+        const sorted = [...transactions].sort((a, b) => {
+            const dateA = new Date(a.Ledger_Date).getTime();
+            const dateB = new Date(b.Ledger_Date).getTime();
+            if (dateA !== dateB) return dateA - dateB;
+            return a.ord - b.ord;
+        });
 
-    /* ---------------- TOTALS ---------------- */
-    const totals = transactions.reduce(
-        (acc, item) => {
-            acc.credit += item.Credit_Amt || 0;
-            acc.debit += item.Debit_Amt || 0;
-            return acc;
-        },
-        { credit: 0, debit: 0 }
+        let balance = 0;
+        return sorted.map(t => {
+            // Expenses are usually Debit-heavy.
+            // Balance = Previous + Debit - Credit
+            balance += (t.Debit_Amt || 0) - (t.Credit_Amt || 0);
+            return { ...t, runningBalance: balance };
+        });
+    }, [transactions]);
+
+    const totals = useMemo(() => {
+        const debit = transactions.reduce((s, t) => s + (t.Debit_Amt || 0), 0);
+        const credit = transactions.reduce((s, t) => s + (t.Credit_Amt || 0), 0);
+        return { debit, credit, net: debit - credit };
+    }, [transactions]);
+
+    // ---------------- COMPONENTS ----------------
+
+    const ListHeader = () => (
+        <View style={styles.headerArea}>
+            <View style={styles.accountBox}>
+                <View style={styles.accountIconBg}>
+                    <Icon name="receipt" size={24} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                    <Text style={styles.accountName} numberOfLines={2}>
+                        {accName || "Expense Ledger"}
+                    </Text>
+                    <Text style={styles.dateRange}>
+                        {fromDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} —{" "}
+                        {toDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                    </Text>
+                </View>
+            </View>
+
+            <View style={styles.summaryRow}>
+                <View style={styles.stat}>
+                    <Text style={styles.statLabel}>Total Spend (DR)</Text>
+                    <Text style={[styles.statValue, { color: colors.error }]}>
+                        {formatCurrency(totals.debit)}
+                    </Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.stat}>
+                    <Text style={styles.statLabel}>Recovery (CR)</Text>
+                    <Text style={[styles.statValue, { color: colors.success }]}>
+                        {formatCurrency(totals.credit)}
+                    </Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.stat}>
+                    <Text style={styles.statLabel}>Net Period</Text>
+                    <Text style={[styles.statValue, { color: colors.primary }]}>
+                        {formatCurrency(Math.abs(totals.net))}
+                        <Text style={styles.miniIndicator}>
+                            {" "}{totals.net >= 0 ? "DR" : "CR"}
+                        </Text>
+                    </Text>
+                </View>
+            </View>
+        </View>
     );
 
-    const netBal = totals.debit - totals.credit;
+    const TransactionItem = ({ item }: { item: TransactionRow }) => {
+        const date = new Date(item.Ledger_Date);
+        const day = date.getDate();
+        const month = date.toLocaleDateString("en-IN", { month: "short" });
 
-    /* ---------------- UI ---------------- */
+        const isDebit = (item.Debit_Amt || 0) > 0;
+        const isOB = item.invoice_no === "OB";
+        const amount = isDebit ? item.Debit_Amt : item.Credit_Amt;
+        const color = isDebit ? colors.error : colors.success; // Expenses: DR is Red (Debit), CR is Green (Credit)
+
+        return (
+            <View style={[styles.card, isOB && styles.obCard]}>
+                {/* Date Side */}
+                <View style={styles.dateCol}>
+                    <Text style={styles.dayText}>{day}</Text>
+                    <View style={styles.monthPill}>
+                        <Text style={styles.monthText}>{month}</Text>
+                    </View>
+                </View>
+
+                {/* Content */}
+                <View style={styles.contentCol}>
+                    <View style={styles.topLine}>
+                        <Text style={styles.particulars} numberOfLines={1}>{item.Particulars}</Text>
+                        <Text style={[styles.amount, { color }]}>
+                            {isDebit ? "+" : "-"}{formatCurrency(amount)}
+                        </Text>
+                    </View>
+
+                    <View style={styles.midLine}>
+                        <Text style={styles.invoiceNo}>{item.invoice_no || "—"}</Text>
+                        {item.runningBalance !== undefined && (
+                            <View style={styles.balBadge}>
+                                <Text style={styles.balText}>
+                                    Bal: {formatCurrency(Math.abs(item.runningBalance))}
+                                    <Text style={{ fontSize: 8 }}>
+                                        {" "}{item.runningBalance >= 0 ? "DR" : "CR"}
+                                    </Text>
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+
+                    {(item.Narration || item.Line_Naration) && (
+                        <View style={styles.narrationBox}>
+                            <Icon name="notes" size={12} color={colors.grey400} style={{ marginTop: 2 }} />
+                            <Text style={styles.narration} numberOfLines={3}>
+                                {item.Narration || item.Line_Naration}
+                            </Text>
+                        </View>
+                    )}
+                </View>
+            </View>
+        );
+    };
+
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top"]}>
             <AppHeader
-                title="Expenses Transaction Details"
+                title="Expense Transactions"
                 navigation={navigation}
                 showRightIcon
                 rightIconLibrary="MaterialIcon"
-                rightIconName="filter-list"
+                rightIconName="date-range"
                 onRightPress={() => setModalVisible(true)}
             />
 
@@ -123,152 +234,46 @@ const TransactionListExpenses = () => {
                 visible={modalVisible}
                 fromDate={fromDate}
                 toDate={toDate}
-                onFromDateChange={routeFromDate}
-                onToDateChange={routeToDate}
-                onApply={handleApplyFilter}
+                onFromDateChange={setFromDate}
+                onToDateChange={setToDate}
+                onApply={() => { setModalVisible(false); fetchTransactions(); }}
                 onClose={() => setModalVisible(false)}
                 showToDate
+                title="Select Date Range"
             />
 
-            <ScrollView
-                style={styles.scrollContainer}
+            <FlatList
+                data={ledgerData}
+                keyExtractor={(item, index) => `${item.Trans_Id}-${index}`}
+                renderItem={({ item }) => <TransactionItem item={item} />}
+                ListHeaderComponent={<ListHeader />}
+                ListEmptyComponent={!loading ? (
+                    <View style={styles.empty}>
+                        <Icon name="description" size={64} color={colors.grey200} />
+                        <Text style={styles.emptyTitle}>No Entries</Text>
+                        <Text style={styles.emptySubtitle}>No expense transactions for this period</Text>
+                    </View>
+                ) : null}
+                contentContainerStyle={styles.listContent}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={onRefresh}
                         colors={[colors.primary]}
+                        tintColor={colors.primary}
                     />
                 }
-            >
-                <View style={styles.reportHeader}>
-                    <Text style={styles.reportTitle}>
-                        {accName || "Expense Ledger" || "--"}
-                    </Text>
+            />
 
-                    <Text style={styles.reportPeriod}>
-                        From: {formatDisplayDate(routeFromDate)}  –  {formatDisplayDate(routeToDate)}
-                    </Text>
+            {loading && !refreshing && (
+                <View style={styles.loading}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                    <Text style={styles.loadingText}>Loading Ledger...</Text>
                 </View>
-
-                {/* TABLE */}
-                <View style={styles.tableContainer}>
-                    {/* HEADER */}
-                    <View style={styles.tableHeader}>
-                        <Text style={[styles.tableHeaderText, styles.cellBorder, { flex: 1.3 }]}>Date</Text>
-                        <Text style={[styles.tableHeaderText, styles.cellBorder, { flex: 1.2 }]}>Inv No</Text>
-                        <Text style={[styles.tableHeaderText, styles.cellBorder, { flex: 2 }]}>Particular</Text>
-                        <Text style={[styles.tableHeaderText, styles.cellBorder, { flex: 1 }]}>Credit</Text>
-                        <Text style={[styles.tableHeaderText, { flex: 1 }]}>Debit</Text>
-                    </View>
-
-                    {/* ROWS */}
-                    {transactions.map((t, i) => {
-                        const showNarration =
-                            t.Narration && t.Narration.trim().length > 0;
-
-                        const showLineNarration =
-                            t.Line_Naration &&
-                            t.Line_Naration.trim().length > 0 &&
-                            t.Line_Naration !== t.Narration;
-
-                        return (
-                            <View key={`${t.Trans_Id}-${i}`} style={styles.rowWrapper}>
-
-                                {/* MAIN ROW */}
-                                <View style={styles.tableRow}>
-                                    <Text style={[styles.td, styles.cellBorder, { flex: 1.3 }]}>
-                                        {formatRowDate(t.Ledger_Date)}
-                                    </Text>
-
-                                    <Text style={[styles.td, styles.cellBorder, { flex: 1.2 }]}>
-                                        {t.invoice_no || "--"}
-                                    </Text>
-
-                                    <Text style={[styles.td, styles.cellBorder, { flex: 2 }]}>
-                                        {t.Particulars || "--"}
-                                    </Text>
-
-                                    <Text
-                                        style={[
-                                            styles.td,
-                                            styles.cellBorder,
-                                            { flex: 1, color: colors.success },
-                                        ]}
-                                    >
-                                        {t.Credit_Amt ? t.Credit_Amt.toLocaleString("en-IN") : "-"}
-                                    </Text>
-
-                                    <Text style={[styles.td, { flex: 1, color: colors.error }]}>
-                                        {t.Debit_Amt ? t.Debit_Amt.toLocaleString("en-IN") : "-"}
-                                    </Text>
-                                </View>
-
-                                {/* NARRATION SECTION (FULL WIDTH, SAME ROW) */}
-                                {(showNarration || showLineNarration) && (
-                                    <View style={styles.narrationRow}>
-                                        {showNarration && (
-                                            <Text style={styles.narrationText}>
-                                                • {t.Narration}
-                                            </Text>
-                                        )}
-
-                                        {showLineNarration && (
-                                            <Text style={styles.narrationText2}>
-                                                • {t.Line_Naration}
-                                            </Text>
-                                        )}
-                                    </View>
-                                )}
-                            </View>
-                        );
-                    })}
-
-
-                    {/* TOTAL */}
-                    {transactions.length > 0 && (
-                        <>
-                            <View style={styles.totalRow}>
-                                <Text style={[styles.totalText, { flex: 4.4 }]}>
-                                    TOTAL
-                                </Text>
-                                <Text style={[styles.totalText, { flex: 1, color: colors.success }]}>
-                                    {totals.credit.toLocaleString("en-IN")}
-                                </Text>
-                                <Text style={[styles.totalText, { flex: 1, color: colors.error }]}>
-                                    {totals.debit.toLocaleString("en-IN")}
-                                </Text>
-                            </View>
-
-                            <View style={styles.netTotalRow}>
-                                <Text style={[styles.netText, { flex: 5.4 }]}>
-                                    NET BALANCE
-                                </Text>
-                                <Text
-                                    style={[
-                                        styles.netText,
-                                        { color: netBal >= 0 ? colors.error : colors.success },
-                                    ]}
-                                >
-                                    ₹{Math.abs(netBal).toLocaleString("en-IN")}{" "}
-                                    {netBal >= 0 ? "DR" : "CR"}
-                                </Text>
-                            </View>
-                        </>
-                    )}
-
-                    {!loading && transactions.length === 0 && (
-                        <View style={styles.noDataContainer}>
-                            <Icon name="receipt-long" size={44} color={colors.textSecondary} />
-                            <Text>No transactions found</Text>
-                        </View>
-                    )}
-                </View>
-            </ScrollView>
+            )}
         </SafeAreaView>
     );
 };
-
-export default TransactionListExpenses;
 
 const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
@@ -276,143 +281,213 @@ const getStyles = (typography: any, colors: any) =>
             flex: 1,
             backgroundColor: colors.primary,
         },
-        scrollContainer: {
+        listContent: {
+            backgroundColor: "#f8f9fa",
+            paddingBottom: responsiveHeight(4),
+            flexGrow: 1,
+        },
+
+        // Header Area
+        headerArea: {
             backgroundColor: colors.white,
+            marginBottom: 10,
+            paddingBottom: 5,
+            elevation: 3,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
         },
-
-        reportHeader: {
-            padding: responsiveWidth(4),
+        accountBox: {
+            flexDirection: "row",
             alignItems: "center",
+            padding: responsiveWidth(4),
+            gap: 15,
         },
-        reportTitle: {
-            ...typography.subtitle2,
-            fontWeight: "600",
-            color: colors.text,
-            textAlign: "center",
-        },
-        reportSubTitle: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            marginTop: responsiveHeight(0.6),
-        },
-
-        tableContainer: {
-            width: '98%',
-            alignSelf: 'center',
-            borderWidth: 1,
-            borderColor: colors.borderColor,
-            borderRadius: responsiveWidth(1),
-            overflow: "hidden",
-            marginBottom: responsiveHeight(2),
-            marginTop: 12,
-        },
-
-        tableHeaderText: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            fontWeight: "800",
-            textAlign: "center",
-            fontSize: 12,
-            paddingVertical: 10,
-            paddingHorizontal: 6,
-        },
-        tableHeader: {
-            flexDirection: "row",
-            paddingHorizontal: responsiveWidth(2),
-            backgroundColor: "#F3F4F6",
-            borderBottomWidth: 1,
-            borderColor: "#D1D5DB",
-        },
-        tableRow: {
-            flexDirection: "row",
-            paddingVertical: responsiveHeight(1),
-            paddingHorizontal: responsiveWidth(2),
-            borderBottomWidth: 1,
-            borderBottomColor: colors.borderColor,
-            borderColor: "#E5E7EB",
-            backgroundColor: "#FFFFFF",
-        },
-        td: {
-            ...typography.body2,
-            color: colors.text,
-            textAlign: "center",
-            fontSize: 12,
-            paddingVertical: 8,
-            paddingHorizontal: 6,
-        },
-        noDataContainer: {
-            marginTop: responsiveHeight(4),
+        accountIconBg: {
+            width: 50,
+            height: 50,
+            borderRadius: 25,
+            backgroundColor: colors.primary + "15",
             alignItems: "center",
             justifyContent: "center",
-            paddingVertical: responsiveHeight(3),
         },
-
-        noDataText: {
-            fontSize: 14,
-            fontFamily: typography?.medium || typography?.regular,
-            color: colors?.textSecondary || colors?.text,
-            textAlign: "center",
-        },
-
-        cellBorder: {
-            borderRightWidth: 1,
-            borderColor: "#E5E7EB",
-        },
-        reportPeriod: {
-            marginTop: 4,
-            fontSize: 13,
-            color: colors.textSecondary,
-            textAlign: "center",
-        },
-        totalRow: {
-            flexDirection: "row",
-            borderTopWidth: 1,
-            borderColor: colors.border,
-            paddingVertical: 10,
-            backgroundColor: colors.card,
-        },
-
-        totalText: {
-            fontWeight: "600",
-            fontSize: 14,
-            textAlign: "right",
-            paddingHorizontal: 6,
-        },
-
-        netTotalRow: {
-            flexDirection: "row",
-            paddingVertical: 10,
-            backgroundColor: colors.background,
-        },
-
-        netText: {
+        accountName: {
+            ...typography.body1,
             fontWeight: "700",
-            fontSize: 14,
-            textAlign: "right",
-            paddingHorizontal: 6,
+            color: colors.text,
         },
-        rowWrapper: {
-            borderBottomWidth: 1,
-            borderColor: "#ddd",
+        dateRange: {
+            ...typography.caption,
+            color: colors.grey500,
+            marginTop: 2,
+        },
+        summaryRow: {
+            flexDirection: "row",
+            paddingHorizontal: responsiveWidth(2),
+            paddingVertical: 10,
+            borderTopWidth: 1,
+            borderTopColor: "#f0f0f0",
+        },
+        stat: {
+            flex: 1,
+            alignItems: "center",
+        },
+        statLabel: {
+            ...typography.caption,
+            fontSize: 9,
+            color: colors.grey600,
+            textTransform: "uppercase",
+            marginBottom: 2,
+        },
+        statValue: {
+            fontSize: 12,
+            fontWeight: "700",
+        },
+        miniIndicator: {
+            fontSize: 8,
+            fontWeight: "700",
+        },
+        statDivider: {
+            width: 1,
+            height: 20,
+            backgroundColor: "#e0e0e0",
+            alignSelf: "center",
         },
 
-        narrationRow: {
+        // Cards
+        card: {
+            flexDirection: "row",
+            backgroundColor: colors.white,
+            marginHorizontal: responsiveWidth(3),
+            marginVertical: responsiveHeight(0.6),
+            borderRadius: 14,
+            padding: 12,
+            gap: 12,
+            elevation: 2,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.08,
+            shadowRadius: 3,
+        },
+        obCard: {
+            backgroundColor: colors.primary + "10",
+            borderLeftWidth: 4,
+            borderLeftColor: colors.primary,
+        },
+        dateCol: {
+            alignItems: "center",
+            justifyContent: "center",
+            width: 45,
+            gap: 4,
+        },
+        dayText: {
+            ...typography.h6,
+            fontWeight: "800",
+            color: colors.text,
+            lineHeight: 24,
+        },
+        monthPill: {
+            backgroundColor: "#f0f0f0",
+            paddingHorizontal: 6,
+            paddingVertical: 2,
+            borderRadius: 6,
+        },
+        monthText: {
+            fontSize: 9,
+            fontWeight: "700",
+            color: colors.grey700,
+            textTransform: "uppercase",
+        },
+        contentCol: {
+            flex: 1,
+            gap: 6,
+        },
+        topLine: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+        },
+        particulars: {
+            ...typography.body2,
+            fontWeight: "700",
+            color: colors.text,
+            flex: 1,
+        },
+        amount: {
+            ...typography.body2,
+            fontWeight: "800",
+            marginLeft: 10,
+        },
+        midLine: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+        },
+        invoiceNo: {
+            ...typography.caption,
+            color: colors.primary,
+            fontWeight: "600",
+        },
+        balBadge: {
+            backgroundColor: "#f5f5f5",
+            paddingHorizontal: 8,
+            paddingVertical: 2,
+            borderRadius: 6,
+            borderWidth: 0.5,
+            borderColor: "#e0e0e0",
+        },
+        balText: {
+            fontSize: 10,
+            fontWeight: "700",
+            color: colors.grey700,
+        },
+        narrationBox: {
+            flexDirection: "row",
+            gap: 6,
+            backgroundColor: "#FFF9C4", // Light yellow for expense details
             paddingHorizontal: 8,
             paddingVertical: 6,
-            backgroundColor: "#f7f7f7",
+            borderRadius: 8,
+            marginTop: 2,
         },
-
-        narrationText: {
+        narration: {
+            ...typography.caption,
+            color: "#5D4037",
             fontSize: 11,
-            color: "#555",
             lineHeight: 16,
+            flex: 1,
         },
 
-        narrationText2: {
-            fontSize: 11,
-            color: "#830606ff",
-            lineHeight: 16,
+        // Utils
+        loading: {
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: "rgba(255,255,255,0.8)",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
         },
-
-
+        loadingText: {
+            marginTop: 10,
+            color: colors.primary,
+            fontWeight: "600",
+        },
+        empty: {
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            paddingVertical: 100,
+        },
+        emptyTitle: {
+            ...typography.h6,
+            color: colors.grey400,
+            marginTop: 15,
+        },
+        emptySubtitle: {
+            ...typography.body2,
+            color: colors.grey400,
+            marginTop: 5,
+        },
     });
+
+export default TransactionListExpenses;

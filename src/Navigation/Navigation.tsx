@@ -1,28 +1,27 @@
-import { StatusBar } from "react-native";
-import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { NavigationContainer } from "@react-navigation/native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { StatusBar } from "react-native";
 import React from "react";
 
 import { useTheme } from "../Context/ThemeContext";
+import { RootStackParamList } from "./types";
+import DrawerNavigator from "../routes/DrawerNavigator";
 
 import SplashScreen from "../SplashScreen";
 import LoginScreen from "../Screens/Login/Login";
-import DrawerNavigator from "../routes/DrawerNavigator";
-import { RootStackParamList } from "./types";
 import SettingScreen from "../Screens/Home/SettingScreen";
 import ProfileScreen from "../Screens/Home/ProfileScreen";
+import CompanySwitch from "../Screens/Login/CompanySwitch";
+
 import SaleInvoice from "../Screens/Sales/SaleInvoice";
 import SaleOrder from "../Screens/Sales/SaleOrder";
 import PurchaseReportSummary from "../Screens/Purchase/PurchaseReportSummary";
 import PurchaseOrder from "../Screens/Purchase/PurchaseOrder";
 import PurchaseInvoices from "../Screens/Purchase/PurchaseInvoices";
 import ItemStack from "../Screens/Stack/ItemStack";
-import CompanySwitch from "../Screens/Login/CompanySwitch";
-import { SafeAreaProvider } from "react-native-safe-area-context";
 import ReceiptList from "../Screens/Receipts/ReceiptList";
-import PaymentList from "../Screens/Payment/PaymentList";
 import DeliveryPending from "../Screens/Sales/DeliveryPending";
-import SaleOrderPending from "../Screens/Sales/SaleorderPending";
 import OpeningStockItemWise from "../Screens/Home/OpeningStockItemWise";
 import OpeningStockGodownWise from "../Screens/Home/OpeningStockGodownWise";
 import SalesPendingOrderWise from "../Screens/Sales/SalesPendingOrderWise";
@@ -35,6 +34,8 @@ import TransactionListExpenses from "../Screens/Payment/TransactionListExpenses"
 import ItemWiseTransaction from "../Screens/Home/ItemWiseTransaction";
 import GodownItemWiseTransaction from "../Screens/Home/GodownitemTransaction";
 import GraphicalAnalysisReport from "../Screens/Home/GraphAnalyticsReport";
+
+// Not Used
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -86,10 +87,7 @@ const Navigation = () => {
                         component={SaleOrder}
                     />
 
-                    <Stack.Screen
-                        name="receiptList"
-                        component={ReceiptList}
-                    />
+                    <Stack.Screen name="receiptList" component={ReceiptList} />
 
                     <Stack.Screen
                         name="PurchaseReportSummary"
@@ -103,14 +101,8 @@ const Navigation = () => {
                         name="purchaseInvoice"
                         component={PurchaseInvoices}
                     />
-                    <Stack.Screen
-                        name="paymentList"
-                        component={PaymentList}
-                    />
-                    <Stack.Screen
-                        name="ItemStack"
-                        component={ItemStack}
-                    />
+
+                    <Stack.Screen name="ItemStack" component={ItemStack} />
                     <Stack.Screen
                         name="deliveryPend"
                         component={DeliveryPending}
@@ -119,7 +111,7 @@ const Navigation = () => {
                         name="saleorderpendorder"
                         component={SalesPendingOrderWise}
                     />
-                    <Stack.Screen 
+                    <Stack.Screen
                         name="saleorderpenditem"
                         component={SalesPendingItemWise}
                     />
@@ -131,22 +123,13 @@ const Navigation = () => {
                         name="Stockgodown"
                         component={OpeningStockGodownWise}
                     />
-                    <Stack.Screen
-                        name="transaction"
-                        component={Transaction}
-                    />
+                    <Stack.Screen name="transaction" component={Transaction} />
                     <Stack.Screen
                         name="transactionlist"
                         component={TransactionList}
                     />
-                    <Stack.Screen
-                        name="debtors"
-                        component={Debtors}
-                    />
-                    <Stack.Screen
-                        name="expenses"
-                        component={Expenses}
-                    />
+                    <Stack.Screen name="debtors" component={Debtors} />
+                    <Stack.Screen name="expenses" component={Expenses} />
                     <Stack.Screen
                         name="transactionlistexp"
                         component={TransactionListExpenses}
@@ -159,10 +142,12 @@ const Navigation = () => {
                         name="transactionlistgodownitem"
                         component={GodownItemWiseTransaction}
                     />
-                    <Stack.Screen 
+                    <Stack.Screen
                         name="graphicalanalysis"
                         component={GraphicalAnalysisReport}
                     />
+
+                    {/* Not Used */}
                 </Stack.Navigator>
             </NavigationContainer>
         </SafeAreaProvider>

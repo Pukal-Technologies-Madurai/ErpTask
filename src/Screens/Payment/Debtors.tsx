@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
     StyleSheet,
     Text,
@@ -5,18 +6,23 @@ import {
     View,
     RefreshControl,
     TextInput,
-    ScrollView,
+    FlatList,
+    ActivityIndicator,
 } from "react-native";
-import React, { useEffect, useMemo, useState } from "react";
-import AppHeader from "../../Components/AppHeader";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useTheme } from "../../Context/ThemeContext";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialIcons";
+
+import AppHeader from "../../Components/AppHeader";
 import FilterModal from "../../Components/FilterModal";
+import { useTheme } from "../../Context/ThemeContext";
 import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 import { fetchDebtorsCreditors } from "../../Api/debtorscreditors";
+import { formatCurrency } from "../../constants/utils";
+
+// -- Constants --
+const ITEMS_PER_PAGE = 15;
 
 type DebtorCreditor = {
     Acc_Id: string;
@@ -32,374 +38,358 @@ type DebtorCreditor = {
     Account_Types: "Debtor" | "Creditor";
 };
 
-const ITEMS_PER_PAGE = 10;
-
-/* ================= SCREEN ================= */
-
 const SundryDebtorsCreditors = () => {
     const { typography, colors } = useTheme();
     const styles = getStyles(typography, colors);
     const navigation = useNavigation<NativeStackNavigationProp<any>>();
+
+    // -- State --
     const [fromDate, setFromDate] = useState(new Date());
     const [toDate, setToDate] = useState(new Date());
-    const [tempFromDate, setTempFromDate] = useState(fromDate);
-    const [tempToDate, setTempToDate] = useState(toDate);
     const [searchQuery, setSearchQuery] = useState("");
-    const [refreshing, setRefreshing] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [modalVisible, setModalVisible] = useState(false);
-    const [activeTab, setActiveTab] =
-        useState<"Debtor" | "Creditor">("Debtor");
-    const [data, setData] = useState<DebtorCreditor[]>([]);
-    const [expandedAccId, setExpandedAccId] = useState<string | null>(null);
-    const fetchData = async () => {
-        setRefreshing(true);
+    const [activeTab, setActiveTab] = useState<"Debtor" | "Creditor">("Debtor");
+    const [rawData, setRawData] = useState<DebtorCreditor[]>([]);
+
+    // -- Data Fetching --
+    const fetchData = useCallback(async (fDate: Date, tDate: Date) => {
+        setLoading(true);
         try {
-            const res = await fetchDebtorsCreditors(fromDate, toDate);
-            setData(res);
-            setExpandedAccId(null);
-        } catch {
-            setData([]);
+            const res = await fetchDebtorsCreditors(fDate, tDate);
+            setRawData(res || []);
+        } catch (error) {
+            console.error("Fetch Debtors/Creditors Error:", error);
+            setRawData([]);
         } finally {
+            setLoading(false);
             setRefreshing(false);
         }
-    };
-
-    useEffect(() => {
-        fetchData();
     }, []);
 
-    const onRefresh = async () => {
+    useEffect(() => {
+        fetchData(fromDate, toDate);
+    }, []);
+
+    const onRefresh = () => {
         setRefreshing(true);
-        await fetchData();
-        setRefreshing(false);
+        fetchData(fromDate, toDate);
     };
 
-    const normalize = (v: string) =>
-        v.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+    const handleApplyFilter = () => {
+        setModalVisible(false);
+        fetchData(fromDate, toDate);
+    };
 
-    const hasAnyValue = (item: DebtorCreditor) =>
-        Math.abs(Number(item.Dr_Amount || 0)) > 0 ||
-        Math.abs(Number(item.Cr_Amount || 0)) > 0 ||
-        Math.abs(Number(item.Bal_Amount || 0)) > 0 ||
-        Math.abs(Number(String(item.OB_Amount).replace(/[^\d.-]/g, ""))) > 0;
+    // -- Logic & Filtering --
+    const filteredData = useMemo(() => {
+        let result = rawData.filter(item => item.Account_Types === activeTab);
 
-    const filteredData = data
-        .filter((i) => i.Account_Types === activeTab)
-        .filter((i) => {
-            const s = normalize(searchQuery);
-            return (
-                normalize(i.Retailer_Name).includes(s) ||
-                normalize(i.Group_Name).includes(s)
+        // Search filter
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            result = result.filter(
+                item =>
+                    item.Retailer_Name?.toLowerCase().includes(query) ||
+                    item.Group_Name?.toLowerCase().includes(query),
             );
-        })
-        // ✅ REMOVE ZERO-VALUE RECORDS HERE
-        .filter(hasAnyValue);
+        }
 
+        // Remove zero-value records (to keep it clean)
+        result = result.filter(item => {
+            const ob = Math.abs(Number(String(item.OB_Amount).replace(/[^\d.-]/g, "")));
+            return (
+                item.Dr_Amount !== 0 ||
+                item.Cr_Amount !== 0 ||
+                item.Bal_Amount !== 0 ||
+                ob !== 0
+            );
+        });
 
-    /* ================= SUMMARY ================= */
+        return result;
+    }, [rawData, activeTab, searchQuery]);
 
+    // Summary calculation for the active tab
     const summary = useMemo(() => {
         let totalDebit = 0;
         let totalCredit = 0;
-
         filteredData.forEach(item => {
-            totalDebit += Number(item?.Dr_Amount) || 0;
-            totalCredit += Number(item?.Cr_Amount) || 0;
+            totalDebit += item.Dr_Amount || 0;
+            totalCredit += item.Cr_Amount || 0;
         });
 
-        const outstanding = totalDebit - totalCredit;
-
+        const diff = totalDebit - totalCredit;
         return {
-            debit: totalDebit,
-            credit: totalCredit,
-            outstanding,
-            suffix: outstanding >= 0 ? "DR" : "CR",
+            totalDebit,
+            totalCredit,
+            diff: Math.abs(diff),
+            indicator: diff >= 0 ? "DR" : "CR",
         };
     }, [filteredData]);
 
+    // Pagination
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-    const displayData = filteredData.slice(
-        (currentPage - 1) * ITEMS_PER_PAGE,
-        currentPage * ITEMS_PER_PAGE
-    );
+    const paginatedData = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredData.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredData, currentPage]);
 
+    // Reset pagination on filter change
     useEffect(() => {
         setCurrentPage(1);
     }, [searchQuery, activeTab]);
 
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [filteredData.length]);
+    // -- Sub-Components --
 
+    const StatsHeader = () => (
+        <View style={styles.statsContainer}>
+            <View style={[styles.statCard, { borderLeftColor: colors.info }]}>
+                <Text style={styles.statLabel}>Total Debit</Text>
+                <Text style={[styles.statValue, { color: colors.info }]}>
+                    {formatCurrency(summary.totalDebit)}
+                </Text>
+            </View>
+            <View style={[styles.statCard, { borderLeftColor: colors.accent }]}>
+                <Text style={styles.statLabel}>Total Credit</Text>
+                <Text style={[styles.statValue, { color: colors.accent }]}>
+                    {formatCurrency(summary.totalCredit)}
+                </Text>
+            </View>
+            <View style={[styles.statCard, { borderLeftColor: colors.success }]}>
+                <Text style={styles.statLabel}>Outstanding ({summary.indicator})</Text>
+                <Text style={[styles.statValue, { color: colors.success }]}>
+                    {formatCurrency(summary.diff)}
+                </Text>
+            </View>
+        </View>
+    );
 
-    const handleApplyFilter = async () => {
-        setModalVisible(false);
+    const ToggleBar = () => (
+        <View style={styles.toggleWrapper}>
+            <View style={styles.toggleInner}>
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setActiveTab("Debtor")}
+                    style={[
+                        styles.toggleBtn,
+                        activeTab === "Debtor" && styles.toggleBtnActiveDebtor,
+                    ]}>
+                    <Icon
+                        name="arrow-upward"
+                        size={16}
+                        color={activeTab === "Debtor" ? colors.white : colors.info}
+                    />
+                    <Text
+                        style={[
+                            styles.toggleText,
+                            activeTab === "Debtor" && styles.toggleTextActive,
+                        ]}>
+                        Debtors
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setActiveTab("Creditor")}
+                    style={[
+                        styles.toggleBtn,
+                        activeTab === "Creditor" && styles.toggleBtnActiveCreditor,
+                    ]}>
+                    <Icon
+                        name="arrow-downward"
+                        size={16}
+                        color={activeTab === "Creditor" ? colors.white : colors.accent}
+                    />
+                    <Text
+                        style={[
+                            styles.toggleText,
+                            activeTab === "Creditor" && styles.toggleTextActive,
+                        ]}>
+                        Creditors
+                    </Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
 
-        // Update actual filter dates
-        setFromDate(tempFromDate);
-        setToDate(tempToDate);
-
-        // FORCE fetch immediately with selected dates
-        setRefreshing(true);
-        try {
-            const res = await fetchDebtorsCreditors(tempFromDate, tempToDate);
-            setData(res);
-            setExpandedAccId(null);
-        } catch {
-            setData([]);
-        } finally {
-            setRefreshing(false);
-        }
-    };
-
-    const formatApiDate = (d: Date) =>
-        d.toISOString().split("T")[0];
-
-    const getOBNumber = (ob: string | number) => {
-        if (typeof ob === "number") return ob;
-        return Number(ob.replace(/[^\d.-]/g, ""));
-    };
-
-    const getBalanceInfo = (dr: number, cr: number) => {
-        if (dr > cr) {
-            return {
-                value: dr - cr,
-                type: "DR",
-            };
-        } else if (cr > dr) {
-            return {
-                value: cr - dr,
-                type: "CR",
-            };
-        }
-        return {
-            value: 0,
-            type: "",
-        };
-    };
-
-
-    /* ================= CARD ================= */
-
-    const Card =
-        ({ item }: { item: DebtorCreditor }) => {
-            const expanded = expandedAccId === item.Acc_Id;
-            const isDebtor = item.Account_Types === "Debtor";
-
-            const obValue = getOBNumber(item.OB_Amount);
-            const balInfo = getBalanceInfo(
-                Number(item.Dr_Amount || 0),
-                Number(item.Cr_Amount || 0)
-            );
-
-
-            return (
-                <View style={styles.cardWrapper}>
-                    <TouchableOpacity
-                        activeOpacity={0.85}
-                        onPress={() =>
-                            setExpandedAccId(expanded ? null : item.Acc_Id)
-                        }
-                    >
-                        {/* HEADER */}
-                        <View style={styles.rowBetween}>
-                            <Text style={styles.title}>
-                                {item.Retailer_Name}
-                            </Text>
-
-                            <TouchableOpacity
-                                activeOpacity={0.7}
-                                onPress={() =>
-                                    navigation.navigate("transactionlist", {
-                                        retailer: item,
-                                        fromDate: formatApiDate(fromDate),
-                                        toDate: formatApiDate(toDate),
-                                        Acc_id: Number(item.Acc_Id),
-                                    })
-                                }
-                            >
-                                <Icon name="list-alt" size={25} color="#555555ff" />
-                            </TouchableOpacity>
-                        </View>
-
-                        <Text style={styles.subText}>
-                            {item.Group_Name}
-                        </Text>
+    const SearchBar = () => (
+        <View style={styles.searchWrapper}>
+            <View style={styles.searchBar}>
+                <Icon name="search" size={20} color={colors.grey500} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search by name or group..."
+                    placeholderTextColor={colors.grey400}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery("")}>
+                        <Icon name="close" size={20} color={colors.grey500} />
                     </TouchableOpacity>
+                )}
+            </View>
+        </View>
+    );
 
-                    {/* EXPANDED GRID (UNCHANGED) */}
-                    {expanded && (
-                        <View style={styles.gridWrapper}>
-                            <View style={styles.gridHeader}>
-                                <Text style={styles.gridTitle}>OB</Text>
-                                <Text style={styles.gridTitle}>Debit</Text>
-                                <Text style={styles.gridTitle}>Credit</Text>
-                                <Text style={styles.gridTitle}>Bal</Text>
-                            </View>
-                            <View style={styles.gridRow}>
-                                {/* OB – number only */}
-                                <Text style={styles.gridValue}>
-                                    {obValue.toLocaleString()}
+    const RenderItem = ({ item: it }: { item: DebtorCreditor }) => {
+        const isDR = it.CR_DR === "DR";
+        const accentColor = isDR ? colors.info : colors.accent;
+        const obVal = Number(String(it.OB_Amount).replace(/[^\d.-]/g, ""));
+
+        return (
+            <View style={styles.card}>
+                <View style={[styles.cardHeader, { borderLeftColor: accentColor }]}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.accountName} numberOfLines={1}>
+                            {it.Retailer_Name}
+                        </Text>
+                        <Text style={styles.groupName}>{it.Group_Name}</Text>
+                    </View>
+                    <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() =>
+                            navigation.navigate("transactionlist", {
+                                retailer: it,
+                                fromDate: fromDate.toISOString().split("T")[0],
+                                toDate: toDate.toISOString().split("T")[0],
+                                Acc_id: Number(it.Acc_Id),
+                            })
+                        }
+                        style={styles.historyBtn}>
+                        <Icon name="history" size={22} color={colors.primary} />
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.cardBody}>
+                    <View style={styles.dataRow}>
+                        <View style={styles.dataCol}>
+                            <Text style={styles.dataLabel}>Opening Balance</Text>
+                            <Text style={styles.dataValue}>{formatCurrency(obVal)}</Text>
+                        </View>
+                        <View style={styles.dataCol}>
+                            <Text style={styles.dataLabel}>Current Transactions</Text>
+                            <View style={{ flexDirection: "row", gap: 10 }}>
+                                <Text style={[styles.miniText, { color: colors.info }]}>
+                                    D: {formatCurrency(it.Dr_Amount)}
                                 </Text>
-
-                                {/* Debit */}
-                                <Text style={styles.gridValue}>
-                                    {Number(item.Dr_Amount).toLocaleString()}
-                                </Text>
-
-                                {/* Credit */}
-                                <Text style={styles.gridValue}>
-                                    {Number(item.Cr_Amount).toLocaleString()}
-                                </Text>
-
-                                {/* Balance with CR / DR */}
-                                <Text
-                                    style={[
-                                        styles.gridValue,
-                                        balInfo.type === "DR" ? styles.drText : styles.crText,
-                                    ]}
-                                >
-                                    {balInfo.value.toLocaleString()} {balInfo.type}
+                                <Text style={[styles.miniText, { color: colors.accent }]}>
+                                    C: {formatCurrency(it.Cr_Amount)}
                                 </Text>
                             </View>
                         </View>
-                    )}
-                </View>
-            );
-        };
+                    </View>
 
+                    <View style={styles.divider} />
+
+                    <View style={styles.footerRow}>
+                        <Text style={styles.balLabel}>Closing Balance</Text>
+                        <View style={[styles.balBadge, { backgroundColor: accentColor + "15" }]}>
+                            <Text style={[styles.balValue, { color: accentColor }]}>
+                                {formatCurrency(Math.abs(it.Bal_Amount))} {it.CR_DR}
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+            </View>
+        );
+    };
+
+    const Pagination = () => {
+        if (totalPages <= 1) return null;
+        return (
+            <View style={styles.pagination}>
+                <TouchableOpacity
+                    disabled={currentPage === 1}
+                    onPress={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    style={[styles.pageBtn, currentPage === 1 && styles.pageBtnDisabled]}>
+                    <Icon name="chevron-left" size={24} color={currentPage === 1 ? colors.grey300 : colors.primary} />
+                </TouchableOpacity>
+                <Text style={styles.pageInfo}>
+                    {currentPage} / {totalPages}
+                </Text>
+                <TouchableOpacity
+                    disabled={currentPage === totalPages}
+                    onPress={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    style={[styles.pageBtn, currentPage === totalPages && styles.pageBtnDisabled]}>
+                    <Icon name="chevron-right" size={24} color={currentPage === totalPages ? colors.grey300 : colors.primary} />
+                </TouchableOpacity>
+            </View>
+        );
+    };
+
+    const EmptyState = () => (
+        <View style={styles.emptyContainer}>
+            <Icon name={activeTab === "Debtor" ? "person-add" : "person-remove"} size={64} color={colors.grey200} />
+            <Text style={styles.emptyTitle}>No {activeTab}s Found</Text>
+            <Text style={styles.emptySubtitle}>Try adjusting your search or filters</Text>
+        </View>
+    );
+
+    // -- Main Render --
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top"]}>
             <AppHeader
-                title="Sundry DEB & CRE"
+                title="Debtors & Creditors"
                 navigation={navigation}
                 showRightIcon
                 rightIconLibrary="MaterialIcon"
-                rightIconName="filter-list"
+                rightIconName="date-range"
                 onRightPress={() => setModalVisible(true)}
             />
 
             <FilterModal
                 visible={modalVisible}
-                fromDate={tempFromDate}
-                toDate={tempToDate}
-                onFromDateChange={setTempFromDate}
-                onToDateChange={setTempToDate}
+                fromDate={fromDate}
+                toDate={toDate}
+                onFromDateChange={setFromDate}
+                onToDateChange={setToDate}
                 onApply={handleApplyFilter}
                 onClose={() => setModalVisible(false)}
                 showToDate
+                title="Select Date Range"
             />
 
-            <ScrollView
-                style={styles.scrollContainer}
+            <FlatList
+                data={paginatedData}
+                keyExtractor={item => item.Acc_Id}
+                renderItem={({ item }) => <RenderItem item={item} />}
+                ListHeaderComponent={
+                    <View>
+                        <StatsHeader />
+                        <ToggleBar />
+                        <SearchBar />
+                        <View style={styles.resultsInfo}>
+                            <Text style={styles.resultsText}>
+                                Showing {paginatedData.length} of {filteredData.length} records
+                            </Text>
+                        </View>
+                    </View>
+                }
+                ListFooterComponent={<Pagination />}
+                ListEmptyComponent={!loading ? <EmptyState /> : null}
+                contentContainerStyle={styles.listContent}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={onRefresh}
                         colors={[colors.primary]}
+                        tintColor={colors.primary}
                     />
                 }
-            >
-                {/* TOGGLE */}
-                <View style={styles.toggleCenter}>
-                    {["Debtor", "Creditor"].map((t) => (
-                        <TouchableOpacity
-                            key={t}
-                            style={[
-                                styles.toggleBtn,
-                                activeTab === t && styles.toggleActive,
-                            ]}
-                            onPress={() => setActiveTab(t as any)}
-                        >
-                            <Text
-                                style={[
-                                    styles.toggleText,
-                                    activeTab === t && styles.toggleTextActive,
-                                ]}
-                            >
-                                {t}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
+                showsVerticalScrollIndicator={false}
+            />
+
+            {loading && !refreshing && (
+                <View style={styles.loadingOverlay}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                    <Text style={styles.loadingText}>Analyzing Balances...</Text>
                 </View>
-
-                {/* SUMMARY */}
-                <View style={styles.summaryCard}>
-                    <Text style={styles.summaryText}>
-                        Total Debit: ₹ {summary.debit.toLocaleString()}
-                    </Text>
-
-                    <Text style={styles.summaryText}>
-                        Total Credit: ₹ {summary.credit.toLocaleString()}
-                    </Text>
-
-                    <Text
-                        style={[
-                            styles.summaryOutstanding,
-                            summary.suffix === "DR" ? styles.drText : styles.crText,
-                        ]}
-                    >
-                        Outstanding: ₹ {Math.abs(summary.outstanding).toLocaleString()}{" "}
-                        {summary.suffix}
-                    </Text>
-                </View>
-
-                {/* SEARCH */}
-                <View style={styles.searchContainer}>
-                    <Icon name="search" size={20} color={colors.textSecondary} />
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholder="Search by Retailer / Group"
-                        placeholderTextColor={colors.textSecondary}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                    />
-                </View>
-
-                {/* LIST */}
-                {displayData.map((item) => (
-                    <Card key={item.Acc_Id} item={item} />
-                ))}
-
-                {/* PAGINATION */}
-
-                {filteredData.length > ITEMS_PER_PAGE && (
-                    <View style={styles.paginationContainer}>
-                        <TouchableOpacity
-                            disabled={currentPage === 1}
-                            style={[
-                                styles.pageBtn,
-                                currentPage === 1 && styles.pageBtnDisabled,
-                            ]}
-                            onPress={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        >
-                            <Icon name="chevron-left" size={28} color={colors.primary} />
-                        </TouchableOpacity>
-
-                        <Text style={styles.pageInfo}>
-                            Page {currentPage} of {totalPages}
-                        </Text>
-
-                        <TouchableOpacity
-                            disabled={currentPage === totalPages}
-                            style={[
-                                styles.pageBtn,
-                                currentPage === totalPages && styles.pageBtnDisabled,
-                            ]}
-                            onPress={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        >
-                            <Icon name="chevron-right" size={28} color={colors.primary} />
-                        </TouchableOpacity>
-                    </View>
-                )}
-
-            </ScrollView>
+            )}
         </SafeAreaView>
     );
 };
-
-export default SundryDebtorsCreditors;
 
 const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
@@ -407,572 +397,260 @@ const getStyles = (typography: any, colors: any) =>
             flex: 1,
             backgroundColor: colors.primary,
         },
-        scrollContainer: {
-            backgroundColor: colors.white,
+        listContent: {
+            backgroundColor: "#f8f9fa",
+            paddingBottom: responsiveHeight(4),
+            flexGrow: 1,
         },
-        searchContainer: {
+
+        // Stats Header
+        statsContainer: {
+            flexDirection: "row",
+            padding: responsiveWidth(4),
+            gap: responsiveWidth(2.5),
+        },
+        statCard: {
+            flex: 1,
+            backgroundColor: colors.white,
+            padding: 10,
+            borderRadius: 12,
+            borderLeftWidth: 4,
+            elevation: 3,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+        },
+        statLabel: {
+            ...typography.caption,
+            color: colors.grey600,
+            fontSize: 9,
+            textTransform: "uppercase",
+            marginBottom: 2,
+        },
+        statValue: {
+            fontSize: 12,
+            fontWeight: "700",
+        },
+
+        // Toggle Bar
+        toggleWrapper: {
+            paddingHorizontal: responsiveWidth(4),
+            marginBottom: responsiveHeight(1.5),
+        },
+        toggleInner: {
+            flexDirection: "row",
+            backgroundColor: "#e0e0e0",
+            borderRadius: 12,
+            padding: 4,
+        },
+        toggleBtn: {
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            paddingVertical: 10,
+            borderRadius: 10,
+            gap: 6,
+        },
+        toggleBtnActiveDebtor: {
+            backgroundColor: colors.info,
+        },
+        toggleBtnActiveCreditor: {
+            backgroundColor: colors.accent,
+        },
+        toggleText: {
+            ...typography.body2,
+            fontWeight: "700",
+            color: colors.grey600,
+        },
+        toggleTextActive: {
+            color: colors.white,
+        },
+
+        // Search Bar
+        searchWrapper: {
+            paddingHorizontal: responsiveWidth(4),
+            marginBottom: responsiveHeight(1),
+        },
+        searchBar: {
             flexDirection: "row",
             alignItems: "center",
             backgroundColor: colors.white,
-            marginHorizontal: responsiveWidth(4),
-            marginBottom: responsiveHeight(1.5),
-            marginTop: responsiveHeight(1),
-            borderRadius: responsiveWidth(2),
-            paddingHorizontal: responsiveWidth(4),
-            paddingVertical: responsiveHeight(1),
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.1,
-            shadowRadius: 2,
-            elevation: 2,
+            borderRadius: 12,
+            paddingHorizontal: 15,
+            height: 48,
+            borderWidth: 1,
+            borderColor: "#e0e0e0",
         },
         searchInput: {
             flex: 1,
-            ...typography.body1,
             color: colors.text,
-            paddingVertical: 8,
-        },
-        summaryContainer: {
-            flexDirection: "row",
-            paddingHorizontal: responsiveWidth(4),
-            marginVertical: responsiveHeight(2),
-            gap: responsiveWidth(2),
-        },
-        summaryCard: {
-            flex: 1,
-            backgroundColor: colors.white,
-            padding: responsiveWidth(3),
-            borderRadius: responsiveWidth(2),
-            alignItems: "center",
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.1,
-            shadowRadius: 2,
-            elevation: 2,
-        },
-        summaryValue: {
-            ...typography.body1,
-            color: colors.text,
-            fontWeight: "700",
-            textAlign: "center",
-        },
-        summaryLabel: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            textAlign: "center",
-        },
-        orderCard: {
-            backgroundColor: colors.white,
-            borderRadius: responsiveWidth(2),
-            marginHorizontal: responsiveWidth(4),
-            marginVertical: responsiveHeight(0.8),
-            elevation: 2,
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.1,
-            shadowRadius: 2,
-        },
-        orderHeader: {
-            padding: responsiveWidth(3),
-        },
-        orderHeaderLeft: {
-            flex: 1,
-            marginRight: 8,
-        },
-        orderTopRow: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 4,
-        },
-        orderBottomRow: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-        },
-        orderNumberContainer: {
-            flexDirection: "column",
-        },
-        orderNumber: {
-            ...typography.subtitle2,
-            fontWeight: "600",
-            color: colors.primary,
-        },
-        orderNumber1: {
-            ...typography.subtitle2,
-            fontWeight: "600",
-            color: colors.accent,
-        },
-        dateTimeContainer: {
-            flexDirection: "row",
-            alignItems: "center",
-            marginTop: 4,
-        },
-        dateTimeIcon: {
-            marginHorizontal: 4,
-        },
-        orderDateTime: {
-            ...typography.caption,
-            color: colors.textsecondary,
-        },
-        orderAmount: {
-            ...typography.body1,
-            color: colors.success,
-            fontWeight: "600",
-            marginTop: 6,
-            maxWidth: "100%",
-            overflow: "hidden",
-            textAlign: "left",
-            flexShrink: 0,
-        },
-        retailerContainer: {
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center",
-            marginRight: 8,
-        },
-        salesPersonContainer: {
-            flexDirection: "row",
-            alignItems: "center",
-        },
-        bottomRowIcon: {
-            marginRight: 4,
-        },
-        retailerName: {
+            marginLeft: 10,
             ...typography.body2,
-            color: colors.text,
-            flex: 1,
         },
-        salesPerson: {
-            ...typography.caption,
-            color: colors.textSecondary,
-        },
-        orderDetails: {
-            paddingBottom: 12,
-        },
-        essentialInfo: {
-            padding: responsiveWidth(2),
-            backgroundColor: colors.background,
-            borderRadius: responsiveWidth(2),
-            marginHorizontal: responsiveWidth(3),
-        },
-        infoGrid: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            gap: responsiveWidth(1.5),
-        },
-        infoItem: {
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: colors.white,
-            padding: responsiveWidth(2),
-            borderRadius: responsiveWidth(1.5),
-        },
-        infoContent: {
-            marginLeft: 8,
-            flex: 1,
-        },
-        infoLabel: {
-            ...typography.caption,
-            color: colors.textSecondary,
-        },
-        infoValue: {
-            ...typography.caption,
-            color: colors.text,
-            fontWeight: "600",
-        },
-        productsTable: {
-            marginTop: responsiveHeight(1.5),
-            marginHorizontal: responsiveWidth(3),
-            borderWidth: 1,
-            borderColor: colors.borderColor,
-            borderRadius: responsiveWidth(1),
-        },
-        tableHeader: {
-            flexDirection: "row",
-            backgroundColor: colors.background,
-            paddingVertical: responsiveHeight(1),
-            paddingHorizontal: responsiveWidth(3),
-            borderBottomWidth: 1,
-            borderBottomColor: colors.borderColor,
-        },
-        tableRow: {
-            flexDirection: "row",
-            paddingVertical: responsiveHeight(1),
-            paddingHorizontal: responsiveWidth(3),
-            borderBottomWidth: 1,
-            borderBottomColor: colors.borderColor,
-        },
-        tableCell: {
-            flex: 1,
-            ...typography.body2,
-            color: colors.text,
-        },
-        productNameCell: {
-            flex: 2,
-        },
-        brandFilterContainer: {
+
+        // Results Text
+        resultsInfo: {
             paddingHorizontal: responsiveWidth(4),
-            marginVertical: responsiveHeight(1.5),
-        },
-        brandFilterButton: {
-            paddingVertical: responsiveHeight(0.5),
-            paddingHorizontal: responsiveWidth(4),
-            marginRight: responsiveWidth(1.2),
-            borderRadius: responsiveWidth(5),
-            backgroundColor: colors.background,
-            flexDirection: "column",
-            alignItems: "center",
-        },
-        brandFilterButtonActive: {
-            backgroundColor: colors.primary,
-        },
-        brandFilterText: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            marginBottom: 4,
-        },
-        brandFilterTextActive: {
-            color: colors.white,
-        },
-        resultsContainer: {
-            paddingHorizontal: 16,
             marginBottom: 8,
+            alignItems: "center",
         },
         resultsText: {
             ...typography.caption,
-            color: colors.textSecondary,
-            textAlign: "center",
-        },
-        paginationContainer: {
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            paddingVertical: 16,
-            gap: 16,
-        },
-        pageButton: {
-            padding: 8,
-            borderRadius: "50%",
-            backgroundColor: colors.secondary,
-        },
-        pageButtonDisabled: {
-            opacity: 0.5,
-        },
-        pageInfo: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            fontSize: typography.fontSizeMedium,
-            marginHorizontal: responsiveWidth(2),
-        },
-        loadingContainer: {
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 32,
-        },
-        loadingText: {
-            ...typography.body1,
-            color: colors.textSecondary,
-        },
-        errorContainer: {
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 32,
-        },
-        errorText: {
-            ...typography.body1,
-            color: colors.error,
-            textAlign: "center",
-            fontWeight: "600",
-        },
-        retryButton: {
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: colors.primary,
-            paddingHorizontal: 16,
-            paddingVertical: 8,
-            borderRadius: 8,
-            marginTop: 16,
-        },
-        retryButtonText: {
-            ...typography.button,
-            color: colors.white,
-            marginLeft: 8,
-            textAlign: "center",
-            fontWeight: "600",
-            marginTop: 16,
-        },
-        errorSubtext: {
-            ...typography.body2,
-            color: colors.textSecondary,
-            textAlign: "center",
-            marginTop: 8,
-        },
-        noDataContainer: {
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 32,
-        },
-        noDataText: {
-            ...typography.body1,
-            color: colors.textSecondary,
-            textAlign: "center",
-            fontWeight: "600",
-            marginTop: 16,
-        },
-        noDataSubtext: {
-            ...typography.body2,
-            color: colors.textSecondary,
-            textAlign: "center",
-            marginTop: 8,
-        },
-        arrowButton: {
-            paddingVertical: responsiveHeight(1),
-            paddingHorizontal: responsiveWidth(3),
-            backgroundColor: colors.primary,
-            borderRadius: 6,
-        },
-        arrowButtonDisabled: {
-            backgroundColor: colors.disabled || "#ccc",
-        },
-        arrowText: {
-            color: colors.white,
-            fontSize: typography.fontSizeLarge,
-            fontWeight: "bold",
-        },
-        retailerCard: {
-            backgroundColor: colors.white,
-            borderRadius: responsiveWidth(2),
-            marginHorizontal: responsiveWidth(4),
-            marginVertical: responsiveHeight(0.8),
-            padding: responsiveWidth(3),
-            elevation: 2,
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.1,
-            shadowRadius: 2,
-        },
-        retailerTitle: {
-            ...typography.subtitle2,
-            color: colors.primary,
-            fontWeight: "600",
-            marginBottom: responsiveHeight(0.6),
-        },
-        retailerText: {
-            ...typography.body2,
-            color: colors.textSecondary,
-            marginBottom: responsiveHeight(0.4),
-        },
-        retailerRow: {
-            flexDirection: "row",
-            alignItems: "center",
-            marginVertical: 2,
-            gap: 8,
-        },
-        toggleRow: {
-            flexDirection: "row",
-            padding: 10,
-        },
-        toggleBtn: {
-            borderWidth: 1,
-            borderColor: colors.primary,
-            paddingVertical: 6,
-            paddingHorizontal: 14,
-            marginRight: 10,
-            borderRadius: 4,
-        },
-        toggleActive: {
-            backgroundColor: colors.primary
-        },
-        toggleText: {
-            color: colors.primary,
-            fontWeight: "600"
-        },
-        toggleTextActive: {
-            color: "#FFF"
-        },
-        amount: {
-            fontWeight: "700"
-        },
-        pagination: {
-            flexDirection: "row",
-            justifyContent: "center",
-            padding: 10,
-        },
-        card: {
-            backgroundColor: colors.white,
-            marginHorizontal: 10,
-            marginVertical: 6,
-            padding: 12,
-            borderRadius: 6,
-        },
-        ledgerContainer: {
-            marginTop: responsiveHeight(1),
-            paddingTop: responsiveHeight(1),
-            borderTopWidth: 1,
-            borderTopColor: colors.borderColor,
+            color: colors.grey500,
+            fontSize: 11,
         },
 
-        ledgerHeader: {
-            flexDirection: "row",
-            paddingBottom: 6,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.borderColor,
-        },
-        ledgerRow: {
-            flexDirection: "row",
-            paddingVertical: 6,
-        },
-        ledgerCell: {
-            flex: 1,
-            ...typography.caption,
-            color: colors.text,
-        },
-        ledgerCellRight: {
-            flex: 1,
-            textAlign: "right",
-            ...typography.caption,
-            color: colors.text,
-            fontWeight: "600",
-        },
-        table: {
-            marginTop: responsiveHeight(1),
-            backgroundColor: colors.background,
-            borderRadius: responsiveWidth(1.5),
-            padding: responsiveWidth(3),
-        },
-        cellLabel: {
-            ...typography.caption,
-            color: colors.textSecondary,
-        },
-        cellValue: {
-            ...typography.body2,
-            color: colors.text,
-        },
-        bold: {
-            fontWeight: "700",
-        },
-        rowBetween: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-        },
-        title: {
-            fontSize: 16,
-            fontWeight: "600",
-            color: colors.primary,
-            flex: 1,
-        },
-        subText: {
-            fontSize: 14,
-            color: colors.textSecondary,
-            marginTop: 8,
-        },
-        typeBadge: {
-            paddingHorizontal: 10,
-            paddingVertical: 4,
-            borderRadius: 20,
-        },
-        debtorBadge: {
-            backgroundColor: "#FFEBEE",
-        },
-        creditorBadge: {
-            backgroundColor: "#E8F5E9",
-        },
-        typeText: {
-            fontSize: 12,
-            fontWeight: "600",
-        },
-        gridWrapper: {
-            marginTop: 12,
-            borderTopWidth: 1,
-            borderColor: colors.borderColor,
-            paddingTop: 10,
-        },
-        gridHeader: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-        },
-        gridRow: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            marginTop: 6,
-        },
-        gridTitle: {
-            width: "25%",
-            textAlign: "center",
-            fontSize: 12,
-            color: colors.textSecondary,
-        },
-        gridValue: {
-            width: "25%",
-            textAlign: "center",
-            fontSize: 13,
-            fontWeight: "600",
-            color: colors.text,
-        },
-        drText: {
-            color: "#E53935",
-        },
-        crText: {
-            color: "#2E7D32",
-        },
-        cardWrapper: {
+        // Card Styling
+        card: {
             backgroundColor: colors.white,
-            borderRadius: 14,
-            padding: 14,
-            marginHorizontal: 12,
-            marginBottom: 14,
-            elevation: 3,
+            marginHorizontal: responsiveWidth(4),
+            marginVertical: responsiveHeight(0.7),
+            borderRadius: 16,
+            overflow: "hidden",
+            elevation: 2,
             shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
             shadowOpacity: 0.08,
-            shadowRadius: 6,
-            shadowOffset: { width: 0, height: 3 },
+            shadowRadius: 3,
+        },
+        cardHeader: {
+            flexDirection: "row",
+            alignItems: "center",
+            padding: 12,
+            borderLeftWidth: 5,
+            backgroundColor: "#fcfcfc",
+            borderBottomWidth: 1,
+            borderBottomColor: "#f0f0f0",
+        },
+        accountName: {
+            ...typography.body2,
+            fontWeight: "700",
+            color: colors.text,
+        },
+        groupName: {
+            ...typography.caption,
+            color: colors.grey500,
+            fontSize: 10,
+            marginTop: 1,
+        },
+        historyBtn: {
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: colors.primary + "10",
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        cardBody: {
+            padding: 12,
+        },
+        dataRow: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            marginBottom: 10,
+        },
+        dataCol: {
+            flex: 1,
+        },
+        dataLabel: {
+            ...typography.caption,
+            color: colors.grey500,
+            fontSize: 10,
+            marginBottom: 2,
+        },
+        dataValue: {
+            ...typography.body2,
+            fontWeight: "600",
+            color: colors.text,
+        },
+        miniText: {
+            fontSize: 11,
+            fontWeight: "600",
         },
         divider: {
             height: 1,
-            backgroundColor: colors.borderColor,
-            marginVertical: 10,
+            backgroundColor: "#f0f0f0",
+            marginVertical: 4,
         },
-        toggleCenter: {
+        footerRow: {
             flexDirection: "row",
-            justifyContent: "center",
-            marginTop: responsiveHeight(1.5),
-            marginBottom: responsiveHeight(2),
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginTop: 8,
         },
-        grid: {
-            marginTop: responsiveHeight(1.5),
-            borderWidth: 1,
-            borderColor: colors.borderColor,
-            borderRadius: 8,
-            overflow: "hidden",
-            backgroundColor: colors.white,
-        },
-        summaryText: {
-            fontSize: 14,
-            color: colors.text,
-            fontWeight: "500",
-            marginBottom: responsiveHeight(0.4),
-        },
-        summaryOutstanding: {
-            fontSize: 15,
+        balLabel: {
+            ...typography.body2,
             fontWeight: "700",
+            color: colors.text,
         },
-        pageBtn: {
-            padding: 8,
-            borderRadius: 999,
-            backgroundColor: "rgba(0,0,0,0.06)",
+        balBadge: {
+            paddingHorizontal: 12,
+            paddingVertical: 4,
+            borderRadius: 8,
         },
-        pageBtnDisabled: {
-            opacity: 0.3,
-        },
-        pageBtnText: {
-            color: colors.white,
-            fontWeight: "600",
+        balValue: {
+            fontWeight: "800",
+            fontSize: 13,
         },
 
+        // Pagination
+        pagination: {
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            paddingVertical: 20,
+            gap: 20,
+        },
+        pageBtn: {
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: colors.white,
+            alignItems: "center",
+            justifyContent: "center",
+            elevation: 2,
+        },
+        pageBtnDisabled: {
+            backgroundColor: "#f0f0f0",
+            elevation: 0,
+        },
+        pageInfo: {
+            ...typography.body2,
+            fontWeight: "700",
+            color: colors.grey700,
+        },
+
+        // Utils
+        loadingOverlay: {
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: "rgba(255,255,255,0.8)",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+        },
+        loadingText: {
+            marginTop: 12,
+            color: colors.primary,
+            fontWeight: "600",
+        },
+        emptyContainer: {
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            paddingVertical: 100,
+        },
+        emptyTitle: {
+            ...typography.h6,
+            color: colors.grey400,
+            marginTop: 15,
+        },
+        emptySubtitle: {
+            ...typography.body2,
+            color: colors.grey400,
+            marginTop: 5,
+        },
     });
+
+export default SundryDebtorsCreditors;

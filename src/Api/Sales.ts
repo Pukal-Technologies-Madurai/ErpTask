@@ -24,7 +24,9 @@ export const salesInvoice = async (
         // ✅ Append dynamic filters (if provided)
         const filterParams = Object.entries(filters)
             .filter(([_, v]) => v !== "" && v !== null && v !== undefined)
-            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+            .map(
+                ([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`,
+            )
             .join("&");
 
         if (filterParams) {
@@ -47,7 +49,7 @@ export const salesInvoice = async (
 
         if (!json.success) {
             throw new Error(
-                json.message || "Failed to fetch sales invoice data"
+                json.message || "Failed to fetch sales invoice data",
             );
         }
 
@@ -65,7 +67,7 @@ export const salesOrderInvoice = async (
     from: Date | string,
     to: Date | string,
     userId: any,
-    branchId: any
+    branchId: any,
 ) => {
     try {
         const fromStr =
@@ -90,7 +92,7 @@ export const salesOrderInvoice = async (
 
         if (!json.success) {
             throw new Error(
-                json.message || "Failed to fetch sales invoice data"
+                json.message || "Failed to fetch sales invoice data",
             );
         }
         return json.data || [];
@@ -120,7 +122,6 @@ export const fetchSalesInvoiceFilters = async () => {
         }
 
         return json.data || [];
-
     } catch (err) {
         console.error("Error fetching filters:", err);
         throw err;
@@ -131,11 +132,13 @@ export const DeliveryPendingList = async (
     from: Date | string,
     to: Date | string,
     userId: any,
-    branchId: any
+    branchId: any,
 ) => {
     try {
-        const fromStr = typeof from === "string" ? from : from.toISOString().split("T")[0];
-        const toStr = typeof to === "string" ? to : to.toISOString().split("T")[0];
+        const fromStr =
+            typeof from === "string" ? from : from.toISOString().split("T")[0];
+        const toStr =
+            typeof to === "string" ? to : to.toISOString().split("T")[0];
 
         const url = API.deliveryPending(fromStr, toStr, userId, branchId);
 
@@ -155,7 +158,6 @@ export const DeliveryPendingList = async (
         console.error("Error fetching delivery data:", error);
         throw error;
     }
-
 };
 
 export const salesOrderPendingList = async (
@@ -163,7 +165,7 @@ export const salesOrderPendingList = async (
     to: Date | string,
     userId: any,
     branchId: number | string,
-    filters?: Record<string, string>
+    filters?: Record<string, string>,
 ) => {
     try {
         const fromStr =
@@ -200,7 +202,7 @@ export const salesOrderPendingList = async (
 
         if (!json.success) {
             throw new Error(
-                json.message || "Failed to fetch sale order pending data"
+                json.message || "Failed to fetch sale order pending data",
             );
         }
 
@@ -216,7 +218,7 @@ export const salesOrderPendingItemList = async (
     to: Date | string,
     userId: any,
     branchId: number | string,
-    filters?: Record<string, string>
+    filters?: Record<string, string>,
 ) => {
     try {
         const fromStr =
@@ -253,7 +255,7 @@ export const salesOrderPendingItemList = async (
 
         if (!json.success) {
             throw new Error(
-                json.message || "Failed to fetch sale order pending data"
+                json.message || "Failed to fetch sale order pending data",
             );
         }
 
@@ -264,21 +266,21 @@ export const salesOrderPendingItemList = async (
     }
 };
 
-
 export const getFilterColumnName = async () => {
     try {
-        
-        const url = API.getReportFilters("Sales Invoice"); 
+        const url = API.getReportFilters("Sales Invoice");
         console.log("getFilterColumnName url", url);
 
-        const res = await fetch(url, { 
-            method: "GET", 
-            headers: { "Content-Type": "application/json" } 
+        const res = await fetch(url, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
         });
         const json = await res.json();
 
         if (!res.ok || !json.success) {
-            throw new Error(json.message || "Failed to fetch filter column name");
+            throw new Error(
+                json.message || "Failed to fetch filter column name",
+            );
         }
 
         return json.data || [];
@@ -286,23 +288,23 @@ export const getFilterColumnName = async () => {
         console.error("Error fetching filter column name:", error);
         throw error;
     }
-    
 };
 
 export const getFilterSaleorderPending = async () => {
     try {
-        
-        const url = API.getReportFilters("SalesReturn"); 
+        const url = API.getReportFilters("SalesReturn");
         console.log("getFilterColumnName url", url);
 
-        const res = await fetch(url, { 
-            method: "GET", 
-            headers: { "Content-Type": "application/json" } 
+        const res = await fetch(url, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
         });
         const json = await res.json();
 
         if (!res.ok || !json.success) {
-            throw new Error(json.message || "Failed to fetch filter column name");
+            throw new Error(
+                json.message || "Failed to fetch filter column name",
+            );
         }
 
         return json.data || [];
@@ -310,8 +312,4 @@ export const getFilterSaleorderPending = async () => {
         console.error("Error fetching filter column name:", error);
         throw error;
     }
-    
 };
-
-
-

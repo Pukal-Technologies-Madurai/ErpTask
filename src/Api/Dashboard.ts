@@ -7,10 +7,11 @@ export const getSalesGraph = async (
 ) => {
     try {
         const url = API.dashboardsalesgraph(from, to);
+        console.log("Dashboard URL", url);
         const res = await fetch(url);
         const json = await res.json();
 
-     
+
 
         // ✅ FIX: return actual data object
         if (json?.success && json?.data) {

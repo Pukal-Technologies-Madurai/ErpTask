@@ -33,10 +33,17 @@ interface NavigationProp {
 type AppHeaderProps = {
     title?: string;
     navigation: NavigationProp;
+    // --- First right icon ---
     showRightIcon?: boolean;
     rightIconName?: string;
     rightIconLibrary?: keyof typeof iconLibraries;
     onRightPress?: () => void;
+    // --- Second right icon (optional) ---
+    showRightIcon2?: boolean;
+    rightIconName2?: string;
+    rightIconLibrary2?: keyof typeof iconLibraries;
+    onRightPress2?: () => void;
+    // --- Other ---
     showBack?: boolean;
     showDrawer?: boolean;
     subtitle?: string;
@@ -55,6 +62,10 @@ const AppHeader: FC<AppHeaderProps> = ({
     rightIconName = "",
     rightIconLibrary = "MaterialIcon",
     onRightPress = () => {},
+    showRightIcon2 = false,
+    rightIconName2 = "",
+    rightIconLibrary2 = "MaterialIcon",
+    onRightPress2 = () => {},
     showBack = true,
     showDrawer = false,
     subtitle = "",
@@ -69,6 +80,11 @@ const AppHeader: FC<AppHeaderProps> = ({
     const styles = getStyles(typography, colors);
 
     const RightIcon = rightIconLibrary ? iconLibraries[rightIconLibrary] : null;
+    const RightIcon2 = rightIconLibrary2 ? iconLibraries[rightIconLibrary2] : null;
+
+    const hasAnyRightIcon =
+        (showRightIcon && RightIcon && rightIconName) ||
+        (showRightIcon2 && RightIcon2 && rightIconName2);
 
     return (
         <View style={styles.headerContainer}>
@@ -145,17 +161,33 @@ const AppHeader: FC<AppHeaderProps> = ({
                     )}
                 </View>
 
-                {showRightIcon && RightIcon && rightIconName ? (
-                    <TouchableOpacity
-                        onPress={onRightPress}
-                        style={styles.iconButton}
-                        activeOpacity={0.7}>
-                        <RightIcon
-                            name={rightIconName}
-                            size={22}
-                            color={colors.white}
-                        />
-                    </TouchableOpacity>
+                {hasAnyRightIcon ? (
+                    <View style={styles.rightIconsContainer}>
+                        {showRightIcon && RightIcon && rightIconName && (
+                            <TouchableOpacity
+                                onPress={onRightPress}
+                                style={styles.iconButton}
+                                activeOpacity={0.7}>
+                                <RightIcon
+                                    name={rightIconName}
+                                    size={22}
+                                    color={colors.white}
+                                />
+                            </TouchableOpacity>
+                        )}
+                        {showRightIcon2 && RightIcon2 && rightIconName2 && (
+                            <TouchableOpacity
+                                onPress={onRightPress2}
+                                style={styles.iconButton}
+                                activeOpacity={0.7}>
+                                <RightIcon2
+                                    name={rightIconName2}
+                                    size={22}
+                                    color={colors.white}
+                                />
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 ) : (
                     <View style={styles.placeholder} />
                 )}
@@ -235,5 +267,9 @@ const getStyles = (typography: any, colors: any) =>
         placeholder: {
             width: responsiveWidth(10),
             height: responsiveWidth(10),
+        },
+        rightIconsContainer: {
+            flexDirection: "row",
+            alignItems: "center",
         },
     });

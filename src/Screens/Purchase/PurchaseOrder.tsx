@@ -1,783 +1,391 @@
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
     StyleSheet,
     Text,
     View,
-    ScrollView,
     TextInput,
     TouchableOpacity,
     RefreshControl,
     ActivityIndicator,
-    Pressable,
+    FlatList,
 } from "react-native";
-import React from "react";
-import { useTheme } from "../../Context/ThemeContext";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import Icon from "react-native-vector-icons/MaterialIcons";
+import { MMKV } from "react-native-mmkv";
+
+import { useTheme } from "../../Context/ThemeContext";
 import { getPurchaseOrderEntry } from "../../Api/Purchase";
 import { RootStackParamList } from "../../Navigation/types";
 import { responsiveHeight, responsiveWidth } from "../../constants/helper";
 import AppHeader from "../../Components/AppHeader";
 import FilterModal from "../../Components/FilterModal";
 import { formatCurrency } from "../../constants/utils";
-import { MMKV } from "react-native-mmkv";
+
+/* ================= TYPES ================= */
+
+type OrderItem = {
+    Id: number;
+    ItemName: string;
+    Stock_Group: string;
+    Weight: number;
+    Rate: number;
+    DeliveryLocation: string;
+    Stock_Item: string;
+};
+
+type DeliveryDetail = {
+    Location: string;
+    ArrivalDate: string;
+    ItemName: string;
+    BilledRate: number;
+    Quantity: number;
+    Weight: number;
+};
+
+type StaffDetail = {
+    Emp_Name: string;
+    Cost_Category: string;
+};
+
+type Order = {
+    Id: number;
+    PO_ID: string;
+    PartyName: string;
+    Party_District: string;
+    OrderStatus: string;
+    CreatedAt: string;
+    LoadingDate: string;
+    TradeConfirmDate: string;
+    ItemDetails: OrderItem[];
+    DeliveryDetails: DeliveryDetail[];
+    StaffDetails: StaffDetail[];
+    IsConvertedAsInvoice: number;
+    Remarks?: string;
+};
+
+/* ================= SCREEN ================= */
 
 const PurchaseOrder = ({ route }: { route: any }) => {
-    const item = route.params || {};
-    const branchIdProps = item.branchId;
-
+    const { branchId: branchIdProps } = route.params || {};
     const { colors, typography } = useTheme();
-    const storage = new MMKV();
     const styles = getStyles(typography, colors);
-    const navigation =
-        useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const storage = new MMKV();
 
-    const [fromDate, setFromDate] = React.useState<Date>(new Date());
-    const [toDate, setToDate] = React.useState<Date>(new Date());
-    const [userId, setUserId] = React.useState(0);
-    const [branchId, setBranchId] = React.useState("");
-    const [searchQuery, setSearchQuery] = React.useState("");
-    const [expandedOrderId, setExpandedOrderId] = React.useState<number | null>(
-        null,
-    );
-    const [currentPage, setCurrentPage] = React.useState(1);
-    const [refreshing, setRefreshing] = React.useState(false);
-    const [modalVisible, setModalVisible] = React.useState(false);
-    const [activeTab, setActiveTab] = React.useState<"orders" | "items">(
-        "orders",
-    );
+    // -- State --
+    const [fromDate, setFromDate] = useState<Date>(new Date());
+    const [toDate, setToDate] = useState<Date>(new Date());
+    const [searchQuery, setSearchQuery] = useState("");
+    const [modalVisible, setModalVisible] = useState(false);
+    const [activeTab, setActiveTab] = useState<"orders" | "items">("orders");
+    const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+    const [userId, setUserId] = useState(0);
 
-    const ITEMS_PER_PAGE = 10;
+    // -- Init --
+    useEffect(() => {
+        const uId = storage.getString("userId");
+        if (uId) setUserId(parseInt(uId));
+    }, []);
 
-     React.useEffect(() => {
-                const userId =  storage.getString("userId")
-                const branchId =  storage.getString("branchId")
-                
-                if (userId) setUserId(parseInt(userId));
-                if (branchId) setBranchId(branchId);
-            }, []);
-
-    // Define types for the order and item
-    type OrderItem = {
-        Stock_Item: string;
-        Stock_Group: string;
-        Weight: number;
-        Rate: number;
-    };
-
-    type Order = {
-        ItemDetails?: OrderItem[];
-        PartyName?: string;
-        PO_ID?: string;
-        OrderStatus?: string;
-        CreatedAt: string;
-    };
-
+    // -- Data --
     const {
         data: purchaseOrderData = [],
         isLoading,
-        error,
         refetch,
+        isRefetching
     } = useQuery({
-        queryKey: ["purchaseOrderReport", fromDate, toDate],
+        queryKey: ["purchaseOrderReport", fromDate, toDate, userId, branchIdProps],
         queryFn: () => getPurchaseOrderEntry(fromDate, toDate, userId, branchIdProps),
-        enabled: !!fromDate && !!toDate&& !!userId && !!branchIdProps,
+        enabled: !!userId && !!branchIdProps,
     });
 
-    // Filter and sort data
-    const filteredData = React.useMemo(() => {
-        let filtered = purchaseOrderData.filter(
-            (order: Order) =>
-                order.PartyName?.toLowerCase().includes(
-                    searchQuery.toLowerCase(),
-                ) ||
-                order.PO_ID?.toLowerCase().includes(
-                    searchQuery.toLowerCase(),
-                ) ||
-                order.OrderStatus?.toLowerCase().includes(
-                    searchQuery.toLowerCase(),
-                ),
-        );
-
-        return filtered.sort((a: Order, b: Order) => {
-            const dateA = new Date(a.CreatedAt).getTime();
-            const dateB = new Date(b.CreatedAt).getTime();
-            return dateB - dateA; // Sort by most recent first
-        });
+    const filteredData = useMemo(() => {
+        let list = [...purchaseOrderData];
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            list = list.filter(o =>
+                o.PartyName?.toLowerCase().includes(query) ||
+                o.PO_ID?.toLowerCase().includes(query) ||
+                o.ItemDetails?.some((i: any) => i.ItemName?.toLowerCase().includes(query))
+            );
+        }
+        return list.sort((a, b) => new Date(b.CreatedAt).getTime() - new Date(a.CreatedAt).getTime());
     }, [purchaseOrderData, searchQuery]);
 
-    // Calculate summary statistics
-    const totalOrders = filteredData.length;
-    const completedOrders = filteredData.filter(
-        (order: any) => order.OrderStatus === "Completed",
-    ).length;
-    const totalValue = filteredData.reduce((sum: number, order: any) => {
-        const orderValue =
-            order.ItemDetails?.reduce((itemSum: number, item: any) => {
-                return itemSum + item.Weight * item.Rate;
-            }, 0) || 0;
-        return sum + orderValue;
-    }, 0);
+    const stats = useMemo(() => {
+        const total = filteredData.length;
+        const value = filteredData.reduce((sum, o) =>
+            sum + (o.ItemDetails?.reduce((isum: number, i: any) => isum + (i.Weight * i.Rate), 0) || 0), 0);
+        const completed = filteredData.filter(o => o.OrderStatus === "Completed").length;
+        const invoiced = filteredData.filter(o => o.IsConvertedAsInvoice === 1).length;
+        return { total, value, completed, invoiced };
+    }, [filteredData]);
 
-    // Calculate total unique items
-    const totalUniqueItems = [
-        ...new Set(
-            filteredData.flatMap(
-                (order: Order) =>
-                    order.ItemDetails?.map(item => item.Stock_Item) || [],
-            ),
-        ),
-    ].length;
-    const pendingOrders = filteredData.filter(
-        (order: Order) => order.OrderStatus !== "Completed",
-    ).length;
-
-    // Calculate item-wise summary
-    const itemWiseSummary = React.useMemo(() => {
-        const summary: {
-            [key: string]: {
-                totalWeight: number;
-                totalValue: number;
-                count: number;
-                stockGroup: string;
-            };
-        } = {};
-
-        (filteredData as Order[]).forEach((order: Order) => {
-            order.ItemDetails?.forEach((item: OrderItem) => {
-                if (!summary[item.Stock_Item]) {
-                    summary[item.Stock_Item] = {
-                        totalWeight: 0,
-                        totalValue: 0,
-                        count: 0,
-                        stockGroup: item.Stock_Group,
-                    };
-                }
-                summary[item.Stock_Item].totalWeight += item.Weight;
-                summary[item.Stock_Item].totalValue += item.Weight * item.Rate;
-                summary[item.Stock_Item].count += 1;
+    const itemSummary = useMemo(() => {
+        const map: any = {};
+        filteredData.forEach(o => {
+            o.ItemDetails?.forEach((i: any) => {
+                const key = i.Stock_Item || i.ItemName;
+                if (!map[key]) map[key] = { name: key, group: i.Stock_Group, weight: 0, value: 0, count: 0 };
+                map[key].weight += i.Weight || 0;
+                map[key].value += (i.Weight * i.Rate) || 0;
+                map[key].count += 1;
             });
         });
+        return Object.values(map).sort((a: any, b: any) => b.weight - a.weight);
+    }, [filteredData]);
 
-        return Object.entries(summary).map(([name, data]) => ({
-            name,
-            ...data,
-        }));
-    }, [filteredData]); // Pagination
-    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-    const paginatedData = filteredData.slice(
-        (currentPage - 1) * ITEMS_PER_PAGE,
-        currentPage * ITEMS_PER_PAGE,
+    // -- Handlers --
+    const toggleExpand = (id: number) => {
+        const next = new Set(expandedIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setExpandedIds(next);
+    };
+
+    const formatDate = (d: string) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "-";
+
+    // -- Components --
+
+    const Dashboard = () => (
+        <View style={styles.dashboard}>
+            <View style={styles.statsRow}>
+                <View style={styles.statBox}>
+                    <Text style={styles.statLabel}>Total Orders</Text>
+                    <Text style={styles.statValue}>{stats.total}</Text>
+                    <View style={styles.statSub}>
+                        <Icon name="check-circle" size={10} color={colors.success} />
+                        <Text style={styles.statSubText}>{stats.completed} Completed</Text>
+                    </View>
+                </View>
+                <View style={[styles.statBox, { borderLeftWidth: 1, borderLeftColor: "#eee" }]}>
+                    <Text style={styles.statLabel}>Total Value</Text>
+                    <Text style={[styles.statValue, { color: colors.primary }]}>{formatCurrency(stats.value)}</Text>
+                    <View style={styles.statSub}>
+                        <Icon name="receipt" size={10} color={colors.accent} />
+                        <Text style={styles.statSubText}>{stats.invoiced} Invoiced</Text>
+                    </View>
+                </View>
+            </View>
+        </View>
     );
 
-    // Handle refresh
-    const onRefresh = React.useCallback(async () => {
-        setRefreshing(true);
-        await refetch();
-        setRefreshing(false);
-    }, [refetch]);
-
-    // Format date
-    const formatDate = (dateString: string, includeTime: boolean = false) => {
-        const date = new Date(dateString);
-        const dateStr = date.toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-        });
-        if (includeTime) {
-            const timeStr = date.toLocaleTimeString("en-IN", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-            });
-            return `${dateStr}, ${timeStr}`;
-        }
-        return dateStr;
-    };
-
-    // Toggle order expansion
-    const toggleOrderExpansion = (orderId: number) => {
-        setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
-    };
-
-    // Render order card
-    const renderOrderCard = (order: any) => {
-        const isExpanded = expandedOrderId === order.Id;
-        const orderValue =
-            order.ItemDetails?.reduce((sum: number, item: any) => {
-                return sum + item.Weight * item.Rate;
-            }, 0) || 0;
+    const OrderCard = ({ item }: { item: Order }) => {
+        const isExpanded = expandedIds.has(item.Id);
+        const orderVal = item.ItemDetails?.reduce((s, i) => s + (i.Weight * i.Rate), 0) || 0;
+        const totalQty = item.ItemDetails?.reduce((s, i) => s + (i.Weight || 0), 0) || 0;
 
         return (
-            <View key={order.Id} style={styles.orderCard}>
-                <Pressable
-                    style={styles.orderHeader}
-                    onPress={() => toggleOrderExpansion(order.Id)}>
-                    <View style={styles.orderHeaderLeft}>
-                        <View style={styles.orderIdContainer}>
-                            <Text style={styles.orderId}>{order.PO_ID}</Text>
-                            <View
-                                style={[
-                                    styles.statusBadge,
-                                    {
-                                        backgroundColor:
-                                            order.OrderStatus === "Completed"
-                                                ? colors.success + "20"
-                                                : colors.warning + "20",
-                                    },
-                                ]}>
-                                <Text
-                                    style={[
-                                        styles.statusText,
-                                        {
-                                            color:
-                                                order.OrderStatus ===
-                                                    "Completed"
-                                                    ? colors.success
-                                                    : colors.warning,
-                                        },
-                                    ]}>
-                                    {order.OrderStatus}
-                                </Text>
-                            </View>
-                        </View>
-                        <Text style={styles.partyName}>{order.PartyName}</Text>
-                        <View style={styles.orderDateContainer}>
-                            <Icon
-                                name="event"
-                                size={14}
-                                color={colors.textSecondary}
-                            />
-                            <Text style={styles.orderDate}>
-                                {formatDate(order.CreatedAt, true)}
-                            </Text>
-                        </View>
-                    </View>
-                    <View style={styles.orderHeaderRight}>
-                        <Text style={styles.orderValue}>
-                            {formatCurrency(orderValue)}
-                        </Text>
-                    </View>
-                </Pressable>
-
-                {isExpanded && (
-                    <View style={styles.orderDetails}>
-                        {/* Order Info */}
-                        <View style={styles.orderInfoSection}>
-                            <Text style={styles.sectionTitle}>
-                                Order Information
-                            </Text>
-                            <View style={styles.infoGrid}>
-                                <View style={styles.infoRow}>
-                                    <View style={styles.infoItem}>
-                                        <Text style={styles.infoLabel}>
-                                            Loading Date
-                                        </Text>
-                                        <Text style={styles.infoValue}>
-                                            {formatDate(order.LoadingDate)}
-                                        </Text>
-                                    </View>
-                                    <View style={styles.infoItem}>
-                                        <Text style={styles.infoLabel}>
-                                            Trade Confirm
-                                        </Text>
-                                        <Text style={styles.infoValue}>
-                                            {formatDate(order.TradeConfirmDate)}
-                                        </Text>
-                                    </View>
+            <View style={styles.card}>
+                <TouchableOpacity activeOpacity={0.9} onPress={() => toggleExpand(item.Id)} style={styles.cardMain}>
+                    {/* Top Row: PO ID & Status */}
+                    <View style={styles.cardTop}>
+                        <View style={styles.poBox}>
+                            <Text style={styles.poText}>{item.PO_ID}</Text>
+                            {item.IsConvertedAsInvoice === 1 && (
+                                <View style={styles.invoiceBadge}>
+                                    <Icon name="auto-awesome" size={10} color={colors.white} />
+                                    <Text style={styles.invoiceBadgeText}>INVOICED</Text>
                                 </View>
-                                <View
-                                    style={[styles.infoItem, styles.fullWidth]}>
-                                    <Text style={styles.infoLabel}>
-                                        Party Address
-                                    </Text>
-                                    <Text
-                                        style={[
-                                            styles.infoValue,
-                                            styles.addressText,
-                                        ]}>
-                                        {order.PartyAddress || "-"}
-                                    </Text>
-                                </View>
-                                {order.Remarks && (
-                                    <View
-                                        style={[
-                                            styles.infoItem,
-                                            styles.fullWidth,
-                                        ]}>
-                                        <Text style={styles.infoLabel}>
-                                            Remarks
-                                        </Text>
-                                        <Text
-                                            style={[
-                                                styles.infoValue,
-                                                styles.remarksText,
-                                            ]}>
-                                            {order.Remarks}
-                                        </Text>
-                                    </View>
-                                )}
-                            </View>
-                        </View>
-
-                        {/* Items Section */}
-                        <View style={styles.itemsSection}>
-                            <Text style={styles.sectionTitle}>
-                                Items ({order.ItemDetails?.length || 0})
-                            </Text>
-                            {order.ItemDetails?.map(
-                                (item: any, index: number) => (
-                                    <View key={item.Id} style={styles.itemCard}>
-                                        <View style={styles.itemHeader}>
-                                            <Text style={styles.itemName}>
-                                                {item.ItemName}
-                                            </Text>
-                                            <Text style={styles.itemGroup}>
-                                                {item.Stock_Group}
-                                            </Text>
-                                        </View>
-                                        <View style={styles.itemDetails}>
-                                            <View style={styles.itemDetailRow}>
-                                                <Text
-                                                    style={
-                                                        styles.itemDetailLabel
-                                                    }>
-                                                    Weight:
-                                                </Text>
-                                                <Text
-                                                    style={
-                                                        styles.itemDetailValue
-                                                    }>
-                                                    {item.Weight} kg
-                                                </Text>
-                                            </View>
-                                            <View style={styles.itemDetailRow}>
-                                                <Text
-                                                    style={
-                                                        styles.itemDetailLabel
-                                                    }>
-                                                    Rate:
-                                                </Text>
-                                                <Text
-                                                    style={
-                                                        styles.itemDetailValue
-                                                    }>
-                                                    ₹{item.Rate}/kg
-                                                </Text>
-                                            </View>
-                                            <View style={styles.itemDetailRow}>
-                                                <Text
-                                                    style={
-                                                        styles.itemDetailLabel
-                                                    }>
-                                                    Total:
-                                                </Text>
-                                                <Text
-                                                    style={
-                                                        styles.itemDetailValue
-                                                    }>
-                                                    {formatCurrency(
-                                                        item.Weight * item.Rate,
-                                                    )}
-                                                </Text>
-                                            </View>
-                                            <View style={styles.itemDetailRow}>
-                                                <Text
-                                                    style={
-                                                        styles.itemDetailLabel
-                                                    }>
-                                                    Delivery:
-                                                </Text>
-                                                <Text
-                                                    style={
-                                                        styles.itemDetailValue
-                                                    }>
-                                                    {item.DeliveryLocation}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                    </View>
-                                ),
                             )}
                         </View>
+                        <View style={[styles.statusBadge, {
+                            backgroundColor: item.OrderStatus === "Completed" ? colors.success + "15" : colors.warning + "15"
+                        }]}>
+                            <Text style={[styles.statusText, {
+                                color: item.OrderStatus === "Completed" ? colors.success : colors.warning
+                            }]}>{item.OrderStatus}</Text>
+                        </View>
+                    </View>
+
+                    {/* Party & Location */}
+                    <Text style={styles.partyName}>{item.PartyName}</Text>
+                    <View style={styles.locationRow}>
+                        <Icon name="location-on" size={12} color={colors.grey500} />
+                        <Text style={styles.locationText}>{item.Party_District || "N/A"}</Text>
+                        <View style={styles.dot} />
+                        <Text style={styles.dateLabel}>{formatDate(item.CreatedAt)}</Text>
+                    </View>
+
+                    {/* Value & Qty Summary */}
+                    <View style={styles.summaryFooter}>
+                        <View style={styles.summaryItem}>
+                            <Icon name="layers" size={14} color={colors.grey400} />
+                            <Text style={styles.summaryLabelText}>{item.ItemDetails?.length || 0} Items</Text>
+                        </View>
+                        <View style={styles.summaryItem}>
+                            <Icon name="fitness-center" size={14} color={colors.grey400} />
+                            <Text style={styles.summaryLabelText}>{totalQty} KG</Text>
+                        </View>
+                        <View style={styles.spacer} />
+                        <Text style={styles.orderValText}>{formatCurrency(orderVal)}</Text>
+                    </View>
+
+                    {/* Expand Arrow */}
+                    <View style={styles.expandRow}>
+                        <Icon name={isExpanded ? "keyboard-arrow-up" : "keyboard-arrow-down"} size={20} color={colors.grey300} />
+                    </View>
+                </TouchableOpacity>
+
+                {isExpanded && (
+                    <View style={styles.detailsArea}>
+                        {/* Items Sub-Section */}
+                        <Text style={styles.subTitle}>Item Details</Text>
+                        {item.ItemDetails?.map(it => (
+                            <View key={it.Id} style={styles.itemRow}>
+                                <View style={styles.itemLead}>
+                                    <View style={styles.itemPill} />
+                                    <Text style={styles.itName}>{it.ItemName}</Text>
+                                </View>
+                                <View style={styles.itemValues}>
+                                    <Text style={styles.itQty}>{it.Weight} KG</Text>
+                                    <Text style={styles.itRate}>@ {it.Rate}</Text>
+                                </View>
+                            </View>
+                        ))}
+
+                        {/* Logistics Section */}
+                        <View style={styles.logisticsBox}>
+                            <View style={styles.logRow}>
+                                <View style={styles.logItem}>
+                                    <Text style={styles.logLabel}>Arrived At</Text>
+                                    <Text style={styles.logValue}>{item.DeliveryDetails?.[0]?.Location || "N/A"}</Text>
+                                </View>
+                                <View style={styles.logItem}>
+                                    <Text style={styles.logLabel}>Loading Date</Text>
+                                    <Text style={styles.logValue}>{formatDate(item.LoadingDate)}</Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Staff Section */}
+                        {item.StaffDetails?.length > 0 && (
+                            <View style={styles.staffArea}>
+                                <Text style={styles.staffTitle}>Assigned Team</Text>
+                                <View style={styles.staffGrid}>
+                                    {item.StaffDetails.map((s, idx) => (
+                                        <View key={idx} style={styles.staffChip}>
+                                            <Icon name={s.Cost_Category === "Owners" ? "person" : "badge"} size={10} color={colors.primary} />
+                                            <Text style={styles.staffName}>{s.Emp_Name}</Text>
+                                            <Text style={styles.staffLabelSmall}>({s.Cost_Category})</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
+                        )}
+
+                        {item.Remarks && (
+                            <View style={styles.remarksBox}>
+                                <Text style={styles.remarksText}>Note: {item.Remarks}</Text>
+                            </View>
+                        )}
                     </View>
                 )}
             </View>
         );
     };
 
-    const handleCloseModal = () => {
-        setModalVisible(false);
-    };
-
-    if (error) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <AppHeader title="Purchase Orders" navigation={navigation} />
-
-                <View style={styles.errorContainer}>
-                    <Icon
-                        name="error-outline"
-                        size={48}
-                        color={colors.accent}
-                    />
-                    <Text style={styles.errorText}>
-                        Failed to load purchase orders
-                    </Text>
-                    <TouchableOpacity
-                        style={styles.retryButton}
-                        onPress={() => refetch()}>
-                        <Text style={styles.retryButtonText}>Retry</Text>
-                    </TouchableOpacity>
-                </View>
-            </SafeAreaView>
-        );
-    }
-
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top"]}>
             <AppHeader
                 title="Purchase Orders"
                 navigation={navigation}
-                showRightIcon={true}
+                showRightIcon
                 rightIconLibrary="MaterialIcon"
-                rightIconName="filter-list"
+                rightIconName="date-range"
                 onRightPress={() => setModalVisible(true)}
             />
 
-            <FilterModal
-                visible={modalVisible}
-                fromDate={fromDate}
-                toDate={toDate}
-                onFromDateChange={setFromDate}
-                onToDateChange={setToDate}
-                onApply={() => setModalVisible(false)}
-                onClose={handleCloseModal}
-                showToDate={true}
-                title="Filter Options"
-                fromLabel="From Date"
-                toLabel="To Date"
-            />
+            <View style={styles.mainContainer}>
+                <Dashboard />
 
-            <ScrollView
-                style={styles.content}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        colors={[colors.primary]}
-                        tintColor={colors.primary}
+                <View style={styles.tabBar}>
+                    <TouchableOpacity onPress={() => setActiveTab("orders")} style={[styles.tab, activeTab === "orders" && styles.activeTab]}>
+                        <Text style={[styles.tabLabel, activeTab === "orders" && styles.activeTabLabel]}>Orders</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setActiveTab("items")} style={[styles.tab, activeTab === "items" && styles.activeTab]}>
+                        <Text style={[styles.tabLabel, activeTab === "items" && styles.activeTabLabel]}>Stock Summary</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.searchBar}>
+                    <Icon name="search" size={18} color={colors.grey500} />
+                    <TextInput
+                        placeholder="Search supplier or PO ID..."
+                        style={styles.searchInput}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
                     />
-                }>
-                {/* Summary Cards */}
-                <View style={styles.summarySection}>
-                    <Text style={styles.sectionTitle}>Summary</Text>
-                    <View style={styles.summaryGrid}>
-                        <View style={styles.summaryCard}>
-                            <Icon
-                                name="receipt-long"
-                                size={24}
-                                color={colors.primary}
-                            />
-                            <Text style={styles.summaryValue}>
-                                {totalOrders}
-                            </Text>
-                            <Text style={styles.summaryLabel}>
-                                Total Orders
-                            </Text>
-                        </View>
-                        <View style={styles.summaryCard}>
-                            <Icon
-                                name="currency-rupee"
-                                size={24}
-                                color={colors.warning}
-                            />
-                            <Text style={styles.summaryValue}>
-                                {formatCurrency(totalValue)}
-                            </Text>
-                            <Text style={styles.summaryLabel}>Total Value</Text>
-                        </View>
-                        <View style={styles.summaryCard}>
-                            <Icon
-                                name="inventory"
-                                size={24}
-                                color={colors.success}
-                            />
-                            <Text style={styles.summaryValue}>
-                                {totalUniqueItems}
-                            </Text>
-                            <Text style={styles.summaryLabel}>Total Items</Text>
-                        </View>
-                    </View>
                 </View>
 
-                {/* Search and Sort Section */}
-                <View style={styles.searchSection}>
-                    <View style={styles.searchContainer}>
-                        <Icon
-                            name="search"
-                            size={20}
-                            color={colors.textSecondary}
-                        />
-                        <TextInput
-                            style={styles.searchInput}
-                            placeholder="Search by party, PO ID, or status..."
-                            placeholderTextColor={colors.textSecondary}
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                        />
-                        {searchQuery.length > 0 && (
-                            <TouchableOpacity
-                                onPress={() => setSearchQuery("")}>
-                                <Icon
-                                    name="clear"
-                                    size={20}
-                                    color={colors.textSecondary}
-                                />
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                </View>
-
-                {/* Tab View */}
-                <View style={styles.tabContainer}>
-                    <TouchableOpacity
-                        style={[
-                            styles.tabButton,
-                            activeTab === "orders" && styles.activeTab,
-                        ]}
-                        onPress={() => setActiveTab("orders")}>
-                        <Icon
-                            name="receipt"
-                            size={20}
-                            color={
-                                activeTab === "orders"
-                                    ? colors.primary
-                                    : colors.textSecondary
-                            }
-                        />
-                        <Text
-                            style={[
-                                styles.tabText,
-                                activeTab === "orders" && styles.activeTabText,
-                            ]}>
-                            Orders
-                        </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[
-                            styles.tabButton,
-                            activeTab === "items" && styles.activeTab,
-                        ]}
-                        onPress={() => setActiveTab("items")}>
-                        <Icon
-                            name="inventory"
-                            size={20}
-                            color={
-                                activeTab === "items"
-                                    ? colors.primary
-                                    : colors.textSecondary
-                            }
-                        />
-                        <Text
-                            style={[
-                                styles.tabText,
-                                activeTab === "items" && styles.activeTabText,
-                            ]}>
-                            Items
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Content based on active tab */}
-                {isLoading ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator
-                            size="large"
-                            color={colors.primary}
-                        />
-                        <Text style={styles.loadingText}>
-                            Loading purchase orders...
-                        </Text>
-                    </View>
-                ) : filteredData.length === 0 ? (
-                    <View style={styles.emptyContainer}>
-                        <Icon
-                            name="inbox"
-                            size={48}
-                            color={colors.textSecondary}
-                        />
-                        <Text style={styles.emptyText}>
-                            No purchase orders found
-                        </Text>
-                    </View>
+                {activeTab === "orders" ? (
+                    <FlatList
+                        data={filteredData}
+                        keyExtractor={o => o.Id.toString()}
+                        renderItem={({ item }) => <OrderCard item={item} />}
+                        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} colors={[colors.primary]} />}
+                        contentContainerStyle={styles.listContainer}
+                        ListEmptyComponent={!isLoading ? (
+                            <View style={styles.empty}>
+                                <Icon name="receipt" size={60} color={colors.grey200} />
+                                <Text style={styles.emptyText}>No Orders Found</Text>
+                            </View>
+                        ) : null}
+                    />
                 ) : (
-                    <>
-                        {activeTab === "orders" ? (
-                            <View style={styles.ordersSection}>
-                                <Text style={styles.sectionTitle}>
-                                    Orders ({filteredData.length})
-                                </Text>
-                                {paginatedData.map(renderOrderCard)}
-                            </View>
-                        ) : (
-                            <View style={styles.itemsSection}>
-                                <Text style={styles.sectionTitle}>
-                                    Items ({itemWiseSummary.length})
-                                </Text>
-                                {itemWiseSummary.map(
-                                    (
-                                        item: {
-                                            name: string;
-                                            totalWeight: number;
-                                            totalValue: number;
-                                            count: number;
-                                            stockGroup: string;
-                                        },
-                                        index: number,
-                                    ) => (
-                                        <View
-                                            key={item.name}
-                                            style={styles.itemSummaryCard}>
-                                            <View
-                                                style={
-                                                    styles.itemSummaryHeader
-                                                }>
-                                                <Text
-                                                    style={
-                                                        styles.summaryItemName
-                                                    }>
-                                                    {item.name}
-                                                </Text>
-                                                <Text
-                                                    style={
-                                                        styles.summaryItemGroup
-                                                    }>
-                                                    {item.stockGroup}
-                                                </Text>
-                                            </View>
-                                            <View
-                                                style={styles.itemSummaryStats}>
-                                                <View style={styles.statItem}>
-                                                    <Text
-                                                        style={
-                                                            styles.statLabel
-                                                        }>
-                                                        Total Weight
-                                                    </Text>
-                                                    <Text
-                                                        style={
-                                                            styles.statValue
-                                                        }>
-                                                        {item.totalWeight} kg
-                                                    </Text>
-                                                </View>
-                                                <View style={styles.statItem}>
-                                                    <Text
-                                                        style={
-                                                            styles.statLabel
-                                                        }>
-                                                        Total Value
-                                                    </Text>
-                                                    <Text
-                                                        style={
-                                                            styles.statValue
-                                                        }>
-                                                        {formatCurrency(
-                                                            item.totalValue,
-                                                        )}
-                                                    </Text>
-                                                </View>
-                                                <View style={styles.statItem}>
-                                                    <Text
-                                                        style={
-                                                            styles.statLabel
-                                                        }>
-                                                        Orders
-                                                    </Text>
-                                                    <Text
-                                                        style={
-                                                            styles.statValue
-                                                        }>
-                                                        {item.count}
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                        </View>
-                                    ),
-                                )}
+                    <FlatList
+                        data={itemSummary}
+                        keyExtractor={(it: any) => it.name}
+                        renderItem={({ item }: any) => (
+                            <View style={styles.itemSummaryCard}>
+                                <View style={styles.itSumHeader}>
+                                    <Text style={styles.itSumName}>{item.name}</Text>
+                                    <Text style={styles.itSumGroup}>{item.group}</Text>
+                                </View>
+                                <View style={styles.itSumBody}>
+                                    <View style={styles.itSumStat}>
+                                        <Text style={styles.itSumVal}>{item.weight} KG</Text>
+                                        <Text style={styles.itSumLabel}>Weight</Text>
+                                    </View>
+                                    <View style={styles.itSumStat}>
+                                        <Text style={styles.itSumVal}>{item.count}</Text>
+                                        <Text style={styles.itSumLabel}>POs</Text>
+                                    </View>
+                                    <View style={styles.itSumStat}>
+                                        <Text style={styles.itSumVal}>{formatCurrency(item.value)}</Text>
+                                        <Text style={styles.itSumLabel}>Value</Text>
+                                    </View>
+                                </View>
                             </View>
                         )}
-
-                        {/* Pagination */}
-                        {totalPages > 1 && (
-                            <View style={styles.paginationContainer}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.pageButton,
-                                        currentPage === 1 &&
-                                        styles.pageButtonDisabled,
-                                    ]}
-                                    onPress={() =>
-                                        setCurrentPage(
-                                            Math.max(1, currentPage - 1),
-                                        )
-                                    }
-                                    disabled={currentPage === 1}>
-                                    <Icon
-                                        name="keyboard-arrow-left"
-                                        size={24}
-                                        color={
-                                            currentPage === 1
-                                                ? colors.textSecondary
-                                                : colors.primary
-                                        }
-                                    />
-                                </TouchableOpacity>
-
-                                <Text style={styles.pageInfo}>
-                                    Showing page {currentPage} of {totalPages} (
-                                    {filteredData.length} total records)
-                                </Text>
-
-                                <TouchableOpacity
-                                    style={[
-                                        styles.pageButton,
-                                        currentPage === totalPages &&
-                                        styles.pageButtonDisabled,
-                                    ]}
-                                    onPress={() =>
-                                        setCurrentPage(
-                                            Math.min(
-                                                totalPages,
-                                                currentPage + 1,
-                                            ),
-                                        )
-                                    }
-                                    disabled={currentPage === totalPages}>
-                                    <Icon
-                                        name="keyboard-arrow-right"
-                                        size={24}
-                                        color={
-                                            currentPage === totalPages
-                                                ? colors.textSecondary
-                                                : colors.primary
-                                        }
-                                    />
-                                </TouchableOpacity>
-                            </View>
-                        )}
-                    </>
+                        contentContainerStyle={styles.listContainer}
+                    />
                 )}
-            </ScrollView>
+
+                {isLoading && !isRefetching && (
+                    <View style={styles.loading}>
+                        <ActivityIndicator size="large" color={colors.primary} />
+                        <Text style={styles.loadingText}>Syncing Purchase Orders...</Text>
+                    </View>
+                )}
+
+                <FilterModal
+                    visible={modalVisible}
+                    fromDate={fromDate}
+                    toDate={toDate}
+                    onFromDateChange={setFromDate}
+                    onToDateChange={setToDate}
+                    onApply={() => { setModalVisible(false); refetch(); }}
+                    onClose={() => setModalVisible(false)}
+                    showToDate
+                />
+            </View>
         </SafeAreaView>
     );
 };
-
-export default PurchaseOrder;
 
 const getStyles = (typography: any, colors: any) =>
     StyleSheet.create({
@@ -785,415 +393,413 @@ const getStyles = (typography: any, colors: any) =>
             flex: 1,
             backgroundColor: colors.primary,
         },
-        content: {
+        mainContainer: {
             flex: 1,
-            backgroundColor: colors.background,
-        },
-
-        // Summary Section
-        summarySection: {
             backgroundColor: colors.white,
-            marginHorizontal: responsiveWidth(4),
-            marginVertical: responsiveWidth(4),
-            padding: responsiveWidth(4),
-            borderRadius: 12,
-            shadowColor: colors.black,
+        },
+        dashboard: {
+            backgroundColor: colors.white,
+            margin: 12,
+            borderRadius: 16,
+            padding: 16,
+            elevation: 4,
+            shadowColor: "#000",
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.1,
             shadowRadius: 4,
-            elevation: 3,
         },
-        summaryGrid: {
+        statsRow: {
             flexDirection: "row",
-            flexWrap: "wrap",
-            gap: responsiveWidth(3),
         },
-        summaryCard: {
+        statBox: {
             flex: 1,
-            width: "33.33%",
-            backgroundColor: colors.white,
-            padding: responsiveWidth(3),
-            borderRadius: 8,
-            alignItems: "center",
-            gap: responsiveWidth(1),
-        },
-        summaryValue: {
-            ...typography.h6,
-            color: colors.text,
-            fontWeight: "700",
-            textAlign: "center",
-        },
-        summaryLabel: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            textAlign: "center",
-        },
-
-        // Search Section
-        searchSection: {
-            flexDirection: "row",
-            alignItems: "center",
-            gap: responsiveWidth(3),
-            marginHorizontal: responsiveWidth(4),
-            marginBottom: responsiveWidth(4),
-        },
-        searchContainer: {
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: colors.white,
-            borderRadius: 8,
-            paddingHorizontal: responsiveWidth(3),
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.1,
-            shadowRadius: 2,
-            elevation: 2,
-        },
-        searchInput: {
-            flex: 1,
-            ...typography.body1,
-            color: colors.text,
-            paddingVertical: responsiveHeight(1.5),
-            paddingHorizontal: responsiveWidth(2),
-        },
-
-        // Tab View
-        tabContainer: {
-            flexDirection: "row",
-            marginHorizontal: responsiveWidth(4),
-            marginBottom: responsiveWidth(4),
-            backgroundColor: colors.white,
-            borderRadius: 8,
-            padding: responsiveWidth(1),
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.1,
-            shadowRadius: 2,
-            elevation: 2,
-        },
-        tabButton: {
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            paddingVertical: responsiveHeight(1.5),
-            gap: responsiveWidth(2),
-            borderRadius: 6,
-        },
-        activeTab: {
-            backgroundColor: colors.primary + "15",
-        },
-        tabText: {
-            ...typography.body2,
-            color: colors.textSecondary,
-            fontWeight: "500",
-        },
-        activeTabText: {
-            color: colors.primary,
-            fontWeight: "600",
-        },
-
-        // Item Summary Styles
-        itemSummaryCard: {
-            backgroundColor: colors.white,
-            borderRadius: 12,
-            padding: responsiveWidth(4),
-            marginBottom: responsiveWidth(3),
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-        },
-        itemSummaryHeader: {
-            marginBottom: responsiveWidth(3),
-        },
-        summaryItemName: {
-            ...typography.h6,
-            color: colors.text,
-            fontWeight: "600",
-            marginBottom: responsiveWidth(1),
-        },
-        summaryItemGroup: {
-            ...typography.caption,
-            color: colors.primary,
-            fontWeight: "500",
-        },
-        itemSummaryStats: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: responsiveWidth(3),
-        },
-        statItem: {
-            flex: 1,
-            minWidth: "30%",
-            backgroundColor: colors.grey + "60",
-            padding: responsiveWidth(2),
-            borderRadius: 8,
             alignItems: "center",
         },
         statLabel: {
             ...typography.caption,
-            color: colors.textSecondary,
-            marginBottom: responsiveWidth(1),
+            color: colors.grey500,
+            marginBottom: 4,
         },
         statValue: {
-            ...typography.caption,
-            color: colors.text,
-            fontWeight: "600",
-        },
-
-        // Section Title
-        sectionTitle: {
             ...typography.h6,
+            fontWeight: "800",
             color: colors.text,
-            fontWeight: "600",
-            marginBottom: responsiveHeight(0.75),
+        },
+        statSub: {
+            flexDirection: "row",
+            alignItems: "center",
+            marginTop: 4,
+            gap: 4,
+        },
+        statSubText: {
+            fontSize: 9,
+            fontWeight: "700",
+            color: colors.grey600,
+            textTransform: "uppercase",
         },
 
-        // Orders Section
-        ordersSection: {
-            marginHorizontal: responsiveWidth(4),
-            marginBottom: responsiveWidth(4),
-        },
-
-        // Order Card
-        orderCard: {
-            backgroundColor: colors.white,
+        // Tabs
+        tabBar: {
+            flexDirection: "row",
+            marginHorizontal: 12,
+            marginBottom: 12,
+            backgroundColor: "#eee",
+            padding: 4,
             borderRadius: 12,
-            marginBottom: responsiveWidth(3),
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
         },
-        orderHeader: {
+        tab: {
+            flex: 1,
+            paddingVertical: 10,
+            alignItems: "center",
+            borderRadius: 10,
+        },
+        activeTab: {
+            backgroundColor: colors.primary,
+        },
+        tabLabel: {
+            fontWeight: "700",
+            color: colors.grey600,
+        },
+        activeTabLabel: {
+            color: colors.white,
+        },
+
+        // Search
+        searchBar: {
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: colors.white,
+            marginHorizontal: 12,
+            marginBottom: 10,
+            paddingHorizontal: 15,
+            height: 44,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: "#eee",
+        },
+        searchInput: {
+            flex: 1,
+            marginLeft: 10,
+            fontSize: 14,
+            color: colors.text,
+        },
+
+        // List
+        listContainer: {
+            paddingHorizontal: 12,
+            paddingBottom: 40,
+        },
+        card: {
+            backgroundColor: colors.white,
+            borderRadius: 16,
+            marginBottom: 12,
+            overflow: "hidden",
+            elevation: 2,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 2,
+        },
+        cardMain: {
+            padding: 16,
+        },
+        cardTop: {
             flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "center",
-            padding: responsiveWidth(4),
+            marginBottom: 8,
         },
-        orderHeaderLeft: {
-            flex: 1,
-            marginRight: responsiveWidth(3),
-        },
-        orderHeaderRight: {
-            alignItems: "flex-end",
-            gap: responsiveWidth(1),
-        },
-        orderIdContainer: {
+        poBox: {
             flexDirection: "row",
             alignItems: "center",
-            gap: responsiveWidth(2),
-            marginBottom: responsiveWidth(1),
+            gap: 8,
         },
-        orderId: {
-            ...typography.h6,
+        poText: {
+            ...typography.body2,
+            fontWeight: "800",
             color: colors.primary,
-            fontWeight: "700",
+        },
+        invoiceBadge: {
+            backgroundColor: colors.accent,
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: 6,
+            paddingVertical: 2,
+            borderRadius: 4,
+            gap: 4,
+        },
+        invoiceBadgeText: {
+            fontSize: 8,
+            fontWeight: "800",
+            color: colors.white,
         },
         statusBadge: {
-            paddingHorizontal: responsiveWidth(2),
-            paddingVertical: responsiveWidth(0.5),
-            borderRadius: 12,
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 6,
         },
         statusText: {
-            ...typography.caption,
-            fontWeight: "600",
-            fontSize: responsiveWidth(2.5),
+            fontSize: 10,
+            fontWeight: "800",
+            textTransform: "uppercase",
         },
         partyName: {
             ...typography.body1,
+            fontWeight: "700",
             color: colors.text,
-            fontWeight: "600",
-            marginBottom: responsiveWidth(0.5),
+            marginBottom: 4,
         },
-        orderDateContainer: {
+        locationRow: {
             flexDirection: "row",
             alignItems: "center",
-            gap: responsiveWidth(1),
+            marginBottom: 12,
         },
-        orderDate: {
-            ...typography.caption,
-            color: colors.textSecondary,
+        locationText: {
+            fontSize: 12,
+            color: colors.grey500,
+            marginLeft: 4,
         },
-        orderValue: {
-            ...typography.h6,
-            color: colors.success,
-            fontWeight: "700",
+        dot: {
+            width: 3,
+            height: 3,
+            borderRadius: 2,
+            backgroundColor: colors.grey300,
+            marginHorizontal: 8,
         },
-
-        // Order Details
-        orderDetails: {
-            borderTopWidth: 1,
-            borderTopColor: colors.borderColor,
-            padding: responsiveWidth(1),
-            gap: responsiveWidth(0.75),
+        dateLabel: {
+            fontSize: 12,
+            color: colors.grey500,
         },
-
-        // Order Info Section
-        orderInfoSection: {
-            backgroundColor: colors.success + "8",
-            borderRadius: 8,
-            padding: responsiveWidth(1.5),
-        },
-        infoGrid: {
-            gap: responsiveWidth(1.5),
-        },
-        infoRow: {
+        summaryFooter: {
             flexDirection: "row",
-            gap: responsiveWidth(1.5),
+            alignItems: "center",
+            paddingTop: 12,
+            borderTopWidth: 1,
+            borderTopColor: "#f5f5f5",
+            gap: 12,
         },
-        infoItem: {
+        summaryItem: {
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 4,
+        },
+        summaryLabelText: {
+            fontSize: 11,
+            fontWeight: "600",
+            color: colors.grey600,
+        },
+        spacer: {
             flex: 1,
-            backgroundColor: colors.white,
-            padding: responsiveWidth(1),
-            borderRadius: 6,
-            gap: responsiveWidth(1),
         },
-        fullWidth: {
-            flex: 1,
-            width: "100%",
-        },
-        infoLabel: {
-            ...typography.caption,
-            color: colors.textSecondary,
-        },
-        infoValue: {
+        orderValText: {
             ...typography.body2,
+            fontWeight: "800",
             color: colors.text,
-            fontWeight: "500",
         },
-        addressText: {
-            minHeight: responsiveHeight(3),
+        expandRow: {
+            alignItems: "center",
+            marginTop: 4,
+        },
+
+        // Details Area
+        detailsArea: {
+            backgroundColor: "#fafafa",
+            padding: 16,
+            borderTopWidth: 1,
+            borderTopColor: "#f0f0f0",
+        },
+        subTitle: {
+            fontSize: 11,
+            fontWeight: "800",
+            color: colors.grey400,
+            textTransform: "uppercase",
+            marginBottom: 10,
+            letterSpacing: 0.5,
+        },
+        itemRow: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+            backgroundColor: colors.white,
+            padding: 10,
+            borderRadius: 8,
+        },
+        itemLead: {
+            flexDirection: "row",
+            alignItems: "center",
+            flex: 1,
+        },
+        itemPill: {
+            width: 3,
+            height: 15,
+            backgroundColor: colors.primary,
+            borderRadius: 2,
+            marginRight: 10,
+        },
+        itName: {
+            fontSize: 12,
+            fontWeight: "600",
+            color: colors.text,
+            flex: 1,
+        },
+        itemValues: {
+            alignItems: "flex-end",
+        },
+        itQty: {
+            fontSize: 12,
+            fontWeight: "700",
+            color: colors.text,
+        },
+        itRate: {
+            fontSize: 10,
+            color: colors.grey500,
+        },
+        logisticsBox: {
+            marginTop: 15,
+            padding: 12,
+            backgroundColor: "#eee",
+            borderRadius: 10,
+        },
+        logRow: {
+            flexDirection: "row",
+        },
+        logItem: {
+            flex: 1,
+        },
+        logLabel: {
+            fontSize: 9,
+            color: colors.grey600,
+            textTransform: "uppercase",
+        },
+        logValue: {
+            fontSize: 12,
+            fontWeight: "700",
+            color: colors.text,
+        },
+        staffArea: {
+            marginTop: 15,
+        },
+        staffTitle: {
+            fontSize: 10,
+            fontWeight: "700",
+            color: colors.grey500,
+            marginBottom: 8,
+        },
+        staffGrid: {
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 6,
+        },
+        staffChip: {
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: colors.white,
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 6,
+            borderWidth: 0.5,
+            borderColor: "#ddd",
+            gap: 4,
+        },
+        staffName: {
+            fontSize: 10,
+            fontWeight: "700",
+            color: colors.text,
+        },
+        staffLabelSmall: {
+            fontSize: 9,
+            color: colors.grey500,
+        },
+        remarksBox: {
+            marginTop: 12,
+            padding: 8,
+            backgroundColor: colors.warning + "10",
+            borderRadius: 6,
+            borderLeftWidth: 2,
+            borderLeftColor: colors.warning,
         },
         remarksText: {
+            fontSize: 11,
             fontStyle: "italic",
-        },
-
-        // Items Section
-        itemsSection: {
-            marginHorizontal: responsiveWidth(3.5),
-            marginBottom: responsiveWidth(3.5),
-        },
-        itemCard: {
-            backgroundColor: colors.grey,
-            borderRadius: 8,
-            padding: responsiveWidth(1.5),
-            marginBottom: responsiveWidth(0.75),
-        },
-        itemHeader: {
-            marginBottom: responsiveWidth(0.75),
-        },
-        itemName: {
-            ...typography.body1,
-            color: colors.text,
-            fontWeight: "600",
-            marginBottom: responsiveWidth(0.5),
-        },
-        itemGroup: {
-            ...typography.caption,
-            color: colors.primary,
-            fontWeight: "500",
-        },
-        itemDetails: {
-            gap: responsiveWidth(1),
-        },
-        itemDetailRow: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-        },
-        itemDetailLabel: {
-            ...typography.caption,
             color: colors.textSecondary,
         },
-        itemDetailValue: {
-            ...typography.caption,
-            color: colors.text,
-            fontWeight: "600",
-        },
 
-        // Loading State
-        loadingContainer: {
-            alignItems: "center",
-            justifyContent: "center",
-            padding: responsiveHeight(4),
-        },
-        loadingText: {
-            ...typography.body1,
-            color: colors.textSecondary,
-            marginTop: responsiveHeight(2),
-        },
-
-        // Empty State
-        emptyContainer: {
-            alignItems: "center",
-            justifyContent: "center",
-            padding: responsiveHeight(4),
-        },
-        emptyText: {
-            ...typography.body1,
-            color: colors.textSecondary,
-            marginTop: responsiveHeight(2),
-        },
-
-        // Error State
-        errorContainer: {
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            padding: responsiveWidth(4),
-        },
-        errorText: {
-            ...typography.body1,
-            color: colors.textSecondary,
-            textAlign: "center",
-            marginVertical: responsiveHeight(2),
-        },
-        retryButton: {
-            backgroundColor: colors.primary,
-            paddingHorizontal: responsiveWidth(6),
-            paddingVertical: responsiveHeight(1.5),
-            borderRadius: 8,
-        },
-        retryButtonText: {
-            ...typography.body1,
-            color: colors.white,
-            fontWeight: "600",
-        },
-
-        // Pagination
-        paginationContainer: {
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            paddingHorizontal: responsiveWidth(4),
-            paddingVertical: responsiveWidth(4),
+        // Item Summary Tab
+        itemSummaryCard: {
             backgroundColor: colors.white,
-            marginHorizontal: responsiveWidth(4),
-            marginVertical: responsiveWidth(2),
-            borderRadius: 12,
-            shadowColor: colors.black,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
+            borderRadius: 16,
+            padding: 16,
+            marginBottom: 12,
+            borderLeftWidth: 5,
+            borderLeftColor: colors.accent,
         },
-        pageButton: {
-            padding: responsiveWidth(2),
+        itSumHeader: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 12,
+        },
+        itSumName: {
+            fontSize: 13,
+            fontWeight: "800",
+            color: colors.text,
+            flex: 0.7,
+        },
+        itSumGroup: {
+            fontSize: 10,
+            fontWeight: "700",
+            color: colors.accent,
+            backgroundColor: colors.accent + "15",
+            paddingHorizontal: 8,
+            paddingVertical: 4,
             borderRadius: 6,
         },
-        pageButtonDisabled: {
-            opacity: 0.5,
+        itSumBody: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            backgroundColor: "#f9f9f9",
+            padding: 12,
+            borderRadius: 12,
         },
-        pageInfo: {
-            ...typography.caption,
-            color: colors.textSecondary,
-            textAlign: "center",
-            flex: 1,
+        itSumStat: {
+            alignItems: "center",
+        },
+        itSumVal: {
+            fontSize: 13,
+            fontWeight: "800",
+            color: colors.text,
+        },
+        itSumLabel: {
+            fontSize: 9,
+            color: colors.grey500,
+            marginTop: 2,
+            textTransform: "uppercase",
+        },
+
+        // Utils
+        loading: {
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: "rgba(255,255,255,0.8)",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+        },
+        loadingText: {
+            marginTop: 10,
+            color: colors.primary,
+            fontWeight: "600",
+        },
+        empty: {
+            paddingVertical: 100,
+            alignItems: "center",
+        },
+        emptyText: {
+            fontSize: 14,
+            fontWeight: "600",
+            color: colors.grey400,
+            marginTop: 15,
         },
     });
+
+export default PurchaseOrder;
