@@ -34,6 +34,8 @@ import TransactionListExpenses from "../Screens/Payment/TransactionListExpenses"
 import ItemWiseTransaction from "../Screens/Home/ItemWiseTransaction";
 import GodownItemWiseTransaction from "../Screens/Home/GodownitemTransaction";
 import GraphicalAnalysisReport from "../Screens/Home/GraphAnalyticsReport";
+import ShetSheet from "../Screens/Shet-Sheet/ShetSheet";
+import ShetSheetDetail from "../Screens/Shet-Sheet/ShetSheetDetail";
 
 // Not Used
 
@@ -146,6 +148,9 @@ const Navigation = () => {
                         name="graphicalanalysis"
                         component={GraphicalAnalysisReport}
                     />
+
+                    <Stack.Screen name="ShetSheet" component={ShetSheet} />
+                    <Stack.Screen name="ShetSheetDetail" component={ShetSheetDetail} />
 
                     {/* Not Used */}
                 </Stack.Navigator>

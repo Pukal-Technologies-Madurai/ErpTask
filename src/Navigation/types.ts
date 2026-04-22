@@ -18,7 +18,7 @@ interface paymentListParams {
     branchId: any;
 }
 
-interface receiptListParams  {
+interface receiptListParams {
     branchId: any;
 }
 
@@ -31,19 +31,19 @@ interface saleorderpendParams {
 }
 
 interface salependorderparams {
-    branchId:any;
+    branchId: any;
 }
 
 interface salependitemparams {
-    branchId:any;
+    branchId: any;
 }
 
 interface transactionparams {
-    branchId:any;
+    branchId: any;
 }
 
 interface debtorsparams {
-    branchId:any;
+    branchId: any;
 }
 
 interface expensesparams {
@@ -92,16 +92,17 @@ export type RootStackParamList = {
     profile: undefined;
     Home: undefined;
     Stock: undefined;
-    Stockitem:undefined;
-    Stockgodown:undefined;
+    Stockitem: undefined;
+    Stockgodown: undefined;
     receiptList: receiptListParams;
     graphicalanalysis: undefined;
+    ShetSheet: undefined;
 
     invoiceSale: SaleInvoiceParams;
     saleOrderInvoice: SaleOrderInvoiceParams;
     PurchaseReportSummary: undefined;
     purchaseOrder: PurchaseOrderParams;
-    purchaseInvoice : purchaseInvoiceParams;
+    purchaseInvoice: purchaseInvoiceParams;
     ItemStack: undefined;
     paymentList: paymentListParams;
     deliveryPend: deliveryPendParams;
@@ -112,7 +113,8 @@ export type RootStackParamList = {
     transactionlist: undefined;
     debtors: debtorsparams;
     expenses: expensesparams;
-    transactionlistexp:undefined;
-    transactionlistitem:itemtransactionparams;
-    transactionlistgodownitem:godownitemparams;
+    transactionlistexp: undefined;
+    transactionlistitem: itemtransactionparams;
+    transactionlistgodownitem: godownitemparams;
+    ShetSheetDetail: { item: any };
 };

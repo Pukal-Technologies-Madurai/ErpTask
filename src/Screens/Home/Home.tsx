@@ -926,6 +926,25 @@ const Home = () => {
                                 <Text style={styles.gridValue}></Text>
                             </View>
                         </Pressable>
+
+                        {/* Shet Sheet */}
+                        <Pressable
+                            style={styles.gridCell}
+                            onPress={() => navigation.navigate("ShetSheet")}>
+                            <View
+                                style={[
+                                    styles.gridCard,
+                                    { borderTopColor: colors.exp },
+                                ]}>
+                                <Icon
+                                    name="description"
+                                    size={24}
+                                    color={colors.exp}
+                                />
+                                <Text style={styles.gridLabel}>Shet Sheet</Text>
+                                <Text style={styles.gridValue}></Text>
+                            </View>
+                        </Pressable>
                     </View>
                 </View>
             </ScrollView>

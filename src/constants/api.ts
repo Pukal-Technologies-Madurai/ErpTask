@@ -2,7 +2,7 @@ import { MMKV } from "react-native-mmkv";
 const storage = new MMKV();
 
 let baseURL = storage.getString("baseURL") || "https://erpsmt.in/";
-// const baseURL = "http://192.168.1.18:9001/api/";
+// const baseURL = "http://192.168.1.6:9001/api/";
 
 export const baseurl = (url: any) => {
     baseURL = url;
@@ -25,7 +25,8 @@ export const API = {
         userId: number,
         branchId?: number,
     ) =>
-        `${baseURL}api/sales/salesInvoiceMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ""
+        `${baseURL}api/sales/salesInvoiceMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
         }`,
 
     salesInvoiceMobileFilter: (
@@ -34,7 +35,8 @@ export const API = {
         userId: number,
         branchId?: number,
     ) =>
-        `${baseURL}api/sales/salesInvoiceMobileFilter?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ""
+        `${baseURL}api/sales/salesInvoiceMobileFilter?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
         }`,
 
     salesOrderInvoice: (
@@ -43,7 +45,8 @@ export const API = {
         userId: number,
         branchId?: number,
     ) =>
-        `${baseURL}api/sales/saleOrder?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ""
+        `${baseURL}api/sales/saleOrder?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
         }`,
 
     deliveryPending: (
@@ -52,7 +55,8 @@ export const API = {
         userId: number,
         branchId?: number,
     ) =>
-        `${baseURL}api/delivery/deliveryOrderListDataMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ""
+        `${baseURL}api/delivery/deliveryOrderListDataMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
         }`,
 
     saleorderPendingItem: (
@@ -61,7 +65,8 @@ export const API = {
         userId: number | string,
         branchId?: number | string,
     ) =>
-        `${baseURL}api/reports/reportsNonconvert/salesMobileItem?Fromdate=${from}&User_Id=${userId}&Todate=${to}&Branch_Id=${branchId || ""
+        `${baseURL}api/reports/reportsNonconvert/salesMobileItem?Fromdate=${from}&User_Id=${userId}&Todate=${to}&Branch_Id=${
+            branchId || ""
         }`,
 
     purchaseReport: (from: string, to: string) =>
@@ -73,7 +78,8 @@ export const API = {
         userId: number | string,
         branchId?: number,
     ) =>
-        `${baseURL}api/dataEntry/purchaseOrderMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ""
+        `${baseURL}api/dataEntry/purchaseOrderMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
         }`,
 
     itemWiseStock: (from: string, to: string) =>
@@ -95,11 +101,16 @@ export const API = {
     ) =>
         `${baseURL}api/reports/godownexpenseReport?fromDate=${from}&toDate=${to}&Product_Id=${Product_Id}&Godown_Id=${Godown_Id}`,
 
+    getIrReportUpload: (reqDate: string) => `${baseURL}api/sales/lrreportUpload?reqDate=${reqDate}`,
+    postIrReportUpload: () => `${baseURL}api/sales/lrreportUpload`,
+    putIrReportUpdate: () => `${baseURL}api/sales/lrreportUpdate`,
+
     getDebtorsCreditors: (from: string, to: string) =>
         `${baseURL}api/payment/getDebtorDetails?fromDate=${from}&toDate=${to}`,
 
     getTransactionReports: (from: string, to: string, AccId?: number) =>
-        `${baseURL}api/payment/transactions?fromDate=${from}&toDate=${to}&Acc_Id=${AccId || ""
+        `${baseURL}api/payment/transactions?fromDate=${from}&toDate=${to}&Acc_Id=${
+            AccId || ""
         }`,
 
     itemStockInfo: (reqDate: string) =>
@@ -114,7 +125,8 @@ export const API = {
         userId: number,
         branchId?: number,
     ) =>
-        `${baseURL}api/receipt/receiptMasterMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ""
+        `${baseURL}api/receipt/receiptMasterMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
         }`,
 
     getPurchaseInvoice: (
@@ -123,13 +135,12 @@ export const API = {
         userId: number,
         branchId?: number,
     ) =>
-        `${baseURL}api/purchase/purchaseInvoiceMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${branchId || ""
+        `${baseURL}api/purchase/purchaseInvoiceMobile?Fromdate=${from}&Todate=${to}&User_Id=${userId}&Branch_Id=${
+            branchId || ""
         }`,
 
     geRetailers: (from: string, to: string) =>
         `${baseURL}api/masters/retailersPaginated?`,
-
-
 
     getExpenses: (from: string, to: string) =>
         `${baseURL}api/reports/expenseReport?fromDate=${from}&toDate=${to}`,
@@ -155,6 +166,7 @@ export const API = {
         userId: number | string,
         branchId?: number | string,
     ) =>
-        `${baseURL}api/reports/reportsNonconvert/salesMobile?Fromdate=${from}&User_Id=${userId}&Todate=${to}&Branch_Id=${branchId || ""
+        `${baseURL}api/reports/reportsNonconvert/salesMobile?Fromdate=${from}&User_Id=${userId}&Todate=${to}&Branch_Id=${
+            branchId || ""
         }`,
 };
