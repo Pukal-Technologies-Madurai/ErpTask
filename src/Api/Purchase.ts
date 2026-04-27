@@ -4,7 +4,7 @@ import { API } from "../constants/api";
 export const getPurchaseReport = async (
     from: Date | string,
     to: Date | string,
-    dbId: string
+    dbId: string,
 ) => {
     try {
         const fromStr =
@@ -24,7 +24,9 @@ export const getPurchaseReport = async (
         const json = await res.json();
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         if (!json.success)
-            throw new Error(json.message || "Failed to fetch purchase report data");
+            throw new Error(
+                json.message || "Failed to fetch purchase report data",
+            );
 
         return json.data || [];
     } catch (error) {
@@ -37,15 +39,20 @@ export const getPurchaseOrderEntry = async (
     from: Date | string,
     to: Date | string,
     userId?: number | string,
-    branchId?: number
+    branchId?: number,
 ) => {
     try {
         const fromStr =
             typeof from === "string" ? from : from.toISOString().split("T")[0];
         const toStr =
             typeof to === "string" ? to : to.toISOString().split("T")[0];
-        
-        const url = API.purchaseOrderEntry(fromStr, toStr, userId !== undefined ? parseInt(userId as string) || userId : '', branchId);
+
+        const url = API.purchaseOrderEntry(
+            fromStr,
+            toStr,
+            userId !== undefined ? parseInt(userId as string) || userId : "",
+            branchId,
+        );
         console.log("Purchase Order Entry URL:", url);
 
         const res = await fetch(url, {
@@ -58,7 +65,9 @@ export const getPurchaseOrderEntry = async (
         const json = await res.json();
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         if (!json.success)
-            throw new Error(json.message || "Failed to fetch purchase order data");
+            throw new Error(
+                json.message || "Failed to fetch purchase order data",
+            );
 
         return json.data || [];
     } catch (error) {
@@ -81,7 +90,7 @@ export const getpurchaseInvoiceEntry = async (
             typeof to === "string" ? to : to.toISOString().split("T")[0];
 
         const url = API.getPurchaseInvoice(fromStr, toStr, userId, branchId);
-        console.log("url", url);
+        // console.log("url", url);
 
         const res = await fetch(url, {
             method: "GET",
@@ -96,7 +105,9 @@ export const getpurchaseInvoiceEntry = async (
         }
 
         if (!json.success) {
-            throw new Error(json.message || "Failed to fetch purchase invoice data");
+            throw new Error(
+                json.message || "Failed to fetch purchase invoice data",
+            );
         }
 
         return json.data || [];
@@ -105,4 +116,3 @@ export const getpurchaseInvoiceEntry = async (
         throw error;
     }
 };
-

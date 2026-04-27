@@ -3,7 +3,7 @@ import { API } from "../constants/api";
 export const getShetList = async (date: string) => {
     try {
         const url = API.getIrReportUpload(date);
-        console.log("ShetSheet URL", url);
+        // console.log("ShetSheet URL", url);
         const res = await fetch(url);
         const json = await res.json();
 

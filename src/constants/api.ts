@@ -101,9 +101,10 @@ export const API = {
     ) =>
         `${baseURL}api/reports/godownexpenseReport?fromDate=${from}&toDate=${to}&Product_Id=${Product_Id}&Godown_Id=${Godown_Id}`,
 
-    getIrReportUpload: (reqDate: string) => `${baseURL}api/sales/lrreportUpload?reqDate=${reqDate}`,
+    getIrReportUpload: (reqDate: string) =>
+        `${baseURL}api/sales/lrreportUpload?reqDate=${reqDate}`,
     postIrReportUpload: () => `${baseURL}api/sales/lrreportUpload`,
-    putIrReportUpdate: () => `${baseURL}api/sales/lrreportUpdate`,
+    putIrReportUpdate: () => `${baseURL}api/sales/lrreportUpload`,
 
     getDebtorsCreditors: (from: string, to: string) =>
         `${baseURL}api/payment/getDebtorDetails?fromDate=${from}&toDate=${to}`,

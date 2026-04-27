@@ -76,7 +76,6 @@ export const salesOrderInvoice = async (
             typeof to === "string" ? to : to.toISOString().split("T")[0];
 
         const url = API.salesOrderInvoice(fromStr, toStr, userId, branchId);
-        console.log("API URL =", url);
 
         const res = await fetch(url, {
             method: "GET",
@@ -185,8 +184,6 @@ export const salesOrderPendingList = async (
             });
         }
 
-        console.log("API URL =", url);
-
         const res = await fetch(url, {
             method: "GET",
             headers: {
@@ -237,8 +234,6 @@ export const salesOrderPendingItemList = async (
                 }
             });
         }
-
-        console.log("API URL =", url);
 
         const res = await fetch(url, {
             method: "GET",

@@ -5,9 +5,9 @@ import {
     View,
     TextInput,
     TouchableOpacity,
-    FlatList,
     ActivityIndicator,
     Modal,
+    FlatList,
 } from "react-native";
 import React, { useState, useCallback, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -21,6 +21,7 @@ import { useQuery } from "@tanstack/react-query";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import dayjs from "dayjs";
+import OpenCamera from "../../Components/OpenCamera";
 
 interface Staff {
     Id: string;
@@ -113,6 +114,17 @@ const ShetSheet = () => {
             if (selectedFilter === "Inv no") {
                 return item.Do_Inv_No.toLowerCase().includes(query);
             }
+            if (selectedFilter === "Godown") {
+                const godownType = item.stockDetails?.[0]?.Godown_Name;
+                return godownType?.toLowerCase().includes(query) ?? false;
+            }
+            if (selectedFilter === "Driver") {
+                return item.involvedStaffs?.some(
+                    s =>
+                        s.Involved_Emp_Type === "Load Man" &&
+                        s.Emp_Name.toLowerCase().includes(query),
+                );
+            }
             // Default: search both if "Date" or other general filter is selected
             return (
                 item.Do_Inv_No.toLowerCase().includes(query) ||
@@ -141,6 +153,27 @@ const ShetSheet = () => {
         return unique.map(no => ({ label: no, value: no }));
     }, [lrReportData]);
 
+    const uniqueGodowns = useMemo(() => {
+        const names = lrReportData
+            .map(item => item.stockDetails?.[0]?.Godown_Name)
+            .filter(Boolean);
+        const unique = [...new Set(names)].sort();
+        return unique.map(name => ({ label: name, value: name }));
+    }, [lrReportData]);
+
+    const uniqueDrivers = useMemo(() => {
+        const drivers: string[] = [];
+        lrReportData.forEach(item => {
+            item.involvedStaffs?.forEach(staff => {
+                if (staff.Involved_Emp_Type === "Load Man" && staff.Emp_Name) {
+                    drivers.push(staff.Emp_Name);
+                }
+            });
+        });
+        const unique = [...new Set(drivers)].sort();
+        return unique.map(name => ({ label: name, value: name }));
+    }, [lrReportData]);
+
     const handleFilterPress = (filter: string) => {
         setSelectedFilter(filter);
         if (filter === "Date") {
@@ -153,11 +186,19 @@ const ShetSheet = () => {
             setSelectionData(uniqueInvNos);
             setSelectionTitle("Select Invoice Number");
             setSelectionVisible(true);
+        } else if (filter === "Godown") {
+            setSelectionData(uniqueGodowns);
+            setSelectionTitle("Select Godown");
+            setSelectionVisible(true);
+        } else if (filter === "Driver") {
+            setSelectionData(uniqueDrivers);
+            setSelectionTitle("Select Driver");
+            setSelectionVisible(true);
         }
     };
 
     const renderItem = ({ item }: { item: DeliveryOrder }) => {
-        const isUploaded = !!item.Imageurl && !item.Imageurl.includes("imageNotFound");
+        const isUploaded = item.imageStatus === "uploaded";
         const isPending = !isUploaded;
 
         return (
@@ -215,11 +256,7 @@ const ShetSheet = () => {
                                             : "#0288D1",
                                     },
                                 ]}>
-                                {item.branchNameGet
-                                    .toUpperCase()
-                                    .includes("SM TRADERS")
-                                    ? "GODOWN"
-                                    : "MILL"}
+                                {item.stockDetails?.[0]?.Godown_Name}
                             </Text>
                             <MaterialIcons
                                 name="keyboard-arrow-down"
@@ -309,8 +346,8 @@ const ShetSheet = () => {
                                     styles.filterChip,
                                     item === "Date" && styles.dateChip,
                                     isActive &&
-                                    item !== "Date" &&
-                                    styles.activeFilterChip,
+                                        item !== "Date" &&
+                                        styles.activeFilterChip,
                                 ]}
                                 onPress={() => handleFilterPress(item)}>
                                 {item === "Date" && (
@@ -326,8 +363,8 @@ const ShetSheet = () => {
                                         styles.filterChipText,
                                         item === "Date" && { color: "#5D4037" },
                                         isActive &&
-                                        item !== "Date" &&
-                                        styles.activeFilterChipText,
+                                            item !== "Date" &&
+                                            styles.activeFilterChipText,
                                     ]}>
                                     {item}
                                 </Text>
@@ -338,8 +375,8 @@ const ShetSheet = () => {
                                         item === "Date"
                                             ? "#5D4037"
                                             : isActive
-                                                ? colors.primary
-                                                : colors.textSecondary
+                                            ? colors.primary
+                                            : colors.textSecondary
                                     }
                                 />
                             </TouchableOpacity>
@@ -427,11 +464,14 @@ const ShetSheet = () => {
                                 placeholder={`Search ${selectionTitle.toLowerCase()}...`}
                                 placeholderTextColor={colors.textSecondary}
                                 onChangeText={text => {
-                                    const source = selectionTitle.includes(
-                                        "Party",
-                                    )
-                                        ? uniqueParties
-                                        : uniqueInvNos;
+                                    let source = uniqueParties;
+                                    if (selectionTitle.includes("Invoice"))
+                                        source = uniqueInvNos;
+                                    else if (selectionTitle.includes("Godown"))
+                                        source = uniqueGodowns;
+                                    else if (selectionTitle.includes("Driver"))
+                                        source = uniqueDrivers;
+
                                     const filtered = source.filter(i =>
                                         i.label
                                             .toLowerCase()
@@ -548,6 +588,7 @@ const getStyles = (typography: any, colors: any) =>
             fontWeight: "bold",
         },
         listContent: {
+            minHeight: "100%",
             padding: 12,
             paddingBottom: 40,
             backgroundColor: colors.background,
@@ -598,6 +639,16 @@ const getStyles = (typography: any, colors: any) =>
             fontSize: 14,
             color: colors.textSecondary,
             marginBottom: 12,
+        },
+        godownRow: {
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 8,
+        },
+        godownText: {
+            fontSize: 12,
+            color: colors.textSecondary,
+            marginLeft: 4,
         },
         cardFooter: {
             flexDirection: "row",

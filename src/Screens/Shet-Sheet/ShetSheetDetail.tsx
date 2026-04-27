@@ -10,7 +10,10 @@ import {
     ActivityIndicator,
     Modal,
     Platform,
+    Linking,
 } from "react-native";
+import RNShare from "react-native-share";
+import ReactNativeBlobUtil from "react-native-blob-util";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import { MMKV } from "react-native-mmkv";
@@ -18,8 +21,10 @@ import { RootStackParamList } from "../../Navigation/types";
 import { useTheme } from "../../Context/ThemeContext";
 import AppHeader from "../../Components/AppHeader";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
 import dayjs from "dayjs";
 import ImageResizer from "@bam.tech/react-native-image-resizer";
+import { useCameraPermission } from "react-native-vision-camera";
 import OpenCamera from "../../Components/OpenCamera";
 import { API } from "../../constants/api";
 
@@ -38,6 +43,17 @@ const ShetSheetDetail = () => {
     const [isPreviewVisible, setIsPreviewVisible] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
 
+    const { hasPermission, requestPermission } = useCameraPermission();
+
+    useEffect(() => {
+        const checkPermission = async () => {
+            if (!hasPermission) {
+                await requestPermission();
+            }
+        };
+        checkPermission();
+    }, [hasPermission]);
+
     const handleSubmit = async () => {
         if (!capturedImage) {
             Alert.alert(
@@ -52,8 +68,7 @@ const ShetSheetDetail = () => {
             const userId = storage.getString("userId");
 
             // Determine if it's an update or separate insert
-            const isUpdate =
-                !!item.Imageurl && !item.Imageurl.includes("imageNotFound");
+            const isUpdate = item.imageStatus === "uploaded";
             const url = isUpdate
                 ? API.putIrReportUpdate()
                 : API.postIrReportUpload();
@@ -62,7 +77,7 @@ const ShetSheetDetail = () => {
 
             // File attachment
             const fileName = capturedImage.split("/").pop();
-            formData.append("LR_Image", {
+            formData.append("LRReport", {
                 uri:
                     Platform.OS === "android"
                         ? capturedImage
@@ -80,23 +95,33 @@ const ShetSheetDetail = () => {
 
             if (isUpdate) {
                 // PUT specific parameters
-                // Using Lr_Id or Id from item - adapt field name based on actual API response
-                formData.append("Id", item.Lr_Id || item.Id);
+                // Try multiple common ID field names as we need the ID from tbl_LrReport
+                const lrReportId =
+                    item.Lr_Id || item.Id || item.lr_id || item.LR_Id;
+                if (lrReportId) {
+                    formData.append("Id", lrReportId);
+                }
             } else {
                 // POST specific parameters
-                formData.append(
-                    "involvedStaffs",
-                    JSON.stringify(item.involvedStaffs),
-                );
-                formData.append("staffInvolvedStatus", "0");
+                // formData.append(
+                //     "involvedStaffs",
+                //     JSON.stringify(item.involvedStaffs || []),
+                // );
+                // formData.append(
+                //     "staffInvolvedStatus",
+                //     item.staffInvolvedStatus?.toString() || "0",
+                // );
             }
 
-            console.log(
-                "Submitting to:",
-                url,
-                "Method:",
-                isUpdate ? "PUT" : "POST",
-            );
+            // console.log("Form Data Debug:", {
+            //     URL: url,
+            //     Method: isUpdate ? "PUT" : "POST",
+            //     Do_Id: item.Do_Id,
+            //     LR_Report_Id: item.Lr_Id || item.Id || item.lr_id || item.LR_Id,
+            //     Uploaded_By: userId,
+            //     FileKey: "LRReport",
+            //     fileName: fileName,
+            // });
 
             const response = await fetch(url, {
                 method: isUpdate ? "PUT" : "POST",
@@ -106,15 +131,31 @@ const ShetSheetDetail = () => {
                 },
             });
 
-            const responseData = await response.json();
+            const responseText = await response.text();
+            let responseData;
+            try {
+                responseData = JSON.parse(responseText);
+            } catch (e) {
+                console.error("RAW SERVER RESPONSE:", responseText);
+                throw new Error(
+                    `Server returned HTML instead of JSON (Status: ${response.status}). Check the console for details.`,
+                );
+            }
+
+            // console.log("API Response:", responseData);
 
             if (response.ok && responseData.success) {
                 setIsUploading(false);
-                console.log("Upload Response:", responseData);
+                // console.log("Upload Response:", responseData);
                 Alert.alert(
                     "Success",
                     responseData.message || "LR Report processed successfully",
-                    [{ text: "OK", onPress: () => navigation.goBack() }],
+                    [
+                        {
+                            text: "OK",
+                            onPress: () => navigation.replace("MainDrawer"),
+                        },
+                    ],
                 );
             } else {
                 throw new Error(
@@ -131,8 +172,7 @@ const ShetSheetDetail = () => {
         }
     };
 
-    const isUploaded =
-        !!item.Imageurl && !item.Imageurl.includes("imageNotFound");
+    const isUploaded = item.imageStatus === "uploaded";
 
     const getImageUrl = (url: string) => {
         if (!url || url.includes("imageNotFound")) return null;
@@ -142,6 +182,61 @@ const ShetSheetDetail = () => {
             return `https://erpsmt.in/uploads${parts[1].replace(/\\/g, "/")}`;
         }
         return url;
+    };
+
+    const displayUri = capturedImage || getImageUrl(item.Imageurl);
+
+    const handleWhatsAppShare = async () => {
+        if (!displayUri) {
+            Alert.alert("No Image", "Please capture or upload an image first.");
+            return;
+        }
+
+        try {
+            let shareUri = displayUri;
+
+            // If it's a remote URL, download it first to share the actual file
+            if (displayUri.startsWith("http")) {
+                const res = await ReactNativeBlobUtil.config({
+                    fileCache: true,
+                    appendExt: "jpg",
+                }).fetch("GET", displayUri);
+
+                shareUri = res.path();
+            }
+
+            // Ensure Android has file:// prefix
+            if (
+                Platform.OS === "android" &&
+                !shareUri.startsWith("file://") &&
+                !shareUri.startsWith("content://")
+            ) {
+                shareUri = `file://${shareUri}`;
+            }
+
+            const shareOptions = {
+                url: shareUri,
+                type: "image/jpeg",
+                social: RNShare.Social.WHATSAPP,
+                failOnCancel: false,
+            };
+
+            await RNShare.open(shareOptions);
+        } catch (error: any) {
+            console.error("Sharing Error:", error);
+
+            // If direct WhatsApp fails, fallback to general share sheet
+            try {
+                await RNShare.open({
+                    url: displayUri.startsWith("http")
+                        ? displayUri
+                        : `file://${displayUri}`,
+                    failOnCancel: false,
+                });
+            } catch (fallbackError) {
+                console.error("Fallback Sharing Error:", fallbackError);
+            }
+        }
     };
 
     return (
@@ -162,7 +257,7 @@ const ShetSheetDetail = () => {
                                 },
                             ]}>
                             <Text style={styles.statusText}>
-                                {item.Delivery_Status.toUpperCase()}
+                                {item.imageStatus.toUpperCase()}
                             </Text>
                         </View>
                     </View>
@@ -208,7 +303,7 @@ const ShetSheetDetail = () => {
                                             : "#941108",
                                     },
                                 ]}>
-                                {item.Delivery_Status.toUpperCase()}
+                                {item.imageStatus.toUpperCase()}
                             </Text>
                         </View>
                     </View>
@@ -231,14 +326,9 @@ const ShetSheetDetail = () => {
                             </Text>
                         </View>
                         <View style={styles.previewBox}>
-                            {capturedImage || item.Imageurl ? (
+                            {displayUri ? (
                                 <Image
-                                    source={{
-                                        uri:
-                                            capturedImage ||
-                                            getImageUrl(item.Imageurl) ||
-                                            "",
-                                    }}
+                                    source={{ uri: displayUri }}
                                     style={styles.previewImage}
                                     resizeMode="cover"
                                 />
@@ -263,30 +353,47 @@ const ShetSheetDetail = () => {
                         </View>
                     </TouchableOpacity>
 
-                    {!isUploaded || capturedImage ? (
-                        <TouchableOpacity
-                            style={styles.viewImageButton}
-                            onPress={() => setIsCameraVisible(true)}>
-                            <Text style={styles.viewImageText}>
-                                {capturedImage
-                                    ? "RE-CAPTURE IMAGE"
-                                    : isUploaded
-                                    ? "UPDATE LR COPY"
-                                    : "CAPTURE LR COPY"}
-                            </Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <TouchableOpacity
-                            style={[
-                                styles.viewImageButton,
-                                { backgroundColor: colors.primary },
-                            ]}
-                            onPress={() => setIsCameraVisible(true)}>
-                            <Text style={styles.viewImageText}>
-                                RE-UPLOAD LR COPY
-                            </Text>
-                        </TouchableOpacity>
-                    )}
+                    <View style={styles.actionRow}>
+                        {!isUploaded || capturedImage ? (
+                            <TouchableOpacity
+                                style={[styles.viewImageButton, { flex: 1 }]}
+                                onPress={() => setIsCameraVisible(true)}>
+                                <Text style={styles.viewImageText}>
+                                    {capturedImage
+                                        ? "RE-CAPTURE IMAGE"
+                                        : isUploaded
+                                        ? "UPDATE LR COPY"
+                                        : "CAPTURE LR COPY"}
+                                </Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity
+                                style={[
+                                    styles.viewImageButton,
+                                    {
+                                        backgroundColor: colors.primary,
+                                        flex: 1,
+                                    },
+                                ]}
+                                onPress={() => setIsCameraVisible(true)}>
+                                <Text style={styles.viewImageText}>
+                                    RE-UPLOAD LR COPY
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+
+                        {(isUploaded || capturedImage) && (
+                            <TouchableOpacity
+                                style={styles.whatsappBtn}
+                                onPress={handleWhatsAppShare}>
+                                <FontAwesome
+                                    name="whatsapp"
+                                    size={24}
+                                    color="#FFF"
+                                />
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
 
                 {/* Godown & Driver Summary */}
@@ -297,23 +404,18 @@ const ShetSheetDetail = () => {
                             <View style={styles.infoBox}>
                                 <Text style={styles.infoLabel}>Godown</Text>
                                 <Text style={styles.infoValue}>
-                                    {item.branchNameGet
-                                        .toUpperCase()
-                                        .includes("SM TRADERS")
-                                        ? "GODOWN"
-                                        : "MILL"}
+                                    {item.stockDetails?.[0]?.Godown_Name ||
+                                        "Main Location"}
                                 </Text>
                             </View>
                             <View style={styles.iconInfoRow}>
                                 <MaterialIcons
-                                    name="event"
+                                    name="business"
                                     size={16}
                                     color={colors.textSecondary}
                                 />
                                 <Text style={styles.iconInfoText}>
-                                    {dayjs(item.Created_on).format(
-                                        "DD MMM YYYY, HH:mm A",
-                                    )}
+                                    {item.branchNameGet}
                                 </Text>
                             </View>
                         </View>
@@ -322,9 +424,9 @@ const ShetSheetDetail = () => {
                             <View style={styles.infoBox}>
                                 <Text style={styles.infoLabel}>Driver</Text>
                                 <Text style={styles.infoValue}>
-                                    {item.involvedStaffs.find(
+                                    {item.involvedStaffs?.find(
                                         (s: any) =>
-                                            s.Involved_Emp_Type === "Transport",
+                                            s.Involved_Emp_Type === "Load Man",
                                     )?.Emp_Name || "Not Assigned"}
                                 </Text>
                             </View>
@@ -335,13 +437,15 @@ const ShetSheetDetail = () => {
                                     color={colors.textSecondary}
                                 />
                                 <Text style={styles.iconInfoText}>
-                                    Upload By {item.Created_BY_Name || "System"}
+                                    {isUploaded
+                                        ? `By ${
+                                              item.LR_Uploaded_By_Name ||
+                                              "Admin"
+                                          }`
+                                        : `By ${
+                                              item.Created_BY_Name || "System"
+                                          }`}
                                 </Text>
-                                <MaterialIcons
-                                    name="chevron-right"
-                                    size={20}
-                                    color="#1A237E"
-                                />
                             </View>
                         </View>
                     </View>
@@ -404,37 +508,6 @@ const ShetSheetDetail = () => {
 
                     {/* Totals Breakdown */}
                     <View style={styles.breakdown}>
-                        <View style={styles.breakdownRow}>
-                            <Text style={styles.breakdownLabel}>Sub Total</Text>
-                            <Text style={styles.breakdownValue}>
-                                ₹{item.Total_Invoice_value.toLocaleString()}
-                            </Text>
-                        </View>
-                        <View style={styles.breakdownRow}>
-                            <Text style={styles.breakdownLabel}>
-                                CGST @ 2.5%
-                            </Text>
-                            <Text style={styles.breakdownValue}>
-                                ₹{(item.Total_Invoice_value * 0.025).toFixed(2)}
-                            </Text>
-                        </View>
-                        <View style={styles.breakdownRow}>
-                            <Text style={styles.breakdownLabel}>
-                                SGST @ 2.5%
-                            </Text>
-                            <Text style={styles.breakdownValue}>
-                                ₹{(item.Total_Invoice_value * 0.025).toFixed(2)}
-                            </Text>
-                        </View>
-                        <View style={styles.breakdownSeparator} />
-                        <View style={styles.breakdownRow}>
-                            <Text style={styles.breakdownLabelBold}>
-                                Total value
-                            </Text>
-                            <Text style={styles.breakdownValueBold}>
-                                ₹{item.Total_Invoice_value.toLocaleString()}
-                            </Text>
-                        </View>
                         <View style={styles.grandTotalContainer}>
                             <Text style={styles.grandTotalLabel}>
                                 Grand Total
@@ -528,14 +601,9 @@ const ShetSheetDetail = () => {
                         onPress={() => setIsPreviewVisible(false)}>
                         <MaterialIcons name="close" size={30} color="#FFF" />
                     </TouchableOpacity>
-                    {(capturedImage || item.Imageurl) && (
+                    {displayUri && (
                         <Image
-                            source={{
-                                uri:
-                                    capturedImage ||
-                                    getImageUrl(item.Imageurl) ||
-                                    "",
-                            }}
+                            source={{ uri: displayUri }}
                             style={styles.fullPreviewImage}
                             resizeMode="contain"
                         />
@@ -702,9 +770,30 @@ const getStyles = (typography: any, colors: any) =>
             alignItems: "center",
         },
         viewImageText: {
-            color: "#FFF",
+            color: colors.white,
             fontSize: 14,
-            fontWeight: "600",
+            fontWeight: "700",
+            letterSpacing: 0.5,
+        },
+        actionRow: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            marginTop: 8,
+            gap: 12,
+            paddingBottom: 24,
+        },
+        whatsappBtn: {
+            width: 56,
+            height: 50,
+            backgroundColor: "#25D366",
+            borderRadius: 12,
+            justifyContent: "center",
+            alignItems: "center",
+            elevation: 2,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.2,
+            shadowRadius: 2,
         },
         infoCard: {
             backgroundColor: colors.white,
@@ -792,36 +881,7 @@ const getStyles = (typography: any, colors: any) =>
             textAlign: "right",
         },
         breakdown: {
-            paddingTop: 16,
-        },
-        breakdownRow: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            marginBottom: 8,
-        },
-        breakdownLabel: {
-            fontSize: 14,
-            color: colors.textSecondary,
-        },
-        breakdownValue: {
-            fontSize: 14,
-            color: colors.text,
-            fontWeight: "600",
-        },
-        breakdownSeparator: {
-            height: 1,
-            backgroundColor: "#EEE",
-            marginVertical: 12,
-        },
-        breakdownLabelBold: {
-            fontSize: 14,
-            fontWeight: "bold",
-            color: colors.text,
-        },
-        breakdownValueBold: {
-            fontSize: 14,
-            fontWeight: "bold",
-            color: colors.text,
+            paddingHorizontal: 8,
         },
         grandTotalContainer: {
             flexDirection: "row",
@@ -841,12 +901,6 @@ const getStyles = (typography: any, colors: any) =>
             fontSize: 20,
             fontWeight: "bold",
             color: "#1A237E",
-        },
-        actionRow: {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            marginTop: 8,
-            paddingBottom: 24,
         },
         closeButton: {
             flex: 1,
