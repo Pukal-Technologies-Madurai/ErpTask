@@ -84,8 +84,9 @@ const ShetSheet = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedFilter, setSelectedFilter] = useState("Date");
+    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-    const filters = ["Date", "Party name", "Inv no", "Godown", "Driver"];
+    const filters = ["Date", "Party name", "Inv no", "Godown", "Voucher", "Driver", "Upload"];
 
     const {
         data: lrReportData = [],
@@ -104,34 +105,55 @@ const ShetSheet = () => {
     };
 
     const filteredData = useMemo(() => {
-        if (!searchQuery) return lrReportData;
-        const query = searchQuery.toLowerCase();
+        const base = (() => {
+            if (!searchQuery) return lrReportData;
+            const query = searchQuery.toLowerCase();
 
-        return lrReportData.filter(item => {
-            if (selectedFilter === "Party name") {
-                return item.retailerNameGet.toLowerCase().includes(query);
-            }
-            if (selectedFilter === "Inv no") {
-                return item.Do_Inv_No.toLowerCase().includes(query);
-            }
-            if (selectedFilter === "Godown") {
-                const godownType = item.stockDetails?.[0]?.Godown_Name;
-                return godownType?.toLowerCase().includes(query) ?? false;
-            }
-            if (selectedFilter === "Driver") {
-                return item.involvedStaffs?.some(
-                    s =>
-                        s.Involved_Emp_Type === "Load Man" &&
-                        s.Emp_Name.toLowerCase().includes(query),
+            return lrReportData.filter(item => {
+                if (selectedFilter === "Party name") {
+                    return item.retailerNameGet.toLowerCase().includes(query);
+                }
+                if (selectedFilter === "Inv no") {
+                    return item.Do_Inv_No.toLowerCase().includes(query);
+                }
+                if (selectedFilter === "Godown") {
+                    const godownType = item.stockDetails?.[0]?.Godown_Name;
+                    return godownType?.toLowerCase().includes(query) ?? false;
+                }
+                if (selectedFilter === "Voucher") {
+                    return item.voucherTypeGet
+                        ?.toLowerCase()
+                        .replace(/\s+/g, '')
+                        .includes(query.replace(/\s+/g, '')) ?? false;
+                }
+                if (selectedFilter === "Driver") {
+                    return item.involvedStaffs?.some(
+                        s =>
+                            s.Involved_Emp_Type === "Load Man" &&
+                            s.Emp_Name.toLowerCase().includes(query),
+                    );
+                }
+                if (selectedFilter === "Upload") {
+                    // query is exactly "uploaded" or "pending" (set by modal selection)
+                    const isUploaded = item.imageStatus === "uploaded";
+                    return query === "uploaded" ? isUploaded : !isUploaded;
+                }
+                // Default: search both if "Date" or other general filter is selected
+                return (
+                    item.Do_Inv_No.toLowerCase().includes(query) ||
+                    item.retailerNameGet.toLowerCase().includes(query)
                 );
-            }
-            // Default: search both if "Date" or other general filter is selected
-            return (
-                item.Do_Inv_No.toLowerCase().includes(query) ||
-                item.retailerNameGet.toLowerCase().includes(query)
-            );
+            });
+        })();
+
+        return [...base].sort((a, b) => {
+            const cmp = a.Do_Inv_No.localeCompare(b.Do_Inv_No, undefined, {
+                numeric: true,
+                sensitivity: "base",
+            });
+            return sortOrder === "asc" ? cmp : -cmp;
         });
-    }, [lrReportData, searchQuery, selectedFilter]);
+    }, [lrReportData, searchQuery, selectedFilter, sortOrder]);
 
     const [selectionVisible, setSelectionVisible] = useState(false);
     const [selectionData, setSelectionData] = useState<
@@ -174,6 +196,14 @@ const ShetSheet = () => {
         return unique.map(name => ({ label: name, value: name }));
     }, [lrReportData]);
 
+    const uniqueVouchers = useMemo(() => {
+        const vouchers = lrReportData
+            .map(item => item.voucherTypeGet)
+            .filter(Boolean);
+        const unique = [...new Set(vouchers)].sort();
+        return unique.map(v => ({ label: v, value: v }));
+    }, [lrReportData]);
+
     const handleFilterPress = (filter: string) => {
         setSelectedFilter(filter);
         if (filter === "Date") {
@@ -190,9 +220,20 @@ const ShetSheet = () => {
             setSelectionData(uniqueGodowns);
             setSelectionTitle("Select Godown");
             setSelectionVisible(true);
+        } else if (filter === "Voucher") {
+            setSelectionData(uniqueVouchers);
+            setSelectionTitle("Select Voucher");
+            setSelectionVisible(true);
         } else if (filter === "Driver") {
             setSelectionData(uniqueDrivers);
             setSelectionTitle("Select Driver");
+            setSelectionVisible(true);
+        } else if (filter === "Upload") {
+            setSelectionData([
+                { label: "Uploaded", value: "uploaded" },
+                { label: "Pending", value: "pending" },
+            ]);
+            setSelectionTitle("Select Upload Status");
             setSelectionVisible(true);
         }
     };
@@ -346,8 +387,8 @@ const ShetSheet = () => {
                                     styles.filterChip,
                                     item === "Date" && styles.dateChip,
                                     isActive &&
-                                        item !== "Date" &&
-                                        styles.activeFilterChip,
+                                    item !== "Date" &&
+                                    styles.activeFilterChip,
                                 ]}
                                 onPress={() => handleFilterPress(item)}>
                                 {item === "Date" && (
@@ -363,8 +404,8 @@ const ShetSheet = () => {
                                         styles.filterChipText,
                                         item === "Date" && { color: "#5D4037" },
                                         isActive &&
-                                            item !== "Date" &&
-                                            styles.activeFilterChipText,
+                                        item !== "Date" &&
+                                        styles.activeFilterChipText,
                                     ]}>
                                     {item}
                                 </Text>
@@ -375,14 +416,62 @@ const ShetSheet = () => {
                                         item === "Date"
                                             ? "#5D4037"
                                             : isActive
-                                            ? colors.primary
-                                            : colors.textSecondary
+                                                ? colors.primary
+                                                : colors.textSecondary
                                     }
                                 />
                             </TouchableOpacity>
                         );
                     }}
                 />
+
+                {/* Sort Row */}
+                <View style={styles.sortRow}>
+                    <MaterialIcons
+                        name="sort"
+                        size={16}
+                        color={colors.textSecondary}
+                    />
+                    <Text style={styles.sortLabel}>Sort by Inv No:</Text>
+                    <TouchableOpacity
+                        style={[
+                            styles.sortChip,
+                            sortOrder === "asc" && styles.sortChipActive,
+                        ]}
+                        onPress={() => setSortOrder("asc")}>
+                        <MaterialIcons
+                            name="arrow-upward"
+                            size={13}
+                            color={sortOrder === "asc" ? colors.primary : colors.textSecondary}
+                        />
+                        <Text
+                            style={[
+                                styles.sortChipText,
+                                sortOrder === "asc" && styles.sortChipTextActive,
+                            ]}>
+                            Ascending
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[
+                            styles.sortChip,
+                            sortOrder === "desc" && styles.sortChipActive,
+                        ]}
+                        onPress={() => setSortOrder("desc")}>
+                        <MaterialIcons
+                            name="arrow-downward"
+                            size={13}
+                            color={sortOrder === "desc" ? colors.primary : colors.textSecondary}
+                        />
+                        <Text
+                            style={[
+                                styles.sortChipText,
+                                sortOrder === "desc" && styles.sortChipTextActive,
+                            ]}>
+                            Descending
+                        </Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <FlatList
@@ -469,8 +558,15 @@ const ShetSheet = () => {
                                         source = uniqueInvNos;
                                     else if (selectionTitle.includes("Godown"))
                                         source = uniqueGodowns;
+                                    else if (selectionTitle.includes("Voucher"))
+                                        source = uniqueVouchers;
                                     else if (selectionTitle.includes("Driver"))
                                         source = uniqueDrivers;
+                                    else if (selectedFilter === "Upload")
+                                        source = [
+                                            { label: "Uploaded", value: "uploaded" },
+                                            { label: "Pending", value: "pending" },
+                                        ];
 
                                     const filtered = source.filter(i =>
                                         i.label
@@ -558,6 +654,43 @@ const getStyles = (typography: any, colors: any) =>
         filterList: {
             paddingHorizontal: 12,
             paddingBottom: 4,
+        },
+        sortRow: {
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: 12,
+            paddingTop: 6,
+            paddingBottom: 8,
+            gap: 6,
+        },
+        sortLabel: {
+            fontSize: 12,
+            color: colors.textSecondary,
+            fontWeight: "600",
+            marginRight: 2,
+        },
+        sortChip: {
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: 6,
+            borderWidth: 1,
+            borderColor: colors.borderColor,
+            backgroundColor: colors.white,
+            gap: 3,
+        },
+        sortChipActive: {
+            borderColor: colors.primary,
+            backgroundColor: "#E8F5E9",
+        },
+        sortChipText: {
+            fontSize: 12,
+            color: colors.textSecondary,
+        },
+        sortChipTextActive: {
+            color: colors.primary,
+            fontWeight: "700",
         },
         filterChip: {
             flexDirection: "row",
