@@ -248,7 +248,11 @@ const getStyles = (typography: any, colors: any) =>
             backgroundColor: "rgba(0,0,0,0.5)",
         },
         modalOverlay: {
-            ...StyleSheet.absoluteFillObject,
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
         },
         modalContent: {
             backgroundColor: colors.white,

@@ -9,7 +9,7 @@ import {
     AppState
 } from "react-native";
 import React, { useEffect, useMemo, useState } from "react";
-import { MMKV } from "react-native-mmkv";
+import { createMMKV } from "react-native-mmkv";
 import AppHeader from "../../Components/AppHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -47,7 +47,7 @@ export interface Invoice {
     Balance: number;
 }
 
-export const filterStorage = new MMKV({
+export const filterStorage = createMMKV({
     id: "expense-filters",
 });
 
@@ -88,8 +88,8 @@ const Expenses = () => {
     };
 
  useEffect(() => {
-    filterStorage.delete("fromDate");
-    filterStorage.delete("toDate");
+    filterStorage.remove("fromDate");
+    filterStorage.remove("toDate");
 
     fetchData();
 }, []);
@@ -98,7 +98,7 @@ const Expenses = () => {
 useEffect(() => {
     const sub = AppState.addEventListener("change", state => {
         if (state === "inactive" || state === "background") {
-            sessionStorage.delete("active");
+            // sessionStorage.delete("active") is removed as it's not defined
         }
     });
 

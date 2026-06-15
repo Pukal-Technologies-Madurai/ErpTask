@@ -1,6 +1,5 @@
 import React from "react";
 import Icon from "react-native-vector-icons/Ionicons";
-import MaterialIcon from "react-native-vector-icons/MaterialIcons";
 import {
     View,
     Text,
@@ -23,7 +22,7 @@ import { useTheme } from "../Context/ThemeContext";
 import { responsiveWidth, responsiveHeight } from "../constants/helper";
 
 const CustomDrawerContent: React.FC<DrawerContentComponentProps> = props => {
-    const { colors, typography, mode } = useTheme();
+    const { colors, typography } = useTheme();
     const styles = getStyles(typography, colors);
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -59,19 +58,23 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = props => {
                 translucent={false}
             />
 
-            {/* Header with App Info Only */}
             <View style={styles.header}>
-                {/* App Info */}
-                <View style={styles.appInfo}>
+                <View style={styles.brandBadge}>
                     <View style={styles.logoContainer}>
-                        <Icon name="business" size={40} color={colors.white} />
+                        <Icon name="cube" size={32} color={colors.white} />
                     </View>
-                    <Text style={styles.appName}>Pukal Melanmai</Text>
-                    <Text style={styles.version}>v{appVersion}</Text>
+
+                    <View style={styles.appInfo}>
+                        <Text style={styles.appName}>Pukal Melanmai</Text>
+                        <Text style={styles.version}>ERP Workspace</Text>
+                    </View>
+
+                    <View style={styles.versionTag}>
+                        <Text style={styles.versionTagText}>v{appVersion}</Text>
+                    </View>
                 </View>
             </View>
 
-            {/* Navigation Menu */}
             <DrawerContentScrollView
                 {...props}
                 contentContainerStyle={styles.scrollView}
@@ -79,15 +82,14 @@ const CustomDrawerContent: React.FC<DrawerContentComponentProps> = props => {
                 style={styles.scrollContainer}
             >
                 <View style={styles.menuContainer}>
+                    <Text style={styles.sectionTitle}>Main Menu</Text>
                     <DrawerItemList {...props} />
                 </View>
             </DrawerContentScrollView>
 
-            {/* Footer Section */}
             <View style={styles.footer}>
                 <View style={styles.footerDivider} />
-
-                {/* Logout Button */}
+                <Text style={styles.footerHint}>You are signed in on this device</Text>
                 <TouchableOpacity
                     style={styles.logoutButton}
                     onPress={handleLogout}
@@ -113,75 +115,108 @@ const getStyles = (typography: any, colors: any) =>
         },
         scrollContainer: {
             flex: 1,
+            backgroundColor: colors.background,
         },
         scrollView: {
             flexGrow: 1,
+            paddingBottom: responsiveHeight(2),
         },
 
-        // Header Section
         header: {
             backgroundColor: colors.primary,
-            alignItems: "center",
-            justifyContent: "center",
-            paddingTop: responsiveHeight(1),
-            paddingHorizontal: responsiveWidth(1.5),
+            paddingTop: responsiveHeight(1.2),
+            paddingHorizontal: responsiveWidth(4),
+            paddingBottom: responsiveHeight(1.6),
         },
-        appInfo: {
+        brandBadge: {
+            flexDirection: "row",
             alignItems: "center",
-            justifyContent: "center",
-        },
-        logoContainer: {
-            width: responsiveWidth(20),
-            height: responsiveWidth(20),
-            borderRadius: responsiveWidth(10),
-            backgroundColor: colors.white + "20",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: responsiveHeight(2),
-            borderWidth: 2,
+            backgroundColor: colors.white + "18",
+            borderRadius: 16,
+            paddingHorizontal: responsiveWidth(3),
+            paddingVertical: responsiveHeight(1.3),
+            borderWidth: 1,
             borderColor: colors.white + "30",
         },
+        logoContainer: {
+            width: responsiveWidth(13),
+            height: responsiveWidth(13),
+            borderRadius: responsiveWidth(6.5),
+            backgroundColor: colors.white + "22",
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 1,
+            borderColor: colors.white + "35",
+            marginRight: responsiveWidth(3),
+        },
+        appInfo: {
+            flex: 1,
+        },
         appName: {
-            ...typography.h4,
+            ...typography.h5,
             color: colors.white,
             fontWeight: "700",
-            marginBottom: responsiveHeight(0.5),
-            textAlign: "center",
         },
         version: {
             ...typography.body2,
             color: colors.white,
-            opacity: 0.8,
-            textAlign: "center",
+            opacity: 0.9,
+            marginTop: responsiveHeight(0.2),
+        },
+        versionTag: {
+            backgroundColor: colors.white + "24",
+            borderRadius: 999,
+            paddingHorizontal: responsiveWidth(2.2),
+            paddingVertical: responsiveHeight(0.4),
+            borderWidth: 1,
+            borderColor: colors.white + "35",
+        },
+        versionTagText: {
+            ...typography.caption,
+            color: colors.white,
+            fontWeight: "600",
         },
 
-        // Menu Section
         menuContainer: {
             flex: 1,
-            paddingTop: responsiveHeight(2),
+            paddingTop: responsiveHeight(1.8),
             backgroundColor: colors.background,
+            paddingHorizontal: responsiveWidth(1.6),
+        },
+        sectionTitle: {
+            ...typography.overline,
+            color: colors.textSecondary,
+            letterSpacing: 1,
+            textTransform: "uppercase",
+            marginLeft: responsiveWidth(3),
+            marginBottom: responsiveHeight(0.8),
+            opacity: 0.9,
         },
 
-        // Footer Section
         footer: {
             backgroundColor: colors.background,
             paddingHorizontal: responsiveWidth(4),
             paddingBottom: responsiveHeight(1),
-            paddingTop: responsiveHeight(2),
+            paddingTop: responsiveHeight(1.2),
         },
         footerDivider: {
             height: 1,
-            backgroundColor: colors.border || colors.textSecondary + "20",
-            marginBottom: responsiveHeight(2),
+            backgroundColor: colors.borderColor || colors.textSecondary + "20",
+            marginBottom: responsiveHeight(1.4),
+        },
+        footerHint: {
+            ...typography.caption,
+            color: colors.textSecondary,
+            marginBottom: responsiveHeight(1.2),
         },
         logoutButton: {
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: colors.accent,
-            paddingVertical: responsiveHeight(1.5),
+            paddingVertical: responsiveHeight(1.4),
             paddingHorizontal: responsiveWidth(6),
-            borderRadius: 12,
+            borderRadius: 14,
             elevation: 3,
             shadowColor: colors.black,
             shadowOffset: { width: 0, height: 2 },
@@ -192,7 +227,7 @@ const getStyles = (typography: any, colors: any) =>
             marginLeft: responsiveWidth(2),
             ...typography.body1,
             color: colors.white,
-            fontWeight: "600",
+            fontWeight: "700",
         },
     });
 

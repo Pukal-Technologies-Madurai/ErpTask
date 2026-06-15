@@ -674,7 +674,7 @@ const Home = () => {
         if (newBranchId) {
             storage.set("branchId", newBranchId);
         } else {
-            storage.delete("branchId");
+            storage.remove("branchId");
         }
 
         if (branchLoading) return;
@@ -1606,6 +1606,23 @@ const Home = () => {
                                             color={colors.exp}
                                         />
                                     </View>
+                                </View>
+                            </Pressable>
+
+                            <Pressable
+                                onPress={() => navigation.navigate("ShetSheet")}>
+                                <View
+                                    style={[
+                                        styles.summaryCard,
+                                        { borderTopColor: colors.exp },
+                                    ]}>
+                                    <Icon
+                                        name="description"
+                                        size={24}
+                                        color={colors.exp}
+                                    />
+                                    <Text style={styles.summaryCardTitle}>Shet Sheet</Text>
+                                    <Text style={styles.summaryCardValue}></Text>
                                 </View>
                             </Pressable>
 

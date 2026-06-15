@@ -96,6 +96,7 @@ export type RootStackParamList = {
     Stockgodown:undefined;
     receiptList: receiptListParams;
     graphicalanalysis: undefined;
+    ShetSheet: undefined;
 
     invoiceSale: SaleInvoiceParams;
     saleOrderInvoice: SaleOrderInvoiceParams;
@@ -115,4 +116,5 @@ export type RootStackParamList = {
     transactionlistexp:undefined;
     transactionlistitem:itemtransactionparams;
     transactionlistgodownitem:godownitemparams;
+    ShetSheetDetail: { item: any };
 };

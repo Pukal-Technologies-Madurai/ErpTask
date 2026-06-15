@@ -35,6 +35,8 @@ import TransactionListExpenses from "../Screens/Payment/TransactionListExpenses"
 import ItemWiseTransaction from "../Screens/Home/ItemWiseTransaction";
 import GodownItemWiseTransaction from "../Screens/Home/GodownitemTransaction";
 import GraphicalAnalysisReport from "../Screens/Home/GraphAnalyticsReport";
+import ShetSheet from "../ShetSheet/ShetSheet";
+import ShetSheetDetail from "../ShetSheet/ShetSheetDetail";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -163,6 +165,9 @@ const Navigation = () => {
                         name="graphicalanalysis"
                         component={GraphicalAnalysisReport}
                     />
+
+                    <Stack.Screen name="ShetSheet" component={ShetSheet} />
+                    <Stack.Screen name="ShetSheetDetail" component={ShetSheetDetail} />
                 </Stack.Navigator>
             </NavigationContainer>
         </SafeAreaProvider>

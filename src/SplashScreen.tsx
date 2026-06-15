@@ -24,7 +24,7 @@ const SplashScreen = () => {
         (async () => {
             try {
                 const token = storage.getString("userToken");
-                await new Promise(resolve => setTimeout(resolve, 1200));
+                await new Promise<void>(resolve => setTimeout(() => resolve(), 1200));
                 setLoading(false);
 
                 navigation.replace(token ? "MainDrawer" : "Login");

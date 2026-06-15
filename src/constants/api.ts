@@ -171,4 +171,9 @@ export const API = {
         `${baseURL}api/sales/salesFilterDropdown?reportName=${encodeURIComponent(
             reportName,
         )}`,
+
+    getIrReportUpload: (reqDate: string) =>
+        `${baseURL}api/sales/lrreportUpload?reqDate=${reqDate}`,
+    postIrReportUpload: () => `${baseURL}api/sales/lrreportUpload`,
+    putIrReportUpdate: () => `${baseURL}api/sales/lrreportUpload`,
 };
