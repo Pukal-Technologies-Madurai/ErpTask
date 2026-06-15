@@ -1,3 +1,70 @@
+interface SaleOrderInvoiceParams {
+    branchId: any;
+}
+
+interface SaleInvoiceParams {
+    branchId: any;
+}
+
+interface purchaseInvoiceParams {
+    branchId: any;
+}
+
+interface PurchaseOrderParams {
+    branchId: any;
+}
+
+interface paymentListParams {
+    branchId: any;
+}
+
+interface receiptListParams  {
+    branchId: any;
+}
+
+interface deliveryPendParams {
+    branchId: any;
+}
+
+interface saleorderpendParams {
+    branchId: any;
+}
+
+interface salependorderparams {
+    branchId:any;
+}
+
+interface salependitemparams {
+    branchId:any;
+}
+
+interface transactionparams {
+    branchId:any;
+}
+
+interface debtorsparams {
+    branchId:any;
+}
+
+interface expensesparams {
+    branchId: any;
+}
+
+interface itemtransactionparams {
+    ProductId: number;
+    productName: string;
+    fromDate: Date;
+    toDate: Date;
+}
+
+interface godownitemparams {
+    ProductId: number;
+    GodownId: number;
+    productName: string;
+    fromDate: Date;
+    toDate: Date;
+}
+
 export type BottomTabParamList = {
     Home: undefined;
     Attendance: undefined;
@@ -10,7 +77,8 @@ export type DrawerParamList = {
     Profile: undefined;
     CompanySwitch: undefined;
 
-    invoiceSale: undefined;
+    invoiceSale: SaleInvoiceParams;
+    purchaseInvoice: purchaseInvoiceParams;
     saleOrderInvoice: undefined;
     Attendance: undefined;
 };
@@ -24,10 +92,29 @@ export type RootStackParamList = {
     profile: undefined;
     Home: undefined;
     Stock: undefined;
+    Stockitem:undefined;
+    Stockgodown:undefined;
+    receiptList: receiptListParams;
+    graphicalanalysis: undefined;
+    ShetSheet: undefined;
 
-    invoiceSale: undefined;
-    saleOrderInvoice: undefined;
+    invoiceSale: SaleInvoiceParams;
+    saleOrderInvoice: SaleOrderInvoiceParams;
     PurchaseReportSummary: undefined;
-    purchaseOrder: undefined;
+    purchaseOrder: PurchaseOrderParams;
+    purchaseInvoice : purchaseInvoiceParams;
     ItemStack: undefined;
+    paymentList: paymentListParams;
+    deliveryPend: deliveryPendParams;
+    saleorderpend: saleorderpendParams;
+    saleorderpendorder: salependorderparams;
+    saleorderpenditem: salependitemparams;
+    transaction: transactionparams;
+    transactionlist: undefined;
+    debtors: debtorsparams;
+    expenses: expensesparams;
+    transactionlistexp:undefined;
+    transactionlistitem:itemtransactionparams;
+    transactionlistgodownitem:godownitemparams;
+    ShetSheetDetail: { item: any };
 };

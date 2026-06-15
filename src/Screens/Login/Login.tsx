@@ -12,7 +12,7 @@ import {
     Modal,
 } from "react-native";
 import React, { useState } from "react";
-import { MMKV } from "react-native-mmkv";
+import { storage } from "../../constants/storage";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
 import CryptoJS from "react-native-crypto-js";
@@ -35,7 +35,6 @@ const LoginScreen = () => {
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { colors, typography } = useTheme();
     const styles = getStyles(colors, typography);
-    const storage = new MMKV();
 
     const [companies, setCompanies] = useState<CompanyData[]>([]);
     const [selectedCompany, setSelectedCompany] = useState<CompanyData | null>(
@@ -52,6 +51,7 @@ const LoginScreen = () => {
 
     const handleContinue = async () => {
         try {
+            console.log("login", `${API.userPortal()}${form.username}`);
             const response = await fetch(`${API.userPortal()}${form.username}`);
             const jsonData = await response.json();
 
@@ -107,6 +107,7 @@ const LoginScreen = () => {
             });
 
             const data = await response.json();
+            console.log("data:", data);
 
             if (data.success) {
                 getUserAuth(
@@ -179,7 +180,8 @@ const LoginScreen = () => {
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.container}>
+            style={styles.container}
+        >
             <View style={styles.topBackground} />
 
             <View style={styles.formContainer}>
@@ -211,7 +213,8 @@ const LoginScreen = () => {
 
                         <TouchableOpacity
                             onPress={handleContinue}
-                            style={styles.button}>
+                            style={styles.button}
+                        >
                             <Text style={styles.buttonText}>Continue</Text>
                             <Icon
                                 name="arrow-right"
@@ -232,7 +235,8 @@ const LoginScreen = () => {
                         {companies.length > 1 && (
                             <TouchableOpacity
                                 onPress={() => setModalVisible(true)}
-                                style={styles.selectButton}>
+                                style={styles.selectButton}
+                            >
                                 <Text style={styles.selectButtonText}>
                                     {selectedCompany
                                         ? selectedCompany.Company_Name
@@ -266,7 +270,8 @@ const LoginScreen = () => {
                                 <TouchableOpacity
                                     onPress={handleLogin}
                                     style={styles.button}
-                                    disabled={isSubmitting}>
+                                    disabled={isSubmitting}
+                                >
                                     {isSubmitting ? (
                                         <ActivityIndicator
                                             color={colors.white}
@@ -294,7 +299,8 @@ const LoginScreen = () => {
                 animationType="slide"
                 transparent={true}
                 visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}>
+                onRequestClose={() => setModalVisible(false)}
+            >
                 <View style={styles.modalView}>
                     <View style={styles.modalContainer}>
                         <View style={styles.modalHeader}>
@@ -302,7 +308,8 @@ const LoginScreen = () => {
                                 Select Company
                             </Text>
                             <TouchableOpacity
-                                onPress={() => setModalVisible(false)}>
+                                onPress={() => setModalVisible(false)}
+                            >
                                 <Icon name="x" size={24} color={colors.text} />
                             </TouchableOpacity>
                         </View>
@@ -315,7 +322,8 @@ const LoginScreen = () => {
                             renderItem={({ item }: { item: CompanyData }) => (
                                 <TouchableOpacity
                                     onPress={() => handleCompanySelect(item)}
-                                    style={styles.item}>
+                                    style={styles.item}
+                                >
                                     <Text style={styles.itemText}>
                                         {item.Company_Name}
                                     </Text>

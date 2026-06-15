@@ -22,8 +22,13 @@ import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
 import { usePagination } from "../../hooks/usePagination";
 import PaginationControls from "../../Components/PaginationControls";
+import { storage } from "../../constants/storage";
 
-const SaleOrder = () => {
+const SaleOrder = ({ route }: { route: any }) => {
+    const item = route.params || {};
+    const branchIdProps = item.branchId;
+    //   console.log("branchId", branchIdProps);
+
     const { typography, colors } = useTheme();
     const styles = getStyles(typography, colors);
     const navigation =
@@ -31,6 +36,8 @@ const SaleOrder = () => {
 
     const [fromDate, setFromDate] = React.useState<Date>(new Date());
     const [toDate, setToDate] = React.useState<Date>(new Date());
+    const [userId, setUserId] = React.useState("");
+    const [branchId, setBranchId] = React.useState("");
     const [searchQuery, setSearchQuery] = React.useState("");
     const [expandedOrders, setExpandedOrders] = React.useState<Set<string>>(
         new Set(),
@@ -41,6 +48,13 @@ const SaleOrder = () => {
 
     const ITEMS_PER_PAGE = 15;
 
+    React.useEffect(() => {
+        const userId = storage.getString("userId");
+        const branchId = storage.getString("branchId");
+        if (userId) setUserId(userId);
+        if (branchId) setBranchId(branchId);
+    }, [branchId]);
+
     const {
         data: saleOrder = [],
         isLoading,
@@ -48,8 +62,9 @@ const SaleOrder = () => {
         refetch,
     } = useQuery({
         queryKey: ["saleOrder", fromDate, toDate],
-        queryFn: () => salesOrderInvoice(fromDate, toDate),
-        enabled: !!fromDate && !!toDate,
+        queryFn: () =>
+            salesOrderInvoice(fromDate, toDate, userId, branchIdProps),
+        enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
     // Get unique brands and their totals from products
@@ -188,18 +203,21 @@ const SaleOrder = () => {
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                style={styles.brandFilterContainer}>
+                style={styles.brandFilterContainer}
+            >
                 <TouchableOpacity
                     style={[
                         styles.brandFilterButton,
                         !selectedBrand && styles.brandFilterButtonActive,
                     ]}
-                    onPress={() => setSelectedBrand("")}>
+                    onPress={() => setSelectedBrand("")}
+                >
                     <Text
                         style={[
                             styles.brandFilterText,
                             !selectedBrand && styles.brandFilterTextActive,
-                        ]}>
+                        ]}
+                    >
                         All
                     </Text>
                 </TouchableOpacity>
@@ -211,13 +229,15 @@ const SaleOrder = () => {
                             selectedBrand === brand &&
                                 styles.brandFilterButtonActive,
                         ]}
-                        onPress={() => setSelectedBrand(brand)}>
+                        onPress={() => setSelectedBrand(brand)}
+                    >
                         <Text
                             style={[
                                 styles.brandFilterText,
                                 selectedBrand === brand &&
                                     styles.brandFilterTextActive,
-                            ]}>
+                            ]}
+                        >
                             {brand}
                         </Text>
                     </TouchableOpacity>
@@ -244,7 +264,8 @@ const SaleOrder = () => {
                 <TouchableOpacity
                     style={styles.orderHeader}
                     onPress={() => toggleOrder(order.S_Id)}
-                    activeOpacity={0.7}>
+                    activeOpacity={0.7}
+                >
                     <View style={styles.orderHeaderLeft}>
                         <View style={styles.orderTopRow}>
                             <View style={styles.orderNumberContainer}>
@@ -290,7 +311,8 @@ const SaleOrder = () => {
                                 />
                                 <Text
                                     style={styles.retailerName}
-                                    numberOfLines={2}>
+                                    numberOfLines={2}
+                                >
                                     {order.Retailer_Name}
                                 </Text>
                             </View>
@@ -326,7 +348,8 @@ const SaleOrder = () => {
                                         </Text>
                                         <Text
                                             style={styles.infoValue}
-                                            numberOfLines={1}>
+                                            numberOfLines={1}
+                                        >
                                             {order.Branch_Name}
                                         </Text>
                                     </View>
@@ -375,7 +398,8 @@ const SaleOrder = () => {
                                             style={[
                                                 styles.tableCell,
                                                 styles.productNameCell,
-                                            ]}>
+                                            ]}
+                                        >
                                             Product
                                         </Text>
                                         <Text style={styles.tableCell}>
@@ -392,13 +416,15 @@ const SaleOrder = () => {
                                         (product: any, index: number) => (
                                             <View
                                                 key={index}
-                                                style={styles.tableRow}>
+                                                style={styles.tableRow}
+                                            >
                                                 <Text
                                                     style={[
                                                         styles.tableCell,
                                                         styles.productNameCell,
                                                     ]}
-                                                    numberOfLines={4}>
+                                                    numberOfLines={4}
+                                                >
                                                     {product.Product_Name}
                                                 </Text>
                                                 <Text style={styles.tableCell}>
@@ -464,7 +490,8 @@ const SaleOrder = () => {
                         tintColor={colors.primary}
                     />
                 }
-                showsVerticalScrollIndicator={false}>
+                showsVerticalScrollIndicator={false}
+            >
                 {/* Loading State */}
                 {isLoading && (
                     <View style={styles.loadingContainer}>
@@ -490,7 +517,8 @@ const SaleOrder = () => {
                         </Text>
                         <TouchableOpacity
                             style={styles.retryButton}
-                            onPress={onRefresh}>
+                            onPress={onRefresh}
+                        >
                             <Icon
                                 name="refresh"
                                 size={20}
@@ -526,7 +554,8 @@ const SaleOrder = () => {
                             />
                             {searchQuery.length > 0 && (
                                 <TouchableOpacity
-                                    onPress={() => setSearchQuery("")}>
+                                    onPress={() => setSearchQuery("")}
+                                >
                                     <Icon
                                         name="clear"
                                         size={20}

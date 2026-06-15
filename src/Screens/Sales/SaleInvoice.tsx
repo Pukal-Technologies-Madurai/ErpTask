@@ -15,30 +15,126 @@ import { useTheme } from "../../Context/ThemeContext";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { RootStackParamList } from "../../Navigation/types";
-import { salesInvoice } from "../../Api/Sales";
+import { salesInvoice, getFilterColumnName } from "../../Api/Sales";
 import { responsiveWidth, responsiveHeight } from "../../constants/helper";
 import AppHeader from "../../Components/AppHeader";
 import FilterModal from "../../Components/FilterModal";
 import { formatCurrency, formatDate, formatTime } from "../../constants/utils";
+import { storage } from "../../constants/storage";
 
-const SaleInvoice = () => {
+const SaleInvoice = ({ route }: { route: any }) => {
+    const item = route.params || {};
+    const branchIdProps = item.branchId;
+
     const { colors, typography } = useTheme();
     const styles = getStyles(typography, colors);
     const navigation =
         useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-
     const [fromDate, setFromDate] = React.useState<Date>(new Date());
     const [toDate, setToDate] = React.useState<Date>(new Date());
+    const [userId, setUserId] = React.useState("");
+    const [branchId, setBranchId] = React.useState("");
     const [searchQuery, setSearchQuery] = React.useState("");
     const [modalVisible, setModalVisible] = React.useState(false);
     const [expandedInvoices, setExpandedInvoices] = React.useState<Set<string>>(
         new Set(),
     );
-    const [selectedBrand, setSelectedBrand] = React.useState("");
     const [currentPage, setCurrentPage] = React.useState(1);
     const [refreshing, setRefreshing] = React.useState(false);
+    const [selectedFilters, setSelectedFilters] = React.useState<
+        Record<string, string>
+    >({});
+
+    // --- LEVEL2 (dynamic) filter states ---
+    const [level2Columns, setLevel2Columns] = React.useState<any[]>([]);
+    const [level2TypesOrder, setLevel2TypesOrder] = React.useState<number[]>(
+        [],
+    );
+    const [activeType, setActiveType] = React.useState<number | null>(null);
+    const [selectedValuesByType, setSelectedValuesByType] = React.useState<
+        Record<number, string>
+    >({});
+    const [activeTypeValuesWithTotals, setActiveTypeValuesWithTotals] =
+        React.useState<{ value: string; total: number }[]>([]);
+    const [secondLevelValues, setSecondLevelValues] = React.useState<
+        { value: string; total: number }[]
+    >([]);
 
     const ITEMS_PER_PAGE = 15;
+
+    React.useEffect(() => {
+        const uid = storage.getString("userId");
+        const bid = storage.getString("branchId");
+        if (uid) setUserId(uid);
+        if (bid) setBranchId(bid);
+    }, [branchId]);
+
+    // --- fetch Level2 columns from backend and normalize ---
+    React.useEffect(() => {
+        (async () => {
+            try {
+                const res = await getFilterColumnName();
+                const arr = Array.isArray(res) ? res : res?.data || [];
+                const lvl2Raw = (arr || []).filter(
+                    (f: any) =>
+                        Number(f?.FilterLevel) === 2 ||
+                        Number(f?.Filter_Level) === 2 ||
+                        Number(f?.Filterlevel) === 2,
+                );
+
+                const lvl2 = lvl2Raw.map((f: any) => {
+                    const columnName =
+                        f?.Column_Name ||
+                        f?.columnName ||
+                        f?.ColumnName ||
+                        f?.column_name ||
+                        f?.Column ||
+                        "";
+                    const rawType =
+                        f?.Type ??
+                        f?.type ??
+                        f?.filterType ??
+                        f?.FilterType ??
+                        f?.filter_type;
+                    const typeNum =
+                        rawType !== undefined ? Number(rawType) : NaN;
+                    const options =
+                        f?.options ||
+                        f?.Options ||
+                        f?.optionsList ||
+                        f?.OptionsList ||
+                        [];
+                    return {
+                        ...f,
+                        Column_Name: String(columnName),
+                        Type: Number.isNaN(typeNum) ? null : typeNum,
+                        options: Array.isArray(options) ? options : [],
+                    };
+                });
+
+                setLevel2Columns(lvl2);
+
+                const uniqTypes = Array.from(
+                    new Set(
+                        lvl2
+                            .map((x: any) => Number(x.Type))
+                            .filter((t: number) => !isNaN(t)),
+                    ),
+                ) as number[];
+
+                uniqTypes.sort((a: number, b: number) => a - b);
+
+                setLevel2TypesOrder(uniqTypes);
+
+                if (uniqTypes.length > 0) setActiveType(uniqTypes[0]);
+            } catch (err) {
+                console.error("getFilterColumnName error:", err);
+                setLevel2Columns([]);
+                setLevel2TypesOrder([]);
+                setActiveType(null);
+            }
+        })();
+    }, []);
 
     const {
         data: invoiceData = [],
@@ -46,58 +142,284 @@ const SaleInvoice = () => {
         error,
         refetch,
     } = useQuery({
-        queryKey: ["salesInvoice", fromDate, toDate],
-        queryFn: () => salesInvoice(fromDate, toDate),
-        enabled: !!fromDate && !!toDate,
+        queryKey: [
+            "salesInvoice",
+            fromDate,
+            toDate,
+            userId,
+            branchIdProps,
+            JSON.stringify(selectedFilters),
+            JSON.stringify(selectedValuesByType),
+        ],
+        queryFn: () =>
+            salesInvoice(
+                fromDate,
+                toDate,
+                userId,
+                branchIdProps,
+                selectedFilters,
+            ),
+        enabled: !!fromDate && !!toDate && !!userId && !!branchIdProps,
     });
 
-    // Filter and sort data
+    const normalizeColumnKey = (colName: string) => {
+        if (!colName) return colName;
+        const key = colName.toLowerCase().replace(/\s+/g, "_");
+        if (key.includes("brand")) return "BrandGet";
+        if (key.includes("product") || key.includes("product_name"))
+            return "Product_Name";
+        if (key.includes("item") && key.includes("name")) return "Item_Name";
+        if (key.includes("stock_group")) return "Stock_Group";
+        if (key.includes("ledger") || key.includes("ledger_name"))
+            return "Ledger_Name";
+        if (key.includes("ref") && key.includes("broker")) return "Ref_Brokers";
+        if (key.includes("Voucher_Type")) return "Voucher_Type";
+        return colName;
+    };
+
+    const computeValuesWithTotals = (
+        columnName: string,
+        parentPair?: { column: string; value: string } | undefined,
+    ) => {
+        const totals = new Map<string, number>();
+
+        invoiceData.forEach((inv: any) => {
+            let parentMatchesInvoiceLevel = true;
+            if (parentPair) {
+                const invParentVal = inv?.[parentPair.column];
+                if (
+                    invParentVal === undefined ||
+                    invParentVal === null ||
+                    String(invParentVal) === ""
+                ) {
+                    parentMatchesInvoiceLevel = false;
+                } else {
+                    parentMatchesInvoiceLevel =
+                        String(invParentVal) === parentPair.value;
+                }
+            }
+
+            (inv.Products_List || []).forEach((p: any) => {
+                let parentOk = true;
+                if (parentPair) {
+                    const prodParentVal =
+                        p?.[parentPair.column] ??
+                        p?.Stock_Info?.[parentPair.column];
+                    parentOk =
+                        parentMatchesInvoiceLevel ||
+                        String(prodParentVal) === parentPair.value;
+                    if (!parentOk) return;
+                }
+
+                let v =
+                    p?.[columnName] ??
+                    (p.Stock_Info && p.Stock_Info[columnName]) ??
+                    inv?.[columnName];
+
+                if (v === undefined || v === null || String(v).trim() === "")
+                    return;
+                const valStr = String(v);
+                const qty = Number(p.Bill_Qty) || 0;
+                const prev = totals.get(valStr) || 0;
+                totals.set(valStr, prev + qty);
+            });
+        });
+
+        return Array.from(totals.entries())
+            .map(([value, total]) => ({ value, total }))
+            .sort((a, b) => b.total - a.total);
+    };
+
+    React.useEffect(() => {
+        // QUICK EXIT
+        if (activeType == null) {
+            if (activeTypeValuesWithTotals.length !== 0)
+                setActiveTypeValuesWithTotals([]);
+            if (secondLevelValues.length !== 0) setSecondLevelValues([]);
+            return;
+        }
+
+        const colsForType = level2Columns.filter(c => c.Type === activeType);
+        if (!colsForType.length) {
+            if (activeTypeValuesWithTotals.length !== 0)
+                setActiveTypeValuesWithTotals([]);
+            if (secondLevelValues.length !== 0) setSecondLevelValues([]);
+            return;
+        }
+
+        const primaryCol = colsForType[0];
+        const colName = primaryCol.Column_Name;
+
+        // PARENT TYPE FINDER
+        const idx = level2TypesOrder.indexOf(activeType);
+        let parentPair: { column: string; value: string } | undefined;
+
+        if (idx > 0) {
+            const parentType = level2TypesOrder[idx - 1];
+            const selectedParentValue = selectedValuesByType[parentType];
+
+            if (!selectedParentValue) {
+                if (activeTypeValuesWithTotals.length !== 0)
+                    setActiveTypeValuesWithTotals([]);
+                if (secondLevelValues.length !== 0) setSecondLevelValues([]);
+                return;
+            }
+
+            const parentCols = level2Columns.filter(c => c.Type === parentType);
+            if (parentCols.length > 0) {
+                parentPair = {
+                    column: parentCols[0].Column_Name,
+                    value: selectedParentValue,
+                };
+            }
+        }
+
+        // NORMALIZED KEYS
+        const mappedCol = normalizeColumnKey(colName);
+        const parentForCompute = parentPair
+            ? {
+                  column: normalizeColumnKey(parentPair.column),
+                  value: parentPair.value,
+              }
+            : undefined;
+
+        // FIRST LEVEL VALUES
+        const newValues = computeValuesWithTotals(mappedCol, parentForCompute);
+
+        // ONLY UPDATE IF CHANGED (prevents warnings)
+        if (
+            JSON.stringify(newValues) !==
+            JSON.stringify(activeTypeValuesWithTotals)
+        ) {
+            setActiveTypeValuesWithTotals(newValues);
+        }
+
+        // SECOND LEVEL (TYPE 4 → TYPE 5)
+        if (activeType === 4) {
+            const type5Cols = level2Columns.filter(c => c.Type === 5);
+
+            if (type5Cols.length && selectedValuesByType[4]) {
+                const type5ColName = normalizeColumnKey(
+                    type5Cols[0].Column_Name,
+                );
+
+                const secondLevel = computeValuesWithTotals(type5ColName, {
+                    column: normalizeColumnKey(primaryCol.Column_Name),
+                    value: selectedValuesByType[4],
+                });
+
+                if (
+                    JSON.stringify(secondLevel) !==
+                    JSON.stringify(secondLevelValues)
+                ) {
+                    setSecondLevelValues(secondLevel);
+                }
+            } else {
+                if (secondLevelValues.length !== 0) setSecondLevelValues([]);
+            }
+        } else {
+            if (secondLevelValues.length !== 0) setSecondLevelValues([]);
+        }
+    }, [
+        activeType,
+        level2Columns,
+        level2TypesOrder,
+        selectedValuesByType,
+        invoiceData,
+    ]);
+
+    // Reset pagination & expansion when filters change
+    React.useEffect(() => {
+        setCurrentPage(1);
+        setExpandedInvoices(new Set());
+    }, [searchQuery, selectedFilters, selectedValuesByType]);
+
     const getProcessedData = () => {
         let filtered = [...invoiceData];
-
-        // Filter by search query
+        if (branchIdProps) {
+            const branchIds = Array.isArray(branchIdProps)
+                ? branchIdProps.map(id => Number(id))
+                : [Number(branchIdProps)];
+            filtered = filtered.filter((invoice: any) =>
+                branchIds.includes(invoice.Branch_Id),
+            );
+        }
         if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
             filtered = filtered.filter(
-                invoice =>
-                    invoice.Do_Inv_No?.toLowerCase().includes(
-                        searchQuery.toLowerCase(),
-                    ) ||
-                    invoice.Retailer_Name?.toLowerCase().includes(
-                        searchQuery.toLowerCase(),
-                    ) ||
-                    invoice.Branch_Name?.toLowerCase().includes(
-                        searchQuery.toLowerCase(),
-                    ),
+                (invoice: any) =>
+                    String(invoice.Do_Inv_No || "")
+                        .toLowerCase()
+                        .includes(query) ||
+                    String(invoice.Retailer_Name || "")
+                        .toLowerCase()
+                        .includes(query) ||
+                    String(invoice.Branch_Name || "")
+                        .toLowerCase()
+                        .includes(query),
             );
         }
 
-        // Filter by brand
-        if (selectedBrand) {
-            filtered = filtered.filter(invoice =>
-                invoice.Products_List?.some(
-                    (product: { BrandGet: string }) =>
-                        (selectedBrand === "No Brand" &&
-                            (!product.BrandGet ||
-                                product.BrandGet.trim() === "")) ||
-                        product.BrandGet === selectedBrand,
-                ),
-            );
+        if (level2TypesOrder.length > 0) {
+            level2TypesOrder.forEach((t, idx) => {
+                const selVal = selectedValuesByType[t];
+                if (!selVal) return;
+                const cols = level2Columns.filter(c => c.Type === t);
+                if (!cols || cols.length === 0) return;
+                const colName = cols[0].Column_Name;
+                const mappedCol = normalizeColumnKey(colName);
+
+                filtered = filtered.filter((inv: any) => {
+                    if (
+                        inv &&
+                        inv[mappedCol] !== undefined &&
+                        inv[mappedCol] !== null
+                    ) {
+                        if (String(inv[mappedCol]) === selVal) return true;
+                    }
+                    const prodMatch = (inv.Products_List || []).some(
+                        (p: any) => {
+                            const direct = p?.[mappedCol];
+                            if (
+                                direct !== undefined &&
+                                direct !== null &&
+                                String(direct) === selVal
+                            )
+                                return true;
+                            if (
+                                p.Stock_Info &&
+                                p.Stock_Info[mappedCol] !== undefined &&
+                                p.Stock_Info[mappedCol] !== null &&
+                                String(p.Stock_Info[mappedCol]) === selVal
+                            )
+                                return true;
+                            return false;
+                        },
+                    );
+                    return prodMatch;
+                });
+            });
         }
 
-        // Pagination
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE;
-        const paginatedData = filtered.slice(startIndex, endIndex);
+        const paginated = filtered.slice(startIndex, endIndex);
+
+        const totalAmount = filtered.reduce(
+            (sum: number, inv: any) =>
+                sum + (Number(inv.Total_Invoice_value) || 0),
+            0,
+        );
 
         return {
-            data: paginatedData,
-            totalPages: Math.ceil(filtered.length / ITEMS_PER_PAGE),
+            data: paginated,
+            totalPages: Math.max(
+                1,
+                Math.ceil(filtered.length / ITEMS_PER_PAGE),
+            ),
             totalItems: filtered.length,
             totalRecords: invoiceData.length,
-            totalAmount: filtered.reduce(
-                (sum, invoice) => sum + (invoice.Total_Invoice_value || 0),
-                0,
-            ),
+            totalAmount,
         };
     };
 
@@ -109,18 +431,13 @@ const SaleInvoice = () => {
         totalAmount,
     } = getProcessedData();
 
-    // Toggle invoice expansion
     const toggleInvoice = (invoiceId: string) => {
         const newExpanded = new Set(expandedInvoices);
-        if (newExpanded.has(invoiceId)) {
-            newExpanded.delete(invoiceId);
-        } else {
-            newExpanded.add(invoiceId);
-        }
+        if (newExpanded.has(invoiceId)) newExpanded.delete(invoiceId);
+        else newExpanded.add(invoiceId);
         setExpandedInvoices(newExpanded);
     };
 
-    // Handle refresh
     const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
         try {
@@ -130,85 +447,160 @@ const SaleInvoice = () => {
         }
     }, [refetch]);
 
-    // Reset pagination when filters change
-    React.useEffect(() => {
-        setCurrentPage(1);
-        setExpandedInvoices(new Set());
-    }, [searchQuery]);
-
-    // Get unique brands with their totals
-    const getBrandsWithTotals = () => {
-        const brandMap = new Map();
-
-        invoiceData.forEach((invoice: any) => {
-            invoice.Products_List?.forEach((product: any) => {
-                const brand =
-                    product.BrandGet && product.BrandGet.trim() !== ""
-                        ? product.BrandGet
-                        : "No Brand";
-                if (!brandMap.has(brand)) {
-                    brandMap.set(brand, {
-                        brand,
-                        count: 0,
-                        amount: 0,
-                    });
-                }
-                const brandInfo = brandMap.get(brand);
-                brandInfo.count += product.Bill_Qty || 0;
-                brandInfo.amount += product.Final_Amo || 0;
-            });
+    const normalizeFilters = (filters: Record<string, string>) => {
+        const result: Record<string, string> = {};
+        Object.keys(filters || {}).forEach(key => {
+            const value = filters[key];
+            result[key] =
+                value === "All" || value === null || value === undefined
+                    ? ""
+                    : value;
         });
-
-        return Array.from(brandMap.values()).sort((a, b) => b.count - a.count);
+        return result;
     };
 
-    // Brand Filter Component
-    const BrandFilter = () => {
-        const brandsWithTotals = getBrandsWithTotals();
+    // --------------------- UI Components ---------------------
+    const Level2Filter = () => {
+        if (!level2TypesOrder || level2TypesOrder.length === 0) return null;
+
+        const type4Cols = level2Columns.filter(c => c.Type === 4);
+        const type5Cols = level2Columns.filter(c => c.Type === 5);
+        const type4Selected = selectedValuesByType[4] || "";
 
         return (
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.brandFilterContainer}>
-                <TouchableOpacity
-                    style={[
-                        styles.brandFilterButton,
-                        !selectedBrand && styles.brandFilterButtonActive,
-                    ]}
-                    onPress={() => setSelectedBrand("")}>
-                    <Text
-                        style={[
-                            styles.brandFilterText,
-                            !selectedBrand && styles.brandFilterTextActive,
-                        ]}>
-                        All
-                    </Text>
-                </TouchableOpacity>
-                {brandsWithTotals.map(({ brand, count }) => (
+            <>
+                {/* <View style={{ paddingHorizontal: 8, marginVertical: 4 }}>
+          <Text style={[styles.brandFilterText, { fontWeight: "700" }]}>Type 4</Text>
+        </View> */}
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.level2FilterContainer}
+                >
                     <TouchableOpacity
-                        key={brand}
                         style={[
                             styles.brandFilterButton,
-                            selectedBrand === brand &&
-                                styles.brandFilterButtonActive,
+                            !type4Selected && styles.brandFilterButtonActive,
                         ]}
-                        onPress={() => setSelectedBrand(brand)}>
+                        onPress={() => {
+                            const newSel = { ...selectedValuesByType };
+                            delete newSel[4];
+                            delete newSel[5];
+                            setSelectedValuesByType(newSel);
+                        }}
+                    >
                         <Text
                             style={[
                                 styles.brandFilterText,
-                                selectedBrand === brand &&
-                                    styles.brandFilterTextActive,
-                            ]}>
-                            {brand} ({count})
+                                !type4Selected && styles.brandFilterTextActive,
+                            ]}
+                        >
+                            All
                         </Text>
                     </TouchableOpacity>
-                ))}
-            </ScrollView>
+                    {activeTypeValuesWithTotals.map(({ value, total }) => {
+                        const isSelected = type4Selected === value;
+                        return (
+                            <TouchableOpacity
+                                key={value}
+                                style={[
+                                    styles.brandFilterButton,
+                                    isSelected &&
+                                        styles.brandFilterButtonActive,
+                                ]}
+                                onPress={() => {
+                                    const newSel = {
+                                        ...selectedValuesByType,
+                                        4: value,
+                                    };
+                                    // delete newSel[5];
+                                    setSelectedValuesByType(newSel);
+                                }}
+                            >
+                                <Text
+                                    style={[
+                                        styles.brandFilterText,
+                                        isSelected &&
+                                            styles.brandFilterTextActive,
+                                    ]}
+                                >
+                                    {value} ({total})
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+
+                {type4Selected && secondLevelValues.length > 0 && (
+                    <>
+                        {/* <View style={{ paddingHorizontal: 8, marginVertical: 4 }}>
+              <Text style={[styles.brandFilterText, { fontWeight: "700" }]}>Type 5</Text>
+            </View> */}
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            style={styles.level2FilterContainer}
+                        >
+                            <TouchableOpacity
+                                style={[
+                                    styles.brandFilterButton,
+                                    !selectedValuesByType[5] &&
+                                        styles.brandFilterButtonActive,
+                                ]}
+                                onPress={() => {
+                                    const newSel = { ...selectedValuesByType };
+                                    delete newSel[5];
+                                    setSelectedValuesByType(newSel);
+                                }}
+                            >
+                                <Text
+                                    style={[
+                                        styles.brandFilterText,
+                                        !selectedValuesByType[5] &&
+                                            styles.brandFilterTextActive,
+                                    ]}
+                                >
+                                    All
+                                </Text>
+                            </TouchableOpacity>
+                            {secondLevelValues.map(({ value, total }) => {
+                                const isSelected =
+                                    selectedValuesByType[5] === value;
+                                return (
+                                    <TouchableOpacity
+                                        key={value}
+                                        style={[
+                                            styles.brandFilterButton,
+                                            isSelected &&
+                                                styles.brandFilterButtonActive,
+                                        ]}
+                                        onPress={() => {
+                                            const newSel = {
+                                                ...selectedValuesByType,
+                                                5: value,
+                                            };
+                                            setSelectedValuesByType(newSel);
+                                        }}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.brandFilterText,
+                                                isSelected &&
+                                                    styles.brandFilterTextActive,
+                                            ]}
+                                        >
+                                            {value} ({total})
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                    </>
+                )}
+            </>
         );
     };
 
-    // Summary Cards Component
     const SummaryCards = () => (
         <View style={styles.summaryContainer}>
             <View style={styles.summaryCard}>
@@ -226,16 +618,12 @@ const SaleInvoice = () => {
         </View>
     );
 
-    // Invoice Card Component
     const InvoiceCard = ({ invoice }: { invoice: any }) => {
         const isExpanded = expandedInvoices.has(invoice.Do_Id);
-        const isActive = invoice.Cancel_status === "1";
-
         const getFormattedDate = (dateString: string) => {
             try {
-                const date = new Date(dateString);
-                return formatDate(date);
-            } catch (error) {
+                return formatDate(new Date(dateString));
+            } catch {
                 return "--";
             }
         };
@@ -245,67 +633,105 @@ const SaleInvoice = () => {
                 <TouchableOpacity
                     style={styles.orderHeader}
                     onPress={() => toggleInvoice(invoice.Do_Id)}
-                    activeOpacity={0.7}>
-                    <View style={styles.orderHeaderLeft}>
-                        <View style={styles.orderTopRow}>
-                            <View style={styles.orderNumberContainer}>
-                                <Text style={styles.orderNumber}>
-                                    {invoice.Do_Inv_No}
-                                </Text>
-                                <View style={styles.dateTimeContainer}>
+                    activeOpacity={0.8}
+                >
+                    <View style={styles.orderHeaderContent}>
+                        <View style={styles.leftColumn}>
+                            <Text style={styles.retailerName} numberOfLines={2}>
+                                {invoice.Retailer_Name || "--"}
+                            </Text>
+                            <View style={styles.dateTimeRow}>
+                                <View style={styles.dateTimeItem}>
                                     <Icon
                                         name="event"
                                         size={12}
                                         color={colors.textSecondary}
-                                        style={styles.dateTimeIcon}
                                     />
-                                    <Text style={styles.orderDateTime}>
+                                    <Text style={styles.dateTimeText}>
                                         {invoice.Created_on
                                             ? getFormattedDate(
                                                   invoice.Created_on,
                                               )
                                             : "--"}
                                     </Text>
+                                </View>
+                                <View style={styles.dateTimeItem}>
                                     <Icon
                                         name="schedule"
                                         size={12}
                                         color={colors.textSecondary}
-                                        style={styles.dateTimeIcon}
                                     />
-                                    <Text style={styles.orderDateTime}>
+                                    <Text style={styles.dateTimeText}>
                                         {invoice.Created_on
                                             ? formatTime(invoice.Created_on)
                                             : "--"}
                                     </Text>
                                 </View>
                             </View>
-                            <Text style={styles.orderAmount}>
-                                {formatCurrency(invoice.Total_Invoice_value)}
-                            </Text>
-                        </View>
-                        <View style={styles.orderBottomRow}>
-                            <View style={styles.retailerContainer}>
+                            <View style={styles.invoiceIdRow}>
                                 <Icon
-                                    name="store"
+                                    name="receipt"
                                     size={14}
                                     color={colors.primary}
-                                    style={styles.bottomRowIcon}
                                 />
                                 <Text
-                                    style={styles.retailerName}
-                                    numberOfLines={2}>
-                                    {invoice.Retailer_Name}
+                                    style={styles.invoiceIdText}
+                                    numberOfLines={1}
+                                >
+                                    {invoice.Do_Inv_No || "--"}
                                 </Text>
                             </View>
-                            <View style={styles.salesPersonContainer}>
+                            <View style={styles.invoiceIdRow}>
+                                <Icon
+                                    name="receipt"
+                                    size={14}
+                                    color={colors.primary}
+                                />
+                                <Text
+                                    style={styles.invoiceIdText}
+                                    numberOfLines={1}
+                                >
+                                    {invoice.VoucherTypeGet || "--"}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.rightColumn}>
+                            <Text style={styles.totalAmount}>
+                                {invoice.Total_Invoice_value
+                                    ? formatCurrency(
+                                          invoice.Total_Invoice_value,
+                                      )
+                                    : "--"}
+                            </Text>
+                            {invoice.Ref_Brokers ? (
+                                <View style={styles.refBrokerRow}>
+                                    <Icon
+                                        name="groups"
+                                        size={12}
+                                        color={colors.textSecondary}
+                                    />
+                                    <Text
+                                        style={styles.refBrokerText}
+                                        numberOfLines={1}
+                                    >
+                                        {invoice.Ref_Brokers}
+                                    </Text>
+                                </View>
+                            ) : (
+                                <View style={{ height: 18 }} />
+                            )}
+                            <View style={styles.createdByRow}>
                                 <Icon
                                     name="person"
                                     size={14}
                                     color={colors.textSecondary}
-                                    style={styles.bottomRowIcon}
                                 />
-                                <Text style={styles.salesPerson}>
-                                    {invoice.Created_BY_Name}
+                                <Text
+                                    style={styles.createdByText}
+                                    numberOfLines={1}
+                                >
+                                    {invoice.Created_BY_Name || "--"}
                                 </Text>
                             </View>
                         </View>
@@ -314,7 +740,6 @@ const SaleInvoice = () => {
 
                 {isExpanded && (
                     <View style={styles.orderDetails}>
-                        {/* Essential Order Info */}
                         <View style={styles.essentialInfo}>
                             <View style={styles.infoGrid}>
                                 <View style={styles.infoItem}>
@@ -329,7 +754,8 @@ const SaleInvoice = () => {
                                         </Text>
                                         <Text
                                             style={styles.infoValue}
-                                            numberOfLines={1}>
+                                            numberOfLines={1}
+                                        >
                                             {invoice.Branch_Name}
                                         </Text>
                                     </View>
@@ -369,7 +795,6 @@ const SaleInvoice = () => {
                             </View>
                         </View>
 
-                        {/* Products Table */}
                         {invoice.Products_List &&
                             invoice.Products_List.length > 0 && (
                                 <View style={styles.productsTable}>
@@ -378,7 +803,8 @@ const SaleInvoice = () => {
                                             style={[
                                                 styles.tableCell,
                                                 styles.productNameCell,
-                                            ]}>
+                                            ]}
+                                        >
                                             Product
                                         </Text>
                                         <Text style={styles.tableCell}>
@@ -395,13 +821,15 @@ const SaleInvoice = () => {
                                         (product: any, index: number) => (
                                             <View
                                                 key={index}
-                                                style={styles.tableRow}>
+                                                style={styles.tableRow}
+                                            >
                                                 <Text
                                                     style={[
                                                         styles.tableCell,
                                                         styles.productNameCell,
                                                     ]}
-                                                    numberOfLines={4}>
+                                                    numberOfLines={4}
+                                                >
                                                     {product.Product_Name}
                                                 </Text>
                                                 <Text style={styles.tableCell}>
@@ -428,7 +856,6 @@ const SaleInvoice = () => {
         );
     };
 
-    // Pagination Component
     const PaginationControls = () => (
         <View style={styles.paginationContainer}>
             <TouchableOpacity
@@ -437,7 +864,8 @@ const SaleInvoice = () => {
                     currentPage === 1 && styles.pageButtonDisabled,
                 ]}
                 onPress={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}>
+                disabled={currentPage === 1}
+            >
                 <Icon
                     name="chevron-left"
                     size={20}
@@ -462,7 +890,8 @@ const SaleInvoice = () => {
                 onPress={() =>
                     setCurrentPage(Math.min(totalPages, currentPage + 1))
                 }
-                disabled={currentPage === totalPages}>
+                disabled={currentPage === totalPages}
+            >
                 <Icon
                     name="chevron-right"
                     size={20}
@@ -476,9 +905,7 @@ const SaleInvoice = () => {
         </View>
     );
 
-    const handleCloseModal = () => {
-        setModalVisible(false);
-    };
+    const handleCloseModal = () => setModalVisible(false);
 
     return (
         <SafeAreaView style={styles.container}>
@@ -495,9 +922,17 @@ const SaleInvoice = () => {
                 visible={modalVisible}
                 fromDate={fromDate}
                 toDate={toDate}
+                reportName="Sales Invoice"
+                expectedReportName="Sales Invoice"
+                enableDynamicFilter={true}
                 onFromDateChange={setFromDate}
                 onToDateChange={setToDate}
-                onApply={() => setModalVisible(false)}
+                onApply={filters => {
+                    const cleaned = normalizeFilters(filters);
+                    setSelectedFilters(cleaned);
+                    setModalVisible(false);
+                    refetch();
+                }}
                 onClose={handleCloseModal}
                 showToDate={true}
                 title="Filter Options"
@@ -515,8 +950,8 @@ const SaleInvoice = () => {
                         tintColor={colors.primary}
                     />
                 }
-                showsVerticalScrollIndicator={false}>
-                {/* Loading State */}
+                showsVerticalScrollIndicator={false}
+            >
                 {isLoading && (
                     <View style={styles.loadingContainer}>
                         <Text style={styles.loadingText}>
@@ -525,7 +960,6 @@ const SaleInvoice = () => {
                     </View>
                 )}
 
-                {/* Error State */}
                 {!isLoading && error && (
                     <View style={styles.errorContainer}>
                         <Icon
@@ -537,11 +971,13 @@ const SaleInvoice = () => {
                             Error loading invoices
                         </Text>
                         <Text style={styles.errorSubtext}>
-                            {error.message || "Please try again later"}
+                            {(error as any)?.message ||
+                                "Please try again later"}
                         </Text>
                         <TouchableOpacity
                             style={styles.retryButton}
-                            onPress={onRefresh}>
+                            onPress={onRefresh}
+                        >
                             <Icon
                                 name="refresh"
                                 size={20}
@@ -552,16 +988,14 @@ const SaleInvoice = () => {
                     </View>
                 )}
 
-                {/* Data Display */}
                 {!isLoading && !error && invoiceData.length > 0 && (
                     <>
-                        {/* Summary Cards */}
                         <SummaryCards />
 
-                        {/* Brand Filter */}
-                        <BrandFilter />
+                        {/* LEVEL2 dynamic filter */}
+                        <Level2Filter />
 
-                        {/* Search Bar */}
+                        {/* Search */}
                         <View style={styles.searchContainer}>
                             <Icon
                                 name="search"
@@ -577,7 +1011,8 @@ const SaleInvoice = () => {
                             />
                             {searchQuery.length > 0 && (
                                 <TouchableOpacity
-                                    onPress={() => setSearchQuery("")}>
+                                    onPress={() => setSearchQuery("")}
+                                >
                                     <Icon
                                         name="clear"
                                         size={20}
@@ -587,16 +1022,6 @@ const SaleInvoice = () => {
                             )}
                         </View>
 
-                        {/* Results Info */}
-                        <View style={styles.resultsContainer}>
-                            <Text style={styles.resultsText}>
-                                Showing {displayData.length} invoices (
-                                {totalItems} filtered, {totalRecords} total
-                                records)
-                            </Text>
-                        </View>
-
-                        {/* Invoices List */}
                         {displayData.map((invoice, index) => (
                             <InvoiceCard
                                 key={invoice.Do_Id}
@@ -604,12 +1029,10 @@ const SaleInvoice = () => {
                             />
                         ))}
 
-                        {/* Pagination */}
                         {totalPages > 1 && <PaginationControls />}
                     </>
                 )}
 
-                {/* No Data State */}
                 {!isLoading && !error && invoiceData.length === 0 && (
                     <View style={styles.noDataContainer}>
                         <Icon
@@ -624,7 +1047,6 @@ const SaleInvoice = () => {
                     </View>
                 )}
 
-                {/* No Results State */}
                 {!isLoading &&
                     !error &&
                     invoiceData.length > 0 &&
@@ -826,6 +1248,7 @@ const getStyles = (typography: any, colors: any) =>
             alignItems: "flex-start",
             justifyContent: "space-between",
             padding: responsiveWidth(4),
+            backgroundColor: colors.white,
         },
         orderHeaderLeft: {
             flex: 1,
@@ -884,7 +1307,11 @@ const getStyles = (typography: any, colors: any) =>
             flex: 1,
             ...typography.body2,
             color: colors.text,
-            fontWeight: "500",
+            fontSize: 16,
+            fontWeight: "600",
+            marginBottom: 6,
+            lineHeight: 20,
+            flexWrap: "wrap",
         },
         salesPersonContainer: {
             flexDirection: "row",
@@ -1071,7 +1498,6 @@ const getStyles = (typography: any, colors: any) =>
             fontWeight: "700",
         },
 
-        // Expenses Section
         expensesSection: {
             backgroundColor: colors.accent + "05",
             padding: responsiveWidth(3),
@@ -1145,5 +1571,107 @@ const getStyles = (typography: any, colors: any) =>
             ...typography.body2,
             color: colors.textSecondary,
             textAlign: "center",
+        },
+        amountWrapper: {
+            flexDirection: "column",
+            alignItems: "flex-end",
+        },
+        refBrokerSection: {
+            flexDirection: "row",
+            alignItems: "center",
+            marginTop: 4,
+        },
+        brokerIcon: {
+            marginRight: 4,
+            fontSize: 14,
+        },
+        brokerLabel: {
+            fontSize: 14,
+            color: colors.textSecondary,
+            maxWidth: 140,
+        },
+        dateTimeItem: {
+            flexDirection: "row",
+            alignItems: "center",
+            marginRight: 8,
+        },
+        bottomRowItem: {
+            flexDirection: "row",
+            alignItems: "center",
+            marginRight: 16,
+            flexShrink: 1,
+        },
+        bottomRowText: {
+            fontSize: 13,
+            color: colors.textPrimary,
+            marginLeft: 4,
+            fontWeight: "500",
+            flexShrink: 1,
+        },
+        orderHeaderContent: {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+        },
+        leftColumn: {
+            flex: 1,
+            paddingRight: 8,
+        },
+        rightColumn: {
+            flex: 1,
+            alignItems: "flex-end",
+            paddingLeft: 8,
+        },
+        dateTimeRow: {
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 6,
+        },
+        dateTimeText: {
+            fontSize: 12,
+            color: colors.textSecondary,
+            marginLeft: 4,
+        },
+        invoiceIdRow: {
+            flexDirection: "row",
+            alignItems: "center",
+        },
+        invoiceIdText: {
+            fontSize: 13,
+            color: colors.textPrimary,
+            marginLeft: 4,
+            fontWeight: "500",
+        },
+        totalAmount: {
+            fontSize: 16,
+            fontWeight: "600",
+            color: colors.success,
+            marginBottom: 6,
+        },
+        refBrokerRow: {
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 6,
+        },
+        refBrokerText: {
+            fontSize: 12,
+            color: colors.textSecondary,
+            marginLeft: 4,
+            maxWidth: 120,
+        },
+        createdByRow: {
+            flexDirection: "row",
+            alignItems: "center",
+        },
+        createdByText: {
+            fontSize: 12,
+            color: colors.textSecondary,
+            marginLeft: 4,
+            maxWidth: 120,
+        },
+        level2FilterContainer: {
+            flexDirection: "row",
+            paddingVertical: 8,
+            paddingHorizontal: 5,
         },
     });

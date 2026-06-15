@@ -220,7 +220,8 @@ const ItemStack = () => {
                         styles.groupHeader,
                         isExpanded && styles.groupHeaderExpanded,
                     ]}
-                    onPress={() => toggleGroup(group.groupName)}>
+                    onPress={() => toggleGroup(group.groupName)}
+                >
                     <View style={styles.groupHeaderContent}>
                         <View style={styles.groupTitleContainer}>
                             <Icon
@@ -289,7 +290,8 @@ const ItemStack = () => {
                         {group.items.map((item, index) => (
                             <View
                                 key={`${item.Stock_Group}-${item.Grade_Item_Group}-${index}`}
-                                style={styles.itemCard}>
+                                style={styles.itemCard}
+                            >
                                 <View style={styles.itemHeader}>
                                     <View style={styles.itemHeaderLeft}>
                                         <Text style={styles.itemName}>
@@ -297,15 +299,15 @@ const ItemStack = () => {
                                         </Text>
                                         <View style={styles.itemSubInfo}>
                                             <Text
-                                                style={styles.itemSubInfoText}>
+                                                style={styles.itemSubInfoText}
+                                            >
                                                 {item.S_Sub_Group_1}
                                             </Text>
                                             <View style={styles.divider} />
                                             <View style={styles.itemBadge}>
                                                 <Text
-                                                    style={
-                                                        styles.itemBadgeText
-                                                    }>
+                                                    style={styles.itemBadgeText}
+                                                >
                                                     {item.Grade_Item_Group}
                                                 </Text>
                                             </View>
@@ -347,11 +349,13 @@ const ItemStack = () => {
                                                 color={colors.success}
                                             />
                                             <Text
-                                                style={styles.transactionLabel}>
+                                                style={styles.transactionLabel}
+                                            >
                                                 IN
                                             </Text>
                                             <Text
-                                                style={styles.transactionValue}>
+                                                style={styles.transactionValue}
+                                            >
                                                 {item.IN_Qty} Qty |{" "}
                                                 {formatCurrency(item.IN_Value)}
                                             </Text>
@@ -363,11 +367,13 @@ const ItemStack = () => {
                                                 color={colors.error}
                                             />
                                             <Text
-                                                style={styles.transactionLabel}>
+                                                style={styles.transactionLabel}
+                                            >
                                                 OUT
                                             </Text>
                                             <Text
-                                                style={styles.transactionValue}>
+                                                style={styles.transactionValue}
+                                            >
                                                 {item.OUT_Qty} Qty |{" "}
                                                 {formatCurrency(item.Out_Value)}
                                             </Text>
@@ -410,7 +416,8 @@ const ItemStack = () => {
 
             <ScrollView
                 style={styles.scrollContainer}
-                showsVerticalScrollIndicator={false}>
+                showsVerticalScrollIndicator={false}
+            >
                 {/* Loading State */}
                 {isItemStockValueLoading && (
                     <View style={styles.loadingContainer}>
@@ -440,7 +447,8 @@ const ItemStack = () => {
                         </Text>
                         <TouchableOpacity
                             style={styles.retryButton}
-                            onPress={() => refetchItemStockValue()}>
+                            onPress={() => refetchItemStockValue()}
+                        >
                             <Icon
                                 name="refresh"
                                 size={20}
@@ -475,7 +483,8 @@ const ItemStack = () => {
                                 />
                                 {searchText.length > 0 && (
                                     <TouchableOpacity
-                                        onPress={() => setSearchText("")}>
+                                        onPress={() => setSearchText("")}
+                                    >
                                         <Icon
                                             name="clear"
                                             size={20}
@@ -496,7 +505,8 @@ const ItemStack = () => {
                                         ]}
                                         onPress={() =>
                                             setGroupBy("Stock_Group")
-                                        }>
+                                        }
+                                    >
                                         <Icon
                                             name="category"
                                             size={18}
@@ -511,7 +521,8 @@ const ItemStack = () => {
                                                 styles.groupToggleButtonText,
                                                 groupBy === "Stock_Group" &&
                                                     styles.activeGroupToggleButtonText,
-                                            ]}>
+                                            ]}
+                                        >
                                             Stock Group
                                         </Text>
                                     </TouchableOpacity>
@@ -523,7 +534,8 @@ const ItemStack = () => {
                                         ]}
                                         onPress={() =>
                                             setGroupBy("Grade_Item_Group")
-                                        }>
+                                        }
+                                    >
                                         <Icon
                                             name="label"
                                             size={18}
@@ -539,7 +551,8 @@ const ItemStack = () => {
                                                 groupBy ===
                                                     "Grade_Item_Group" &&
                                                     styles.activeGroupToggleButtonText,
-                                            ]}>
+                                            ]}
+                                        >
                                             Grade Item Group
                                         </Text>
                                     </TouchableOpacity>
@@ -550,7 +563,8 @@ const ItemStack = () => {
                             <View
                                 style={{
                                     paddingHorizontal: responsiveWidth(4),
-                                }}>
+                                }}
+                            >
                                 {groupedData.map((group, index) => (
                                     <GroupCard
                                         key={`${group.groupName}-${index}`}

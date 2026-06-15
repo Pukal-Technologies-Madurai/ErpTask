@@ -29,14 +29,14 @@ const DrawerNavigator = () => {
                 headerShown: false,
                 drawerStyle: {
                     backgroundColor: colors.background,
-                    width: 300,
-                    borderTopRightRadius: 20,
-                    borderBottomRightRadius: 20,
+                    width: 312,
+                    borderTopRightRadius: 24,
+                    borderBottomRightRadius: 24,
                     elevation: 10,
                     shadowColor: colors.black,
                     shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 8,
+                    shadowOpacity: 0.24,
+                    shadowRadius: 10,
                 },
                 drawerActiveTintColor: colors.primary,
                 drawerInactiveTintColor: colors.textSecondary,
@@ -47,20 +47,20 @@ const DrawerNavigator = () => {
                 headerTintColor: colors.white,
                 drawerLabelStyle: {
                     ...typography.body1,
-                    fontWeight: "500",
-                    marginLeft: -16,
+                    fontWeight: "600",
+                    marginLeft: 6,
                 },
                 drawerItemStyle: {
-                    borderRadius: 12,
+                    borderRadius: 14,
                     marginHorizontal: 12,
-                    marginVertical: 2,
-                    paddingHorizontal: 12,
+                    marginVertical: 3,
+                    paddingHorizontal: 16,
                 },
                 drawerContentStyle: {
                     backgroundColor: colors.background,
                     paddingTop: 0,
                 },
-                sceneContainerStyle: {
+                sceneStyle: {
                     backgroundColor: colors.background,
                 },
             }}>
