@@ -154,7 +154,7 @@ const ShetSheetDetail = () => {
                     [
                         {
                             text: "OK",
-                            onPress: () => navigation.replace("MainDrawer"),
+                            onPress: () => navigation.goBack(),
                         },
                     ],
                 );
